@@ -42,6 +42,18 @@ export const adminAPI = {
 
   // Search
   searchUsers: (query) => api.get(`/search?query=${query}`),
+
+    downloadInvoice: (userId) => api.get(`/client-users/${userId}/invoice`, {
+        responseType: 'blob', // Important for file downloads
+    }),
+
+    viewInvoice: (userId) => api.get(`/client-users/${userId}/invoice/view`, {
+        responseType: 'blob',
+    }),
+
+    getInvoiceInfo: (userId) => api.get(`/client-users/${userId}/invoice/info`),
+
+    // Also update your getClientUserById to include invoice info
 };
 
 export const authAPI = {

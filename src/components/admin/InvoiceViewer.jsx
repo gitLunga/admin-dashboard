@@ -1,0 +1,296 @@
+// src/components/admin/InvoiceViewer.jsx
+import React, { useState, useEffect } from 'react';
+import {
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Button,
+    Box,
+    Grid,
+    Typography,
+    CircularProgress,
+    Alert,
+    IconButton,
+    Chip,
+    Divider,
+} from '@mui/material';
+import {
+    Download as DownloadIcon,
+    Visibility as ViewIcon,
+    Close as CloseIcon,
+    PictureAsPdf as PdfIcon,
+    Description as DocIcon,
+    Image as ImageIcon,
+    Description, // ADD THIS
+} from '@mui/icons-material';
+import { adminAPI } from '../../services/api';
+
+// Remove or fix this line - either define API_BASE_URL or use a different approach
+// const API_BASE_URL = 'http://localhost:5000'; // Define this if needed
+
+const InvoiceViewer = ({ open, userId, userName, onClose }) => {
+    const [loading, setLoading] = useState(false);
+    const [invoiceInfo, setInvoiceInfo] = useState(null);
+    const [error, setError] = useState(null);
+
+    // Fixed: Added proper dependency array
+    useEffect(() => {
+        if (open && userId) {
+            fetchInvoiceInfo();
+        }
+    }, [open, userId]); // Added userId to dependencies
+
+    const fetchInvoiceInfo = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const response = await adminAPI.getInvoiceInfo(userId);
+            setInvoiceInfo(response.data.data);
+        } catch (err) {
+            console.error('Error fetching invoice info:', err);
+            setError('Invoice not found or not uploaded yet');
+            setInvoiceInfo(null);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDownload = async () => {
+        try {
+            setLoading(true);
+            const response = await adminAPI.downloadInvoice(userId);
+
+            // Create download link
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', invoiceInfo.file_name || 'invoice.pdf');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Download error:', err);
+            setError('Failed to download invoice');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleView = async () => {
+        try {
+            setLoading(true);
+            const response = await adminAPI.viewInvoice(userId);
+
+            // Open in new tab for viewing
+            const blob = new Blob([response.data], { type: invoiceInfo.mime_type });
+            const url = window.URL.createObjectURL(blob);
+            window.open(url, '_blank');
+        } catch (err) {
+            console.error('View error:', err);
+            setError('Failed to view invoice');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getFileIcon = (fileName) => {
+        if (!fileName) return <Description />;
+
+        if (fileName.toLowerCase().endsWith('.pdf')) {
+            return <PdfIcon color="error" />;
+        } else if (fileName.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/)) {
+            return <ImageIcon color="primary" />;
+        } else if (fileName.toLowerCase().match(/\.(doc|docx)$/)) {
+            return <DocIcon color="info" />;
+        }
+        return <Description />;
+    };
+
+    const formatFileSize = (bytes) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    return (
+        <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+            <DialogTitle>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Typography variant="h6">
+                        Invoice for {userName}
+                    </Typography>
+                    <IconButton onClick={onClose} size="small">
+                        <CloseIcon />
+                    </IconButton>
+                </Box>
+            </DialogTitle>
+
+            <DialogContent>
+                {loading && !invoiceInfo ? (
+                    <Box display="flex" justifyContent="center" p={3}>
+                        <CircularProgress />
+                    </Box>
+                ) : error ? (
+                    <Alert severity="warning" sx={{ my: 2 }}>
+                        {error}
+                    </Alert>
+                ) : invoiceInfo ? (
+                    <Box>
+                        {/* Invoice Info Card */}
+                        <Box
+                            sx={{
+                                p: 3,
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                borderRadius: 1,
+                                mb: 3,
+                                bgcolor: 'background.paper',
+                            }}
+                        >
+                            <Box display="flex" alignItems="center" mb={2}>
+                                {getFileIcon(invoiceInfo.file_name)}
+                                <Typography variant="h6" sx={{ ml: 2 }}>
+                                    {invoiceInfo.file_name}
+                                </Typography>
+                            </Box>
+
+                            <Divider sx={{ my: 2 }} />
+
+                            <Grid container spacing={2}>
+                                <Grid item xs={6}>
+                                    <Typography variant="body2" color="textSecondary">
+                                        File Size
+                                    </Typography>
+                                    <Typography variant="body1">
+                                        {formatFileSize(invoiceInfo.file_size)}
+                                    </Typography>
+                                </Grid>
+
+                                <Grid item xs={6}>
+                                    <Typography variant="body2" color="textSecondary">
+                                        Uploaded Date
+                                    </Typography>
+                                    <Typography variant="body1">
+                                        {new Date(invoiceInfo.uploaded_date).toLocaleDateString()}
+                                    </Typography>
+                                </Grid>
+
+                                <Grid item xs={6}>
+                                    <Typography variant="body2" color="textSecondary">
+                                        File Type
+                                    </Typography>
+                                    <Typography variant="body1">
+                                        {invoiceInfo.mime_type}
+                                    </Typography>
+                                </Grid>
+
+                                <Grid item xs={6}>
+                                    <Typography variant="body2" color="textSecondary">
+                                        Status
+                                    </Typography>
+                                    <Chip
+                                        label="Available"
+                                        color="success"
+                                        size="small"
+                                    />
+                                </Grid>
+                            </Grid>
+                        </Box>
+
+                        {/* Preview Section - Fixed: Removed API_BASE_URL dependency */}
+                        {invoiceInfo.mime_type.includes('image') && invoiceInfo.file_path ? (
+                            <Box mb={3}>
+                                <Typography variant="subtitle1" gutterBottom>
+                                    Preview
+                                </Typography>
+                                <Box
+                                    sx={{
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                        borderRadius: 1,
+                                        p: 2,
+                                        display: 'flex',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    {/* Use relative path or serve from your API */}
+                                    <img
+                                        src={`/api${invoiceInfo.file_path}`} // Changed to relative path
+                                        alt="Invoice preview"
+                                        style={{ maxWidth: '100%', maxHeight: '300px' }}
+                                        onError={(e) => {
+                                            e.target.onerror = null;
+                                            // Show a placeholder or hide the image
+                                            e.target.style.display = 'none';
+                                        }}
+                                    />
+                                </Box>
+                            </Box>
+                        ) : invoiceInfo.mime_type.includes('pdf') && (
+                            <Box mb={3}>
+                                <Typography variant="subtitle1" gutterBottom>
+                                    PDF Document
+                                </Typography>
+                                <Box
+                                    sx={{
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                        borderRadius: 1,
+                                        p: 2,
+                                        height: '300px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexDirection: 'column',
+                                    }}
+                                >
+                                    <PdfIcon sx={{ fontSize: 48, color: 'error.main', mb: 2 }} />
+                                    <Typography color="textSecondary">
+                                        PDF document preview not available inline.
+                                        Click "View" to open in new tab.
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        )}
+                    </Box>
+                ) : (
+                    <Alert severity="info" sx={{ my: 2 }}>
+                        No invoice uploaded for this user
+                    </Alert>
+                )}
+            </DialogContent>
+
+            <DialogActions>
+                <Button onClick={onClose} color="inherit">
+                    Close
+                </Button>
+                {invoiceInfo && (
+                    <>
+                        <Button
+                            onClick={handleView}
+                            startIcon={<ViewIcon />}
+                            variant="outlined"
+                            disabled={loading}
+                        >
+                            View
+                        </Button>
+                        <Button
+                            onClick={handleDownload}
+                            startIcon={<DownloadIcon />}
+                            variant="contained"
+                            disabled={loading}
+                        >
+                            {loading ? 'Downloading...' : 'Download'}
+                        </Button>
+                    </>
+                )}
+            </DialogActions>
+        </Dialog>
+    );
+};
+
+export default InvoiceViewer;
