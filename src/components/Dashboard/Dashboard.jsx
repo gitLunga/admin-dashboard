@@ -6,7 +6,7 @@ import {
     Box,
     CircularProgress,
     Alert,
-    Button,
+    Button, Skeleton,
 } from '@mui/material';
 import { adminAPI } from '../../services/api';
 import StatsCard from './StatsCard';
@@ -60,9 +60,18 @@ const Dashboard = () => {
 
     if (loading) {
         return (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-                <CircularProgress />
-                <Typography sx={{ ml: 2 }}>Loading dashboard...</Typography>
+            <Box sx={{ p: 3 }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                    <Skeleton variant="text" width={200} height={40} />
+                    <Skeleton variant="rectangular" width={100} height={36} />
+                </Box>
+                <Grid container spacing={3}>
+                    {[1,2,3,4].map(i => (
+                        <Grid item xs={12} sm={6} md={3} key={i}>
+                            <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 2 }} />
+                        </Grid>
+                    ))}
+                </Grid>
             </Box>
         );
     }

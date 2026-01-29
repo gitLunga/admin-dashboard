@@ -28,7 +28,7 @@ export const adminAPI = {
   getClientUsers: () => api.get('/client-users'),
   getClientUserById: (id) => api.get(`/client-users/${id}`),
   updateUserStatus: (id, data) =>
-    api.put(`/client-users/${id}/status`, data),
+    api.patch(`/client-users/${id}/status`, data),
 
   // Operational Users
   getOperationalUsers: () => api.get('/operational-users'),

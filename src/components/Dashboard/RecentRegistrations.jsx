@@ -79,13 +79,19 @@ const RecentRegistrations = ({ data = [] }) => {
     setVisibleCount((prev) => Math.min(prev + 5, data.length));
   };
 
-  if (data.length === 0) {
-    return (
-      <Box textAlign="center" py={4}>
-        <Typography color="textSecondary">No recent registrations</Typography>
-      </Box>
-    );
-  }
+    if (data.length === 0) {
+        return (
+            <Box textAlign="center" py={6}>
+                <PersonIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" color="textSecondary" gutterBottom>
+                    No recent registrations
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                    Users registered in the last 7 days will appear here
+                </Typography>
+            </Box>
+        );
+    }
 
   return (
     <>
