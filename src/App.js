@@ -10,7 +10,7 @@ import ErrorBoundary from './components/Common/ErrorBoundary';
 
 // Pages
 import LoginPage from './pages/LoginPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ForgotPassword from './pages/ForgotPassword';
 
 import Dashboard from './components/Dashboard/Dashboard';
 import UserList from './components/Users/UserList';
@@ -32,12 +32,12 @@ function App() {
           <React.Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Auth pages (just normal pages for now) */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/" element={<LoginPage />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
 
               {/* App pages */}
               <Route
-                path="/"
+                path="/dashboard"
                 element={
                   <MainLayout>
                     <Dashboard />
