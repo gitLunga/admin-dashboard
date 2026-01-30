@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Box,
     Paper,
@@ -16,6 +16,10 @@ import {
     TableRow,
     TablePagination,
     Avatar,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -34,6 +38,7 @@ const ClientUsers = () => {
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [selectedUser, setSelectedUser] = useState(null);
     const [modalOpen, setModalOpen] = useState(false);
+    const [selectedRegion, setSelectedRegion] = useState('all'); // New state for region filter
 
     useEffect(() => {
         fetchClientUsers();
@@ -105,12 +110,33 @@ const ClientUsers = () => {
         }
     };
 
-    const filteredUsers = users.filter((user) =>
-        user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.persal_id?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Get unique regions from users for the filter dropdown
+    const uniqueRegions = useMemo(() => {
+        const regions = users
+            .map(user => user.region)
+            .filter(region => region && region.trim() !== '');
+        return ['All Regions', ...new Set(regions)].sort();
+    }, [users]);
+
+    // Filter users based on search term AND region
+    const filteredUsers = useMemo(() => {
+        return users.filter((user) => {
+            // Search filter
+            const matchesSearch =
+                user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                user.persal_id?.toLowerCase().includes(searchTerm.toLowerCase());
+
+            // Region filter
+            const matchesRegion =
+                selectedRegion === 'all' ||
+                selectedRegion === 'All Regions' ||
+                user.region === selectedRegion;
+
+            return matchesSearch && matchesRegion;
+        });
+    }, [users, searchTerm, selectedRegion]);
 
     if (loading) {
         return (
@@ -126,25 +152,60 @@ const ClientUsers = () => {
                 Client Users Management
             </Typography>
 
-            <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+            <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 <TextField
                     placeholder="Search by name, email, or Persal ID..."
                     variant="outlined"
                     size="small"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    sx={{ flexGrow: 1 }}
+                    sx={{ flexGrow: 1, minWidth: '300px' }}
                     onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 />
                 <IconButton onClick={handleSearch}>
                     <SearchIcon />
                 </IconButton>
+
+                {/* Region Filter Dropdown */}
+                <FormControl sx={{ minWidth: 200 }} size="small">
+                    <InputLabel>Filter by Region</InputLabel>
+                    <Select
+                        value={selectedRegion}
+                        label="Filter by Region"
+                        onChange={(e) => {
+                            setSelectedRegion(e.target.value);
+                            setPage(0); // Reset to first page when filter changes
+                        }}
+                    >
+                        <MenuItem value="all">All Regions</MenuItem>
+                        {uniqueRegions.filter(region => region !== 'All Regions').map((region) => (
+                            <MenuItem key={region} value={region}>
+                                {region || 'N/A'}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
             </Box>
 
             {error && (
                 <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
                     {error}
                 </Alert>
+            )}
+
+            {/* Optional: Show active filter status */}
+            {selectedRegion !== 'all' && (
+                <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip
+                        label={`Region: ${selectedRegion}`}
+                        color="primary"
+                        variant="outlined"
+                        onDelete={() => setSelectedRegion('all')}
+                    />
+                    <Typography variant="caption" color="textSecondary">
+                        {filteredUsers.length} user(s) found
+                    </Typography>
+                </Box>
             )}
 
             <TableContainer component={Paper}>
@@ -160,86 +221,100 @@ const ClientUsers = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {filteredUsers
-                            .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                            .map((user) => (
-                                <TableRow key={user.client_user_id} hover>
-                                    <TableCell>
-                                        <Box display="flex" alignItems="center">
-                                            <Avatar sx={{ width: 32, height: 32, mr: 2, bgcolor: 'primary.main' }}>
-                                                {user.first_name?.[0]}{user.last_name?.[0]}
-                                            </Avatar>
-                                            <Box>
-                                                <Typography variant="body2" fontWeight="medium">
-                                                    {user.title} {user.first_name} {user.last_name}
-                                                </Typography>
-                                                <Typography variant="caption" color="textSecondary">
-                                                    ID: {user.client_user_id}
-                                                </Typography>
+                        {filteredUsers.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                                    <Typography color="textSecondary">
+                                        No users found{selectedRegion !== 'all' ? ` in region "${selectedRegion}"` : ''}
+                                    </Typography>
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            filteredUsers
+                                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                                .map((user) => (
+                                    <TableRow key={user.client_user_id} hover>
+                                        <TableCell>
+                                            <Box display="flex" alignItems="center">
+                                                <Avatar sx={{ width: 32, height: 32, mr: 2, bgcolor: 'primary.main' }}>
+                                                    {user.first_name?.[0]}{user.last_name?.[0]}
+                                                </Avatar>
+                                                <Box>
+                                                    <Typography variant="body2" fontWeight="medium">
+                                                        {user.title} {user.first_name} {user.last_name}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        ID: {user.client_user_id}
+                                                    </Typography>
+                                                </Box>
                                             </Box>
-                                        </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Typography variant="body2">{user.email}</Typography>
-                                        {user.phone_number && (
-                                            <Typography variant="caption" color="textSecondary">
-                                                {user.phone_number}
-                                            </Typography>
-                                        )}
-                                    </TableCell>
-                                    <TableCell>{user.region || 'N/A'}</TableCell>
-                                    <TableCell>
-                                        <Chip
-                                            label={user.user_type}
-                                            size="small"
-                                            color="primary"
-                                            variant="outlined"
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <Chip
-                                            label={user.registration_status}
-                                            color={getStatusColor(user.registration_status)}
-                                            size="small"
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <IconButton
-                                            size="small"
-                                            onClick={() => {
-                                                setSelectedUser(user);
-                                                setModalOpen(true);
-                                            }}
-                                            title="Update Status"
-                                        >
-                                            <EditIcon />
-                                        </IconButton>
-                                        <IconButton
-                                            size="small"
-                                            onClick={() =>
-                                                (window.location.href = `/client-users/${user.client_user_id}`)
-                                            }
-                                            title="View Details"
-                                        >
-                                            <ViewIcon />
-                                        </IconButton>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Typography variant="body2">{user.email}</Typography>
+                                            {user.phone_number && (
+                                                <Typography variant="caption" color="textSecondary">
+                                                    {user.phone_number}
+                                                </Typography>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {user.region || 'N/A'}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Chip
+                                                label={user.user_type}
+                                                size="small"
+                                                color="primary"
+                                                variant="outlined"
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Chip
+                                                label={user.registration_status}
+                                                color={getStatusColor(user.registration_status)}
+                                                size="small"
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => {
+                                                    setSelectedUser(user);
+                                                    setModalOpen(true);
+                                                }}
+                                                title="Update Status"
+                                            >
+                                                <EditIcon />
+                                            </IconButton>
+                                            <IconButton
+                                                size="small"
+                                                onClick={() =>
+                                                    (window.location.href = `/client-users/${user.client_user_id}`)
+                                                }
+                                                title="View Details"
+                                            >
+                                                <ViewIcon />
+                                            </IconButton>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                        )}
                     </TableBody>
                 </Table>
-                <TablePagination
-                    rowsPerPageOptions={[5, 10, 25]}
-                    component="div"
-                    count={filteredUsers.length}
-                    rowsPerPage={rowsPerPage}
-                    page={page}
-                    onPageChange={(e, newPage) => setPage(newPage)}
-                    onRowsPerPageChange={(e) => {
-                        setRowsPerPage(parseInt(e.target.value, 10));
-                        setPage(0);
-                    }}
-                />
+                {filteredUsers.length > 0 && (
+                    <TablePagination
+                        rowsPerPageOptions={[5, 10, 25]}
+                        component="div"
+                        count={filteredUsers.length}
+                        rowsPerPage={rowsPerPage}
+                        page={page}
+                        onPageChange={(e, newPage) => setPage(newPage)}
+                        onRowsPerPageChange={(e) => {
+                            setRowsPerPage(parseInt(e.target.value, 10));
+                            setPage(0);
+                        }}
+                    />
+                )}
             </TableContainer>
 
             {selectedUser && (
