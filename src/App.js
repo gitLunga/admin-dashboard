@@ -20,6 +20,9 @@ import UserDetail from './components/Users/UserDetail';
 import Statistics from './components/Dashboard/Statistics';
 import SearchPage from './components/Users/SearchPage';
 
+import AdminApplications from './components/Users/AdminApplications';
+
+
 // Common
 import { PageLoader } from './components/Common/LoadingSpinner';
 
@@ -89,6 +92,16 @@ function App() {
                   </MainLayout>
                 }
               />
+
+                {/* NEW: Applications Management */}
+                <Route
+                    path="/admin/applications"
+                    element={
+                        <MainLayout>
+                            <AdminApplications />
+                        </MainLayout>
+                    }
+                />
 
               <Route
                 path="/statistics"

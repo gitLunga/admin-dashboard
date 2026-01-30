@@ -17,9 +17,20 @@ const authApi = axios.create({
   },
 });
 
+const deviceApi = axios.create({
+    baseURL: API_BASE_URL, // Base without /admin prefix
+    headers: {
+        'Content-Type': 'application/json',
+    },
+});
+
+
+
 export const adminAPI = {
 
-    
+
+
+
   // Dashboard
   getDashboardData: () => api.get('/dashboard'),
 
@@ -54,6 +65,30 @@ export const adminAPI = {
     getInvoiceInfo: (userId) => api.get(`/client-users/${userId}/invoice/info`),
 
     // Also update your getClientUserById to include invoice info
+    getEnhancedStatistics: () => axios.get('/api/admin/statistics/enhanced'),
+    getDashboardMetrics: () => axios.get('/api/admin/statistics/dashboard'),
+    getPerformanceStats: () => axios.get('/api/admin/statistics/performance'),
+};
+
+export const deviceAPI = {
+    // Applications - CORRECTED: Remove duplicate /admin prefix
+    getAllApplications: (queryParams = '') =>
+        deviceApi.get(`/applications/admin/applications${queryParams ? '?' + queryParams : ''}`),
+
+    getApplicationStatistics: () =>
+        deviceApi.get('/applications/admin/applications/stats'),
+
+    updateApplicationStatus: (applicationId, data) =>
+        deviceApi.put(`/applications/admin/applications/${applicationId}/status`, data),
+
+
+
+    getApplicationDetails: (applicationId) =>
+        deviceApi.get(`/applications/admin/applications/${applicationId}`),
+
+    searchApplications: (query) =>
+        deviceApi.get(`/applications/admin/applications?search=${query}`),
+
 };
 
 export const authAPI = {
