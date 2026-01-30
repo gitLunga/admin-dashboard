@@ -20,11 +20,13 @@ import {
     InputLabel,
     Select,
     MenuItem,
+    Stack,
 } from '@mui/material';
 import {
     Search as SearchIcon,
     Edit as EditIcon,
     Visibility as ViewIcon,
+    FilterList as FilterListIcon,
 } from '@mui/icons-material';
 import { adminAPI } from '../../services/api';
 import StatusUpdateModal from './StatusUpdateModal';
@@ -38,7 +40,8 @@ const ClientUsers = () => {
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [selectedUser, setSelectedUser] = useState(null);
     const [modalOpen, setModalOpen] = useState(false);
-    const [selectedRegion, setSelectedRegion] = useState('all'); // New state for region filter
+    const [selectedRegion, setSelectedRegion] = useState('all');
+    const [selectedStatus, setSelectedStatus] = useState('all'); // New state for status filter
 
     useEffect(() => {
         fetchClientUsers();
@@ -118,7 +121,15 @@ const ClientUsers = () => {
         return ['All Regions', ...new Set(regions)].sort();
     }, [users]);
 
-    // Filter users based on search term AND region
+    // Get unique statuses from users
+    const uniqueStatuses = useMemo(() => {
+        const statuses = users
+            .map(user => user.registration_status)
+            .filter(status => status && status.trim() !== '');
+        return ['All Statuses', ...new Set(statuses)].sort();
+    }, [users]);
+
+    // Filter users based on search term, region, AND status
     const filteredUsers = useMemo(() => {
         return users.filter((user) => {
             // Search filter
@@ -134,9 +145,26 @@ const ClientUsers = () => {
                 selectedRegion === 'All Regions' ||
                 user.region === selectedRegion;
 
-            return matchesSearch && matchesRegion;
+            // Status filter
+            const matchesStatus =
+                selectedStatus === 'all' ||
+                selectedStatus === 'All Statuses' ||
+                user.registration_status === selectedStatus;
+
+            return matchesSearch && matchesRegion && matchesStatus;
         });
-    }, [users, searchTerm, selectedRegion]);
+    }, [users, searchTerm, selectedRegion, selectedStatus]);
+
+    // Clear all filters
+    const clearAllFilters = () => {
+        setSelectedRegion('all');
+        setSelectedStatus('all');
+        setSearchTerm('');
+        setPage(0);
+    };
+
+    // Check if any filter is active
+    const hasActiveFilters = selectedRegion !== 'all' || selectedStatus !== 'all' || searchTerm.trim() !== '';
 
     if (loading) {
         return (
@@ -152,39 +180,95 @@ const ClientUsers = () => {
                 Client Users Management
             </Typography>
 
-            <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                <TextField
-                    placeholder="Search by name, email, or Persal ID..."
-                    variant="outlined"
-                    size="small"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    sx={{ flexGrow: 1, minWidth: '300px' }}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                />
-                <IconButton onClick={handleSearch}>
-                    <SearchIcon />
-                </IconButton>
+            {/* Search and Filter Section */}
+            <Box sx={{ mb: 3 }}>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+                    <TextField
+                        placeholder="Search by name, email, or Persal ID..."
+                        variant="outlined"
+                        size="small"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        sx={{ flexGrow: 1, minWidth: '300px' }}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                    />
+                    <IconButton onClick={handleSearch}>
+                        <SearchIcon />
+                    </IconButton>
+                </Box>
 
-                {/* Region Filter Dropdown */}
-                <FormControl sx={{ minWidth: 200 }} size="small">
-                    <InputLabel>Filter by Region</InputLabel>
-                    <Select
-                        value={selectedRegion}
-                        label="Filter by Region"
-                        onChange={(e) => {
-                            setSelectedRegion(e.target.value);
-                            setPage(0); // Reset to first page when filter changes
-                        }}
-                    >
-                        <MenuItem value="all">All Regions</MenuItem>
-                        {uniqueRegions.filter(region => region !== 'All Regions').map((region) => (
-                            <MenuItem key={region} value={region}>
-                                {region || 'N/A'}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
+                {/* Filter Controls */}
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <FilterListIcon color="action" />
+                        <Typography variant="body2" color="textSecondary">
+                            Filters:
+                        </Typography>
+                    </Box>
+
+                    {/* Region Filter */}
+                    <FormControl sx={{ minWidth: 180 }} size="small">
+                        <InputLabel>Region</InputLabel>
+                        <Select
+                            value={selectedRegion}
+                            label="Region"
+                            onChange={(e) => {
+                                setSelectedRegion(e.target.value);
+                                setPage(0);
+                            }}
+                        >
+                            <MenuItem value="all">All Regions</MenuItem>
+                            {uniqueRegions.filter(region => region !== 'All Regions').map((region) => (
+                                <MenuItem key={region} value={region}>
+                                    {region || 'N/A'}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+
+                    {/* Status Filter */}
+                    <FormControl sx={{ minWidth: 180 }} size="small">
+                        <InputLabel>Status</InputLabel>
+                        <Select
+                            value={selectedStatus}
+                            label="Status"
+                            onChange={(e) => {
+                                setSelectedStatus(e.target.value);
+                                setPage(0);
+                            }}
+                        >
+                            <MenuItem value="all">All Statuses</MenuItem>
+                            {uniqueStatuses.filter(status => status !== 'All Statuses').map((status) => (
+                                <MenuItem key={status} value={status}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <Box
+                                            sx={{
+                                                width: 8,
+                                                height: 8,
+                                                borderRadius: '50%',
+                                                bgcolor: status === 'Verified' ? 'success.main' :
+                                                    status === 'Pending' ? 'warning.main' :
+                                                        status === 'Rejected' ? 'error.main' : 'grey.500'
+                                            }}
+                                        />
+                                        {status}
+                                    </Box>
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+
+                    {/* Clear Filters Button */}
+                    {hasActiveFilters && (
+                        <Chip
+                            label="Clear All Filters"
+                            variant="outlined"
+                            size="small"
+                            onClick={clearAllFilters}
+                            sx={{ ml: 1 }}
+                        />
+                    )}
+                </Box>
             </Box>
 
             {error && (
@@ -193,21 +277,48 @@ const ClientUsers = () => {
                 </Alert>
             )}
 
-            {/* Optional: Show active filter status */}
-            {selectedRegion !== 'all' && (
-                <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Chip
-                        label={`Region: ${selectedRegion}`}
-                        color="primary"
-                        variant="outlined"
-                        onDelete={() => setSelectedRegion('all')}
-                    />
-                    <Typography variant="caption" color="textSecondary">
-                        {filteredUsers.length} user(s) found
+            {/* Active Filters Display */}
+            {hasActiveFilters && (
+                <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" color="textSecondary" gutterBottom>
+                        Active Filters:
                     </Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
+                        {selectedRegion !== 'all' && (
+                            <Chip
+                                label={`Region: ${selectedRegion}`}
+                                color="primary"
+                                variant="outlined"
+                                size="small"
+                                onDelete={() => setSelectedRegion('all')}
+                            />
+                        )}
+                        {selectedStatus !== 'all' && (
+                            <Chip
+                                label={`Status: ${selectedStatus}`}
+                                color={getStatusColor(selectedStatus)}
+                                variant="outlined"
+                                size="small"
+                                onDelete={() => setSelectedStatus('all')}
+                            />
+                        )}
+                        {searchTerm.trim() !== '' && (
+                            <Chip
+                                label={`Search: "${searchTerm}"`}
+                                color="info"
+                                variant="outlined"
+                                size="small"
+                                onDelete={() => setSearchTerm('')}
+                            />
+                        )}
+                        <Typography variant="caption" color="textSecondary" sx={{ alignSelf: 'center' }}>
+                            {filteredUsers.length} user(s) found
+                        </Typography>
+                    </Stack>
                 </Box>
             )}
 
+            {/* Table Section */}
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
@@ -225,7 +336,20 @@ const ClientUsers = () => {
                             <TableRow>
                                 <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
                                     <Typography color="textSecondary">
-                                        No users found{selectedRegion !== 'all' ? ` in region "${selectedRegion}"` : ''}
+                                        {hasActiveFilters ? (
+                                            <>
+                                                No users found matching your filters.
+                                                <br />
+                                                <Typography
+                                                    component="span"
+                                                    color="primary"
+                                                    sx={{ cursor: 'pointer' }}
+                                                    onClick={clearAllFilters}
+                                                >
+                                                    Clear all filters
+                                                </Typography>
+                                            </>
+                                        ) : 'No users found'}
                                     </Typography>
                                 </TableCell>
                             </TableRow>
