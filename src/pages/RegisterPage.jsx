@@ -2,6 +2,13 @@ import React, { useState } from 'react';
 import '../styles/RegisterPage.css';
 import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../services/api';
+import logoImage from '../assets/logo.png'; // Adjust path
+import {
+    Box,
+    Container,
+    Typography,
+    Link as MuiLink,
+} from '@mui/material';
 
 // --- CONSTANTS ---
 const TITLES = [
@@ -255,14 +262,9 @@ const RegisterPage = () => {
                 email: formData.email,
                 user_role: formData.userRole,
                 password: formData.password,
-                // Remove created_at and updated_at - these should be handled by the database
             };
 
             console.log('📤 Operational registration data:', registrationData);
-
-            // Make the actual API call
-            // First, make sure you have imported authAPI at the top of your file
-            // import { authAPI } from './services/api'; // Adjust the path as needed
 
             const response = await authAPI.registerOperational(registrationData);
 
@@ -277,15 +279,11 @@ const RegisterPage = () => {
 
         } catch (error) {
             console.log('❌ Operational Registration API Error:', error);
-            // Check if it's an axios error
             if (error.response) {
-                // Server responded with error status
                 alert('Registration Failed\n' + (error.response.data.message || error.response.statusText));
             } else if (error.request) {
-                // Request made but no response
                 alert('Registration Failed\nNo response from server. Please check your connection.');
             } else {
-                // Something else went wrong
                 alert('Registration Failed\n' + error.message);
             }
         } finally {
@@ -294,140 +292,253 @@ const RegisterPage = () => {
     };
 
     return (
-        <div className="register-container" style={{ backgroundColor: COLORS.background }}>
-            <div className="register-form-wrapper" style={{ backgroundColor: COLORS.surface }}>
-                <div className="register-header">
-                    <h1 style={{ color: COLORS.textPrimary }}>Operational Registration</h1>
-                    <p style={{ color: COLORS.textSecondary }}>Create your staff account</p>
-                </div>
-
-                <form onSubmit={handleRegister} className="register-form">
-                    <SelectInput
-                        label="Title *"
-                        value={formData.title}
-                        placeholder="Select your title"
-                        onSelect={(value) => {
-                            setFormData({ ...formData, title: value });
-                            setErrors(prev => ({ ...prev, title: '' }));
+        <>
+            {/* Navigation Bar */}
+            <Box
+                component="nav"
+                sx={{
+                    backgroundColor: 'primary.main',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    boxShadow: 3,
+                    py: 1.5,
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1000,
+                }}
+            >
+                <Container maxWidth="lg">
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
                         }}
-                        editable={!loading}
-                        options={TITLES}
-                        error={errors.title}
-                    />
-
-                    <ModernInput
-                        label="First Name *"
-                        placeholder="Enter your first name"
-                        value={formData.firstName}
-                        onChangeText={(text) => setFormData({ ...formData, firstName: text })}
-                        editable={!loading}
-                        onBlur={() => handleBlur('firstName')}
-                        error={errors.firstName}
-                    />
-
-                    <ModernInput
-                        label="Last Name *"
-                        placeholder="Enter your last name"
-                        value={formData.lastName}
-                        onChangeText={(text) => setFormData({ ...formData, lastName: text })}
-                        editable={!loading}
-                        onBlur={() => handleBlur('lastName')}
-                        error={errors.lastName}
-                    />
-
-                    <ModernInput
-                        label="Email Address *"
-                        placeholder="Enter your work email"
-                        type="email"
-                        value={formData.email}
-                        onChangeText={(text) => setFormData({ ...formData, email: text })}
-                        editable={!loading}
-                        onBlur={() => handleBlur('email')}
-                        error={errors.email}
-                    />
-
-                    <div className="input-group">
-                        <label className="label">User Role *</label>
-                        <div className="roles-container">
-                            {userRoles.map((role) => (
-                                <button
-                                    type="button"
-                                    key={role.value}
-                                    className={`role-card ${formData.userRole === role.value ? 'selected' : ''} ${loading ? 'disabled' : ''}`}
-                                    onClick={() => setFormData({ ...formData, userRole: role.value })}
-                                    disabled={loading}
-                                >
-                                    <div className="role-header">
-                                        <div className={`role-radio ${formData.userRole === role.value ? 'selected' : ''}`}>
-                                            {formData.userRole === role.value && (
-                                                <div className="radio-inner" />
-                                            )}
-                                        </div>
-                                        <span className={`role-title ${formData.userRole === role.value ? 'selected' : ''}`}>
-                                            {role.label}
-                                        </span>
-                                    </div>
-                                    <span className={`role-description ${formData.userRole === role.value ? 'selected' : ''}`}>
-                                        {role.description}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <PasswordInput
-                        label="Password *"
-                        value={formData.password}
-                        onChangeText={(text) => setFormData({ ...formData, password: text })}
-                        error={errors.password}
-                        showPassword={showPassword}
-                        onToggleVisibility={() => setShowPassword(!showPassword)}
-                        onBlur={() => handleBlur('password')}
-                        editable={!loading}
-                    />
-
-                    <PasswordInput
-                        label="Confirm Password *"
-                        value={formData.confirmPassword}
-                        onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
-                        error={errors.confirmPassword}
-                        showPassword={showConfirmPassword}
-                        onToggleVisibility={() => setShowConfirmPassword(!showConfirmPassword)}
-                        onBlur={() => handleBlur('confirmPassword')}
-                        editable={!loading}
-                    />
-
-                    <button
-                        type="submit"
-                        className={`submit-button ${loading ? 'loading' : ''}`}
-                        disabled={loading}
-                        style={{ backgroundColor: loading ? COLORS.disabled : COLORS.primary }}
                     >
-                        {loading ? (
-                            <span className="button-content">
-                                <span className="spinner"></span>
-                                Creating Account...
-                            </span>
-                        ) : (
-                            'Create Staff Account'
-                        )}
-                    </button>
-
-                    <div className="login-link">
-                        <p style={{ color: COLORS.textSecondary }}>
-                            Already have an account?{' '}
-                            <Link
-                                to="/login"
-                                className="login-link-text"
-                                style={{ color: COLORS.primary }}
+                        {/* Logo Section */}
+                        <Box
+                            sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 2,
+                                textDecoration: 'none',
+                                cursor: 'pointer',
+                            }}
+                            onClick={() => navigate('/')}
+                        >
+                            <Box
+                                component="img"
+                                src={logoImage}
+                                alt="System Logo"
+                                sx={{
+                                    height: 40,
+                                    width: 'auto',
+                                    borderRadius: 1,
+                                    boxShadow: 2,
+                                }}
+                            />
+                            <Typography
+                                variant="h6"
+                                sx={{
+                                    color: 'white',
+                                    fontWeight: 'bold',
+                                    textShadow: '1px 1px 3px rgba(0,0,0,0.3)',
+                                }}
                             >
-                                Sign In
-                            </Link>
-                        </p>
+                                Judicial Admin System
+                            </Typography>
+                        </Box>
+
+                        {/* Navigation Links */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <MuiLink
+                                component="button"
+                                onClick={() => navigate('/')}
+                                sx={{
+                                    color: 'white',
+                                    fontWeight: 600,
+                                    fontSize: '0.9rem',
+                                    textDecoration: 'none',
+                                    '&:hover': { opacity: 0.9 },
+                                }}
+                            >
+                                Home
+                            </MuiLink>
+                            <MuiLink
+                                component="button"
+                                onClick={() => navigate('/login')}
+                                sx={{
+                                    color: 'white',
+                                    fontWeight: 600,
+                                    fontSize: '0.9rem',
+                                    textDecoration: 'none',
+                                    '&:hover': { opacity: 0.9 },
+                                }}
+                            >
+                                Login
+                            </MuiLink>
+                            <MuiLink
+                                component="button"
+                                onClick={() => navigate('/register')}
+                                sx={{
+                                    backgroundColor: 'white',
+                                    color: 'primary.main',
+                                    px: 2,
+                                    py: 0.5,
+                                    borderRadius: 20,
+                                    fontWeight: 600,
+                                    fontSize: '0.9rem',
+                                    textDecoration: 'none',
+                                    '&:hover': {
+                                        backgroundColor: 'rgba(255,255,255,0.9)',
+                                        transform: 'translateY(-1px)',
+                                        boxShadow: 2,
+                                    },
+                                    transition: 'all 0.3s ease',
+                                }}
+                            >
+                                Register
+                            </MuiLink>
+                        </Box>
+                    </Box>
+                </Container>
+            </Box>
+
+            {/* Main Register Content */}
+            <div className="register-container" style={{ backgroundColor: COLORS.background }}>
+                <div className="register-form-wrapper" style={{ backgroundColor: COLORS.surface }}>
+                    <div className="register-header">
+                        <h1 style={{ color: COLORS.textPrimary }}>Operational Registration</h1>
+                        <p style={{ color: COLORS.textSecondary }}>Create your staff account</p>
                     </div>
-                </form>
+
+                    <form onSubmit={handleRegister} className="register-form">
+                        <SelectInput
+                            label="Title *"
+                            value={formData.title}
+                            placeholder="Select your title"
+                            onSelect={(value) => {
+                                setFormData({ ...formData, title: value });
+                                setErrors(prev => ({ ...prev, title: '' }));
+                            }}
+                            editable={!loading}
+                            options={TITLES}
+                            error={errors.title}
+                        />
+
+                        <ModernInput
+                            label="First Name *"
+                            placeholder="Enter your first name"
+                            value={formData.firstName}
+                            onChangeText={(text) => setFormData({ ...formData, firstName: text })}
+                            editable={!loading}
+                            onBlur={() => handleBlur('firstName')}
+                            error={errors.firstName}
+                        />
+
+                        <ModernInput
+                            label="Last Name *"
+                            placeholder="Enter your last name"
+                            value={formData.lastName}
+                            onChangeText={(text) => setFormData({ ...formData, lastName: text })}
+                            editable={!loading}
+                            onBlur={() => handleBlur('lastName')}
+                            error={errors.lastName}
+                        />
+
+                        <ModernInput
+                            label="Email Address *"
+                            placeholder="Enter your work email"
+                            type="email"
+                            value={formData.email}
+                            onChangeText={(text) => setFormData({ ...formData, email: text })}
+                            editable={!loading}
+                            onBlur={() => handleBlur('email')}
+                            error={errors.email}
+                        />
+
+                        <div className="input-group">
+                            <label className="label">User Role *</label>
+                            <div className="roles-container">
+                                {userRoles.map((role) => (
+                                    <button
+                                        type="button"
+                                        key={role.value}
+                                        className={`role-card ${formData.userRole === role.value ? 'selected' : ''} ${loading ? 'disabled' : ''}`}
+                                        onClick={() => setFormData({ ...formData, userRole: role.value })}
+                                        disabled={loading}
+                                    >
+                                        <div className="role-header">
+                                            <div className={`role-radio ${formData.userRole === role.value ? 'selected' : ''}`}>
+                                                {formData.userRole === role.value && (
+                                                    <div className="radio-inner" />
+                                                )}
+                                            </div>
+                                            <span className={`role-title ${formData.userRole === role.value ? 'selected' : ''}`}>
+                                                {role.label}
+                                            </span>
+                                        </div>
+                                        <span className={`role-description ${formData.userRole === role.value ? 'selected' : ''}`}>
+                                            {role.description}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <PasswordInput
+                            label="Password *"
+                            value={formData.password}
+                            onChangeText={(text) => setFormData({ ...formData, password: text })}
+                            error={errors.password}
+                            showPassword={showPassword}
+                            onToggleVisibility={() => setShowPassword(!showPassword)}
+                            onBlur={() => handleBlur('password')}
+                            editable={!loading}
+                        />
+
+                        <PasswordInput
+                            label="Confirm Password *"
+                            value={formData.confirmPassword}
+                            onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
+                            error={errors.confirmPassword}
+                            showPassword={showConfirmPassword}
+                            onToggleVisibility={() => setShowConfirmPassword(!showConfirmPassword)}
+                            onBlur={() => handleBlur('confirmPassword')}
+                            editable={!loading}
+                        />
+
+                        <button
+                            type="submit"
+                            className={`submit-button ${loading ? 'loading' : ''}`}
+                            disabled={loading}
+                            style={{ backgroundColor: loading ? COLORS.disabled : COLORS.primary }}
+                        >
+                            {loading ? (
+                                <span className="button-content">
+                                    <span className="spinner"></span>
+                                    Creating Account...
+                                </span>
+                            ) : (
+                                'Create Staff Account'
+                            )}
+                        </button>
+
+                        <div className="login-link">
+                            <p style={{ color: COLORS.textSecondary }}>
+                                Already have an account?{' '}
+                                <Link
+                                    to="/login"
+                                    className="login-link-text"
+                                    style={{ color: COLORS.primary }}
+                                >
+                                    Sign In
+                                </Link>
+                            </p>
+                        </div>
+                    </form>
+                </div>
             </div>
-        </div>
+        </>
     );
 };
 
