@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://localhost:5001/api';
 
 
 const api = axios.create({
@@ -93,5 +93,7 @@ export const deviceAPI = {
 
 export const authAPI = {
   login: (loginData) => authApi.post('/login', loginData),
+    registerOperational: (userData) => authApi.post('/register-operational', userData),
+
   testConnection: () => authApi.get('/test'),
 };
