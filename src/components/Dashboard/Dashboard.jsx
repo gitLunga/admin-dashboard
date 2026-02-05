@@ -6,7 +6,8 @@ import {
     Box,
     CircularProgress,
     Alert,
-    Button, Skeleton,
+    Button,
+    Skeleton,
 } from '@mui/material';
 import { adminAPI } from '../../services/api';
 import StatsCard from './StatsCard';
@@ -20,6 +21,9 @@ import {
     PendingActions as PendingIcon,
     Block as RejectedIcon,
     Refresh as RefreshIcon,
+    TrendingUp as TrendingUpIcon,
+    EmojiEvents as TrophyIcon,
+    Timeline as TimelineIcon,
 } from '@mui/icons-material';
 
 const Dashboard = () => {
@@ -36,18 +40,15 @@ const Dashboard = () => {
             setLoading(true);
             setError(null);
 
-            // ✅ Use the CORRECT endpoint - /dashboard
             const response = await adminAPI.getDashboardData();
             console.log(response);
 
-            // Your backend returns: data.statistics, data.recent_registrations, data.activity_summary
             const data = response.data.data;
             setDashboardData(data);
 
         } catch (err) {
             console.error('❌ Dashboard fetch error:', err);
 
-            // Try to get specific error message
             const errorMessage = err.response?.data?.message ||
                 err.message ||
                 'Failed to load dashboard data';
@@ -60,15 +61,65 @@ const Dashboard = () => {
 
     if (loading) {
         return (
-            <Box sx={{ p: 3 }}>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                    <Skeleton variant="text" width={200} height={40} />
-                    <Skeleton variant="rectangular" width={100} height={36} />
+            <Box sx={{
+                p: 3,
+                background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+                minHeight: '100vh'
+            }}>
+                <Box
+                    display="flex"
+                    justifyContent="space-between"
+                    alignItems="center"
+                    mb={3}
+                    sx={{ animation: 'fadeInUp 0.5s ease-out' }}
+                >
+                    <Skeleton
+                        variant="text"
+                        width={200}
+                        height={40}
+                        sx={{
+                            bgcolor: 'rgba(255,255,255,0.5)',
+                            borderRadius: 2,
+                            backdropFilter: 'blur(10px)'
+                        }}
+                    />
+                    <Skeleton
+                        variant="rectangular"
+                        width={100}
+                        height={36}
+                        sx={{
+                            borderRadius: 8,
+                            bgcolor: 'rgba(255,255,255,0.5)',
+                            backdropFilter: 'blur(10px)'
+                        }}
+                    />
                 </Box>
                 <Grid container spacing={3}>
                     {[1,2,3,4].map(i => (
                         <Grid item xs={12} sm={6} md={3} key={i}>
-                            <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 2 }} />
+                            <Box sx={{ position: 'relative' }}>
+                                <Skeleton
+                                    variant="rectangular"
+                                    height={120}
+                                    sx={{
+                                        borderRadius: 4,
+                                        bgcolor: 'rgba(255,255,255,0.7)',
+                                        backdropFilter: 'blur(10px)',
+                                        border: '1px solid rgba(255,255,255,0.2)',
+                                    }}
+                                />
+                                <Box
+                                    sx={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
+                                        animation: 'shimmer 2s infinite',
+                                    }}
+                                />
+                            </Box>
                         </Grid>
                     ))}
                 </Grid>
@@ -78,26 +129,78 @@ const Dashboard = () => {
 
     if (error) {
         return (
-            <Box sx={{ p: 3 }}>
-                <Alert severity="error" sx={{ mb: 2 }}>
-                    {error}
-                </Alert>
-                <Button
-                    variant="contained"
-                    onClick={fetchDashboardData}
-                    startIcon={<RefreshIcon />}
-                >
-                    Retry
-                </Button>
+            <Box sx={{
+                p: 3,
+                background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+                minHeight: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center'
+            }}>
+                <Box sx={{
+                    maxWidth: 500,
+                    animation: 'fadeInUp 0.5s ease-out'
+                }}>
+                    <Alert
+                        severity="error"
+                        sx={{
+                            mb: 3,
+                            borderRadius: 3,
+                            backdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            '& .MuiAlert-icon': {
+                                animation: 'pulse 1s infinite'
+                            }
+                        }}
+                    >
+                        {error}
+                    </Alert>
+                    <Button
+                        variant="contained"
+                        onClick={fetchDashboardData}
+                        startIcon={<RefreshIcon />}
+                        sx={{
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            borderRadius: 8,
+                            px: 3,
+                            py: 1,
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            boxShadow: '0 4px 14px 0 rgba(102, 126, 234, 0.3)',
+                            '&:hover': {
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 8px 20px 0 rgba(102, 126, 234, 0.4)',
+                            }
+                        }}
+                    >
+                        Try Again
+                    </Button>
+                </Box>
             </Box>
         );
     }
 
     if (!dashboardData) {
         return (
-            <Alert severity="warning" sx={{ m: 3 }}>
-                No dashboard data available
-            </Alert>
+            <Box sx={{
+                p: 3,
+                background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+                minHeight: '100vh'
+            }}>
+                <Alert
+                    severity="warning"
+                    sx={{
+                        m: 3,
+                        borderRadius: 3,
+                        backdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        animation: 'fadeInUp 0.5s ease-out'
+                    }}
+                >
+                    No dashboard data available
+                </Alert>
+            </Box>
         );
     }
 
@@ -131,68 +234,459 @@ const Dashboard = () => {
     const derivedStats = getDerivedStats();
 
     return (
-        <Box sx={{ flexGrow: 1, p: 3 }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h4">
-                    Dashboard Overview
-                </Typography>
+        <Box sx={{
+            flexGrow: 1,
+            p: 3,
+            background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+            minHeight: '100vh'
+        }}>
+            {/* Header */}
+            <Box
+                display="flex"
+                justifyContent="space-between"
+                alignItems="center"
+                mb={4}
+                sx={{
+                    animation: 'fadeInUp 0.5s ease-out',
+                    position: 'relative'
+                }}
+            >
+                <Box>
+                    <Typography
+                        variant="h3"
+                        sx={{
+                            fontWeight: 800,
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            textShadow: '2px 2px 4px rgba(0,0,0,0.1)',
+                            mb: 0.5
+                        }}
+                    >
+                        Dashboard Overview
+                    </Typography>
+                    <Typography
+                        variant="subtitle1"
+                        sx={{
+                            color: 'text.secondary',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1
+                        }}
+                    >
+                        <TimelineIcon fontSize="small" />
+                        Real-time system insights and analytics
+                    </Typography>
+                </Box>
                 <Button
-                    variant="outlined"
+                    variant="contained"
                     onClick={fetchDashboardData}
                     startIcon={<RefreshIcon />}
-                    size="small"
+                    size="medium"
+                    sx={{
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        borderRadius: 8,
+                        px: 3,
+                        py: 1,
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        boxShadow: '0 4px 14px 0 rgba(102, 126, 234, 0.3)',
+                        '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: '0 8px 20px 0 rgba(102, 126, 234, 0.4)',
+                        },
+                        animation: 'pulse 3s infinite'
+                    }}
                 >
-                    Refresh
+                    Refresh Data
                 </Button>
             </Box>
 
+            {/* Stats Grid */}
             <Grid container spacing={3}>
-                {/* Stats Cards */}
+                {/* Stats Cards with Modern Styling */}
                 <Grid item xs={12} sm={6} md={3}>
-                    <StatsCard
-                        title="Total Users"
-                        value={derivedStats?.total_users || 0}
-                        icon={<PeopleIcon />}
-                        color="#1976d2"
-                        description="All registered users in system"
-                    />
+                    <Box
+                        sx={{
+                            animation: 'fadeInUp 0.5s ease-out 0.1s both',
+                            opacity: 0,
+                            transform: 'translateY(20px)',
+                        }}
+                    >
+                        <Paper
+                            className="hover-lift"
+                            sx={{
+                                p: 3,
+                                height: '100%',
+                                borderRadius: 4,
+                                background: 'rgba(255, 255, 255, 0.9)',
+                                backdropFilter: 'blur(10px)',
+                                border: '1px solid rgba(255, 255, 255, 0.2)',
+                                position: 'relative',
+                                overflow: 'hidden',
+                                '&:before': {
+                                    content: '""',
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    height: 4,
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                },
+                                boxShadow: '0 8px 32px rgba(102, 126, 234, 0.1)',
+                            }}
+                        >
+                            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                                <Box>
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            fontWeight: 600,
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px',
+                                            fontSize: '0.75rem',
+                                            color: '#667eea'
+                                        }}
+                                    >
+                                        Total Users
+                                    </Typography>
+                                    <Typography
+                                        variant="h2"
+                                        sx={{
+                                            fontWeight: 800,
+                                            mt: 1,
+                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                            WebkitBackgroundClip: 'text',
+                                            WebkitTextFillColor: 'transparent',
+                                        }}
+                                    >
+                                        {derivedStats?.total_users || 0}
+                                    </Typography>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            color: 'text.secondary',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 0.5,
+                                            mt: 0.5
+                                        }}
+                                    >
+                                        <TrendingUpIcon fontSize="small" />
+                                        All registered users in system
+                                    </Typography>
+                                </Box>
+                                <Box
+                                    sx={{
+                                        p: 1.5,
+                                        borderRadius: 3,
+                                        background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+                                    }}
+                                >
+                                    <PeopleIcon sx={{ fontSize: 28, color: '#667eea' }} />
+                                </Box>
+                            </Box>
+                        </Paper>
+                    </Box>
                 </Grid>
 
                 <Grid item xs={12} sm={6} md={3}>
-                    <StatsCard
-                        title="Client Users"
-                        value={derivedStats?.client_users || 0}
-                        icon={<PersonIcon />}
-                        color="#2e7d32"
-                        description="Judicial system users"
-                    />
+                    <Box
+                        sx={{
+                            animation: 'fadeInUp 0.5s ease-out 0.2s both',
+                            opacity: 0,
+                            transform: 'translateY(20px)',
+                        }}
+                    >
+                        <Paper
+                            className="hover-lift"
+                            sx={{
+                                p: 3,
+                                height: '100%',
+                                borderRadius: 4,
+                                background: 'rgba(255, 255, 255, 0.9)',
+                                backdropFilter: 'blur(10px)',
+                                border: '1px solid rgba(255, 255, 255, 0.2)',
+                                position: 'relative',
+                                overflow: 'hidden',
+                                '&:before': {
+                                    content: '""',
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    height: 4,
+                                    background: 'linear-gradient(135deg, #4ade80 0%, #22d3ee 100%)',
+                                },
+                                boxShadow: '0 8px 32px rgba(74, 222, 128, 0.1)',
+                            }}
+                        >
+                            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                                <Box>
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            fontWeight: 600,
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px',
+                                            fontSize: '0.75rem',
+                                            color: '#4ade80'
+                                        }}
+                                    >
+                                        Client Users
+                                    </Typography>
+                                    <Typography
+                                        variant="h2"
+                                        sx={{
+                                            fontWeight: 800,
+                                            mt: 1,
+                                            background: 'linear-gradient(135deg, #4ade80 0%, #22d3ee 100%)',
+                                            WebkitBackgroundClip: 'text',
+                                            WebkitTextFillColor: 'transparent',
+                                        }}
+                                    >
+                                        {derivedStats?.client_users || 0}
+                                    </Typography>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            color: 'text.secondary',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 0.5,
+                                            mt: 0.5
+                                        }}
+                                    >
+                                        <TrendingUpIcon fontSize="small" />
+                                        Judicial system users
+                                    </Typography>
+                                </Box>
+                                <Box
+                                    sx={{
+                                        p: 1.5,
+                                        borderRadius: 3,
+                                        background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.1) 0%, rgba(34, 211, 238, 0.1) 100%)',
+                                    }}
+                                >
+                                    <PersonIcon sx={{ fontSize: 28, color: '#4ade80' }} />
+                                </Box>
+                            </Box>
+                        </Paper>
+                    </Box>
                 </Grid>
 
                 <Grid item xs={12} sm={6} md={3}>
-                    <StatsCard
-                        title="Operational Users"
-                        value={derivedStats?.operational_users || 0}
-                        icon={<GroupIcon />}
-                        color="#ed6c02"
-                        description="Admin & staff users"
-                    />
+                    <Box
+                        sx={{
+                            animation: 'fadeInUp 0.5s ease-out 0.3s both',
+                            opacity: 0,
+                            transform: 'translateY(20px)',
+                        }}
+                    >
+                        <Paper
+                            className="hover-lift"
+                            sx={{
+                                p: 3,
+                                height: '100%',
+                                borderRadius: 4,
+                                background: 'rgba(255, 255, 255, 0.9)',
+                                backdropFilter: 'blur(10px)',
+                                border: '1px solid rgba(255, 255, 255, 0.2)',
+                                position: 'relative',
+                                overflow: 'hidden',
+                                '&:before': {
+                                    content: '""',
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    height: 4,
+                                    background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
+                                },
+                                boxShadow: '0 8px 32px rgba(245, 158, 11, 0.1)',
+                            }}
+                        >
+                            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                                <Box>
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            fontWeight: 600,
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px',
+                                            fontSize: '0.75rem',
+                                            color: '#f59e0b'
+                                        }}
+                                    >
+                                        Operational Users
+                                    </Typography>
+                                    <Typography
+                                        variant="h2"
+                                        sx={{
+                                            fontWeight: 800,
+                                            mt: 1,
+                                            background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
+                                            WebkitBackgroundClip: 'text',
+                                            WebkitTextFillColor: 'transparent',
+                                        }}
+                                    >
+                                        {derivedStats?.operational_users || 0}
+                                    </Typography>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            color: 'text.secondary',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 0.5,
+                                            mt: 0.5
+                                        }}
+                                    >
+                                        <TrendingUpIcon fontSize="small" />
+                                        Admin & staff users
+                                    </Typography>
+                                </Box>
+                                <Box
+                                    sx={{
+                                        p: 1.5,
+                                        borderRadius: 3,
+                                        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(239, 68, 68, 0.1) 100%)',
+                                    }}
+                                >
+                                    <GroupIcon sx={{ fontSize: 28, color: '#f59e0b' }} />
+                                </Box>
+                            </Box>
+                        </Paper>
+                    </Box>
                 </Grid>
 
                 <Grid item xs={12} sm={6} md={3}>
-                    <StatsCard
-                        title="Active Contracts"
-                        value={derivedStats?.active_contracts || 0}
-                        icon={<AssignmentIcon />}
-                        color="#9c27b0"
-                        description="Active service contracts"
-                    />
+                    <Box
+                        sx={{
+                            animation: 'fadeInUp 0.5s ease-out 0.4s both',
+                            opacity: 0,
+                            transform: 'translateY(20px)',
+                        }}
+                    >
+                        <Paper
+                            className="hover-lift"
+                            sx={{
+                                p: 3,
+                                height: '100%',
+                                borderRadius: 4,
+                                background: 'rgba(255, 255, 255, 0.9)',
+                                backdropFilter: 'blur(10px)',
+                                border: '1px solid rgba(255, 255, 255, 0.2)',
+                                position: 'relative',
+                                overflow: 'hidden',
+                                '&:before': {
+                                    content: '""',
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    height: 4,
+                                    background: 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
+                                },
+                                boxShadow: '0 8px 32px rgba(139, 92, 246, 0.1)',
+                            }}
+                        >
+                            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                                <Box>
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            fontWeight: 600,
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px',
+                                            fontSize: '0.75rem',
+                                            color: '#8b5cf6'
+                                        }}
+                                    >
+                                        Active Contracts
+                                    </Typography>
+                                    <Typography
+                                        variant="h2"
+                                        sx={{
+                                            fontWeight: 800,
+                                            mt: 1,
+                                            background: 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
+                                            WebkitBackgroundClip: 'text',
+                                            WebkitTextFillColor: 'transparent',
+                                        }}
+                                    >
+                                        {derivedStats?.active_contracts || 0}
+                                    </Typography>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            color: 'text.secondary',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 0.5,
+                                            mt: 0.5
+                                        }}
+                                    >
+                                        <TrendingUpIcon fontSize="small" />
+                                        Active service contracts
+                                    </Typography>
+                                </Box>
+                                <Box
+                                    sx={{
+                                        p: 1.5,
+                                        borderRadius: 3,
+                                        background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%)',
+                                    }}
+                                >
+                                    <AssignmentIcon sx={{ fontSize: 28, color: '#8b5cf6' }} />
+                                </Box>
+                            </Box>
+                        </Paper>
+                    </Box>
                 </Grid>
 
                 {/* Recent Registrations */}
                 <Grid item xs={12} md={8}>
-                    <Paper sx={{ p: 2, height: '100%' }}>
-                        <Typography variant="h6" gutterBottom>
-                            Recent Registrations (Last 7 Days)
+                    <Paper
+                        className="hover-lift"
+                        sx={{
+                            p: 3,
+                            height: '100%',
+                            borderRadius: 4,
+                            background: 'rgba(255, 255, 255, 0.9)',
+                            backdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            animation: 'fadeInUp 0.6s ease-out 0.5s both',
+                            opacity: 0,
+                            transform: 'translateY(20px)',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+                        }}
+                    >
+                        <Typography
+                            variant="h6"
+                            gutterBottom
+                            sx={{
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 2,
+                                mb: 3
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    width: 4,
+                                    height: 32,
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    borderRadius: 2
+                                }}
+                            />
+                            <Box>
+                                Recent Registrations
+                                <Typography variant="caption" display="block" color="textSecondary">
+                                    Last 7 Days Activity
+                                </Typography>
+                            </Box>
                         </Typography>
                         <RecentRegistrations
                             data={recent_registrations || []}
@@ -202,74 +696,225 @@ const Dashboard = () => {
 
                 {/* Client User Status Distribution */}
                 <Grid item xs={12} md={4}>
-                    <Paper sx={{ p: 2, height: '100%' }}>
-                        <Typography variant="h6" gutterBottom>
-                            Client User Status
+                    <Paper
+                        className="hover-lift"
+                        sx={{
+                            p: 3,
+                            height: '100%',
+                            borderRadius: 4,
+                            background: 'rgba(255, 255, 255, 0.9)',
+                            backdropFilter: 'blur(10px)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            animation: 'fadeInUp 0.6s ease-out 0.6s both',
+                            opacity: 0,
+                            transform: 'translateY(20px)',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+                        }}
+                    >
+                        <Typography
+                            variant="h6"
+                            gutterBottom
+                            sx={{
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 2,
+                                mb: 3
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    width: 4,
+                                    height: 32,
+                                    background: 'linear-gradient(135deg, #4ade80 0%, #22d3ee 100%)',
+                                    borderRadius: 2
+                                }}
+                            />
+                            <Box>
+                                Client User Status
+                                <Typography variant="caption" display="block" color="textSecondary">
+                                    Distribution Analysis
+                                </Typography>
+                            </Box>
                         </Typography>
 
                         {statistics?.client_users?.stats?.length > 0 ? (
-                            statistics.client_users.stats.map((stat) => (
-                                <Box key={stat.registration_status} sx={{ mb: 2 }}>
-                                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-                                        <Box display="flex" alignItems="center">
-                                            {stat.registration_status === 'Verified' && (
-                                                <VerifiedIcon color="success" fontSize="small" sx={{ mr: 1 }} />
-                                            )}
-                                            {stat.registration_status === 'Pending' && (
-                                                <PendingIcon color="warning" fontSize="small" sx={{ mr: 1 }} />
-                                            )}
-                                            {stat.registration_status === 'Rejected' && (
-                                                <RejectedIcon color="error" fontSize="small" sx={{ mr: 1 }} />
-                                            )}
-                                            <Typography variant="body2">
-                                                {stat.registration_status}
-                                            </Typography>
-                                        </Box>
-                                        <Typography variant="body2" fontWeight="bold">
-                                            {stat.count} users
-                                        </Typography>
-                                    </Box>
+                            <Box sx={{ mb: 4 }}>
+                                {statistics.client_users.stats.map((stat, index) => (
                                     <Box
+                                        key={stat.registration_status}
                                         sx={{
-                                            height: 8,
-                                            backgroundColor: '#e0e0e0',
-                                            borderRadius: 4,
-                                            overflow: 'hidden',
+                                            mb: 2.5,
+                                            animation: `fadeInUp 0.5s ease-out ${0.7 + index * 0.1}s both`,
+                                            opacity: 0,
+                                            transform: 'translateY(20px)',
                                         }}
                                     >
+                                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                                            <Box display="flex" alignItems="center" gap={1.5}>
+                                                <Box
+                                                    sx={{
+                                                        p: 1,
+                                                        borderRadius: '50%',
+                                                        background: getStatusColor(stat.registration_status) + '15',
+                                                        border: `1px solid ${getStatusColor(stat.registration_status)}30`,
+                                                    }}
+                                                >
+                                                    {stat.registration_status === 'Verified' && (
+                                                        <VerifiedIcon
+                                                            sx={{
+                                                                fontSize: 18,
+                                                                color: getStatusColor(stat.registration_status)
+                                                            }}
+                                                        />
+                                                    )}
+                                                    {stat.registration_status === 'Pending' && (
+                                                        <PendingIcon
+                                                            sx={{
+                                                                fontSize: 18,
+                                                                color: getStatusColor(stat.registration_status)
+                                                            }}
+                                                        />
+                                                    )}
+                                                    {stat.registration_status === 'Rejected' && (
+                                                        <RejectedIcon
+                                                            sx={{
+                                                                fontSize: 18,
+                                                                color: getStatusColor(stat.registration_status)
+                                                            }}
+                                                        />
+                                                    )}
+                                                </Box>
+                                                <Box>
+                                                    <Typography variant="subtitle2" fontWeight={700}>
+                                                        {stat.registration_status}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        {((stat.count / (statistics.client_users?.total || 1)) * 100).toFixed(1)}%
+                                                    </Typography>
+                                                </Box>
+                                            </Box>
+                                            <Typography variant="h6" fontWeight={800} color="text.primary">
+                                                {stat.count}
+                                            </Typography>
+                                        </Box>
                                         <Box
                                             sx={{
-                                                width: `${(stat.count / (statistics.client_users?.total || 1)) * 100}%`,
-                                                height: '100%',
-                                                backgroundColor: getStatusColor(stat.registration_status),
+                                                height: 10,
+                                                backgroundColor: 'rgba(0,0,0,0.05)',
+                                                borderRadius: 5,
+                                                overflow: 'hidden',
+                                                position: 'relative',
                                             }}
-                                        />
+                                        >
+                                            <Box
+                                                sx={{
+                                                    width: `${(stat.count / (statistics.client_users?.total || 1)) * 100}%`,
+                                                    height: '100%',
+                                                    background: `linear-gradient(90deg, ${getStatusColor(stat.registration_status)}, ${getStatusColor(stat.registration_status)}aa)`,
+                                                    borderRadius: 5,
+                                                    position: 'relative',
+                                                    '&:after': {
+                                                        content: '""',
+                                                        position: 'absolute',
+                                                        top: 0,
+                                                        right: 0,
+                                                        bottom: 0,
+                                                        width: '20%',
+                                                        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3))',
+                                                    }
+                                                }}
+                                            />
+                                        </Box>
                                     </Box>
-                                </Box>
-                            ))
+                                ))}
+                            </Box>
                         ) : (
-                            <Typography color="textSecondary">No status data available</Typography>
+                            <Typography
+                                color="textSecondary"
+                                sx={{
+                                    textAlign: 'center',
+                                    py: 4,
+                                    fontStyle: 'italic'
+                                }}
+                            >
+                                No status data available
+                            </Typography>
                         )}
 
                         {/* Quick Activity Summary */}
                         {activity_summary && (
-                            <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-                                <Typography variant="subtitle2" gutterBottom color="textSecondary">
-                                    System Activity
+                            <Box
+                                sx={{
+                                    mt: 3,
+                                    pt: 3,
+                                    borderTop: '2px dashed',
+                                    borderColor: 'divider',
+                                    animation: 'fadeInUp 0.5s ease-out 1s both',
+                                    opacity: 0,
+                                    transform: 'translateY(20px)',
+                                }}
+                            >
+                                <Typography
+                                    variant="subtitle2"
+                                    gutterBottom
+                                    sx={{
+                                        fontWeight: 700,
+                                        color: 'text.primary',
+                                        mb: 2,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 1
+                                    }}
+                                >
+                                    <TrophyIcon fontSize="small" />
+                                    System Highlights
                                 </Typography>
-                                <Box display="flex" justifyContent="space-between" alignItems="center">
-                                    <Typography variant="body2">Active Contracts</Typography>
-                                    <Typography variant="body1" fontWeight="bold">
+                                <Box
+                                    display="flex"
+                                    justifyContent="space-between"
+                                    alignItems="center"
+                                    sx={{
+                                        mb: 2,
+                                        p: 2,
+                                        borderRadius: 3,
+                                        background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%)',
+                                        border: '1px solid rgba(102, 126, 234, 0.1)',
+                                    }}
+                                >
+                                    <Typography variant="body2" fontWeight={600}>Active Contracts</Typography>
+                                    <Typography variant="h4" fontWeight={800} color="primary">
                                         {activity_summary.active_contracts || 0}
                                     </Typography>
                                 </Box>
                                 {activity_summary.top_applicants?.[0] && (
-                                    <Box mt={1}>
-                                        <Typography variant="caption" color="textSecondary" display="block">
-                                            Top Applicant:
+                                    <Box
+                                        mt={2}
+                                        p={2}
+                                        sx={{
+                                            borderRadius: 3,
+                                            background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.05) 0%, rgba(34, 211, 238, 0.05) 100%)',
+                                            border: '1px solid rgba(74, 222, 128, 0.1)',
+                                        }}
+                                    >
+                                        <Typography
+                                            variant="caption"
+                                            sx={{
+                                                fontWeight: 700,
+                                                textTransform: 'uppercase',
+                                                letterSpacing: '0.5px',
+                                                color: '#4ade80',
+                                                display: 'block',
+                                                mb: 0.5
+                                            }}
+                                        >
+                                            🏆 Top Applicant
                                         </Typography>
-                                        <Typography variant="body2">
+                                        <Typography variant="body1" fontWeight={700} sx={{ mb: 0.5 }}>
                                             {activity_summary.top_applicants[0].first_name} {activity_summary.top_applicants[0].last_name}
+                                        </Typography>
+                                        <Typography variant="caption" color="textSecondary">
+                                            ID: {activity_summary.top_applicants[0].client_user_id}
                                         </Typography>
                                     </Box>
                                 )}
@@ -282,9 +927,45 @@ const Dashboard = () => {
                 {activity_summary && (
                     <>
                         <Grid item xs={12} md={6}>
-                            <Paper sx={{ p: 2 }}>
-                                <Typography variant="h6" gutterBottom>
-                                    Top Applicants
+                            <Paper
+                                className="hover-lift"
+                                sx={{
+                                    p: 3,
+                                    borderRadius: 4,
+                                    background: 'rgba(255, 255, 255, 0.9)',
+                                    backdropFilter: 'blur(10px)',
+                                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                                    animation: 'fadeInUp 0.6s ease-out 0.7s both',
+                                    opacity: 0,
+                                    transform: 'translateY(20px)',
+                                    boxShadow: '0 8px 32px rgba(102, 126, 234, 0.1)',
+                                }}
+                            >
+                                <Typography
+                                    variant="h6"
+                                    gutterBottom
+                                    sx={{
+                                        fontWeight: 700,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 2,
+                                        mb: 3
+                                    }}
+                                >
+                                    <Box
+                                        sx={{
+                                            width: 4,
+                                            height: 32,
+                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                            borderRadius: 2
+                                        }}
+                                    />
+                                    <Box>
+                                        Top Applicants
+                                        <Typography variant="caption" display="block" color="textSecondary">
+                                            By Application Count
+                                        </Typography>
+                                    </Box>
                                 </Typography>
                                 {activity_summary.top_applicants?.length > 0 ? (
                                     activity_summary.top_applicants.slice(0, 5).map((applicant, index) => (
@@ -292,55 +973,123 @@ const Dashboard = () => {
                                             key={applicant.client_user_id || index}
                                             sx={{
                                                 mb: 2,
-                                                p: 1.5,
-                                                borderRadius: 1,
-                                                backgroundColor: index === 0 ? 'primary.50' : 'grey.50',
-                                                '&:hover': { backgroundColor: index === 0 ? 'primary.100' : 'grey.100' }
+                                                p: 2,
+                                                borderRadius: 3,
+                                                backgroundColor: index === 0
+                                                    ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)'
+                                                    : 'rgba(0,0,0,0.02)',
+                                                border: `1px solid ${index === 0 ? 'rgba(102, 126, 234, 0.2)' : 'rgba(0,0,0,0.05)'}`,
+                                                transition: 'all 0.3s ease',
+                                                '&:hover': {
+                                                    transform: 'translateX(4px)',
+                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                                    backgroundColor: index === 0
+                                                        ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%)'
+                                                        : 'rgba(0,0,0,0.04)',
+                                                }
                                             }}
                                         >
                                             <Box display="flex" alignItems="center">
                                                 <Typography
                                                     variant="h6"
-                                                    color="primary"
                                                     sx={{
                                                         mr: 2,
-                                                        width: 32,
-                                                        height: 32,
+                                                        width: 40,
+                                                        height: 40,
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
-                                                        backgroundColor: index === 0 ? 'primary.main' : 'primary.light',
+                                                        background: index === 0
+                                                            ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                                                            : 'linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%)',
                                                         color: 'white',
                                                         borderRadius: '50%',
-                                                        fontSize: '0.875rem'
+                                                        fontSize: '1rem',
+                                                        fontWeight: 800,
+                                                        boxShadow: index === 0 ? '0 4px 12px rgba(102, 126, 234, 0.3)' : 'none',
                                                     }}
                                                 >
                                                     {index + 1}
                                                 </Typography>
                                                 <Box flex={1}>
-                                                    <Typography variant="subtitle1" fontWeight="medium">
+                                                    <Typography variant="subtitle1" fontWeight={700}>
                                                         {applicant.first_name} {applicant.last_name}
                                                     </Typography>
                                                     <Typography variant="body2" color="textSecondary">
                                                         ID: {applicant.client_user_id}
                                                     </Typography>
                                                 </Box>
-                                                <Typography variant="h6" color="primary">
-                                                    {applicant.application_count}
-                                                </Typography>
+                                                <Box
+                                                    sx={{
+                                                        px: 2,
+                                                        py: 0.5,
+                                                        borderRadius: 4,
+                                                        background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+                                                        border: '1px solid rgba(102, 126, 234, 0.2)',
+                                                    }}
+                                                >
+                                                    <Typography variant="h6" fontWeight={800} color="primary">
+                                                        {applicant.application_count}
+                                                    </Typography>
+                                                </Box>
                                             </Box>
                                         </Box>
                                     ))
                                 ) : (
-                                    <Typography color="textSecondary">No application data available</Typography>
+                                    <Typography
+                                        color="textSecondary"
+                                        sx={{
+                                            textAlign: 'center',
+                                            py: 4,
+                                            fontStyle: 'italic'
+                                        }}
+                                    >
+                                        No application data available
+                                    </Typography>
                                 )}
                             </Paper>
                         </Grid>
 
                         <Grid item xs={12} md={6}>
-                            <Paper sx={{ p: 2 }}>
-                                <Typography variant="h6" gutterBottom>
-                                    Top Ordered Users
+                            <Paper
+                                className="hover-lift"
+                                sx={{
+                                    p: 3,
+                                    borderRadius: 4,
+                                    background: 'rgba(255, 255, 255, 0.9)',
+                                    backdropFilter: 'blur(10px)',
+                                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                                    animation: 'fadeInUp 0.6s ease-out 0.8s both',
+                                    opacity: 0,
+                                    transform: 'translateY(20px)',
+                                    boxShadow: '0 8px 32px rgba(74, 222, 128, 0.1)',
+                                }}
+                            >
+                                <Typography
+                                    variant="h6"
+                                    gutterBottom
+                                    sx={{
+                                        fontWeight: 700,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 2,
+                                        mb: 3
+                                    }}
+                                >
+                                    <Box
+                                        sx={{
+                                            width: 4,
+                                            height: 32,
+                                            background: 'linear-gradient(135deg, #4ade80 0%, #22d3ee 100%)',
+                                            borderRadius: 2
+                                        }}
+                                    />
+                                    <Box>
+                                        Top Ordered Users
+                                        <Typography variant="caption" display="block" color="textSecondary">
+                                            By Order Frequency
+                                        </Typography>
+                                    </Box>
                                 </Typography>
                                 {activity_summary.top_ordered_users?.length > 0 ? (
                                     activity_summary.top_ordered_users.slice(0, 5).map((user, index) => (
@@ -348,47 +1097,79 @@ const Dashboard = () => {
                                             key={user.client_user_id || index}
                                             sx={{
                                                 mb: 2,
-                                                p: 1.5,
-                                                borderRadius: 1,
-                                                backgroundColor: index === 0 ? 'success.50' : 'grey.50',
-                                                '&:hover': { backgroundColor: index === 0 ? 'success.100' : 'grey.100' }
+                                                p: 2,
+                                                borderRadius: 3,
+                                                backgroundColor: index === 0
+                                                    ? 'linear-gradient(135deg, rgba(74, 222, 128, 0.15) 0%, rgba(34, 211, 238, 0.15) 100%)'
+                                                    : 'rgba(0,0,0,0.02)',
+                                                border: `1px solid ${index === 0 ? 'rgba(74, 222, 128, 0.2)' : 'rgba(0,0,0,0.05)'}`,
+                                                transition: 'all 0.3s ease',
+                                                '&:hover': {
+                                                    transform: 'translateX(4px)',
+                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                                    backgroundColor: index === 0
+                                                        ? 'linear-gradient(135deg, rgba(74, 222, 128, 0.2) 0%, rgba(34, 211, 238, 0.2) 100%)'
+                                                        : 'rgba(0,0,0,0.04)',
+                                                }
                                             }}
                                         >
                                             <Box display="flex" alignItems="center">
                                                 <Typography
                                                     variant="h6"
-                                                    color="success"
                                                     sx={{
                                                         mr: 2,
-                                                        width: 32,
-                                                        height: 32,
+                                                        width: 40,
+                                                        height: 40,
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
-                                                        backgroundColor: index === 0 ? 'success.main' : 'success.light',
+                                                        background: index === 0
+                                                            ? 'linear-gradient(135deg, #4ade80 0%, #22d3ee 100%)'
+                                                            : 'linear-gradient(135deg, rgba(74, 222, 128, 0.2) 0%, rgba(34, 211, 238, 0.2) 100%)',
                                                         color: 'white',
                                                         borderRadius: '50%',
-                                                        fontSize: '0.875rem'
+                                                        fontSize: '1rem',
+                                                        fontWeight: 800,
+                                                        boxShadow: index === 0 ? '0 4px 12px rgba(74, 222, 128, 0.3)' : 'none',
                                                     }}
                                                 >
                                                     {index + 1}
                                                 </Typography>
                                                 <Box flex={1}>
-                                                    <Typography variant="subtitle1" fontWeight="medium">
+                                                    <Typography variant="subtitle1" fontWeight={700}>
                                                         {user.first_name} {user.last_name}
                                                     </Typography>
                                                     <Typography variant="body2" color="textSecondary">
                                                         ID: {user.client_user_id}
                                                     </Typography>
                                                 </Box>
-                                                <Typography variant="h6" color="success.main">
-                                                    {user.order_count}
-                                                </Typography>
+                                                <Box
+                                                    sx={{
+                                                        px: 2,
+                                                        py: 0.5,
+                                                        borderRadius: 4,
+                                                        background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.1) 0%, rgba(34, 211, 238, 0.1) 100%)',
+                                                        border: '1px solid rgba(74, 222, 128, 0.2)',
+                                                    }}
+                                                >
+                                                    <Typography variant="h6" fontWeight={800} color="#4ade80">
+                                                        {user.order_count}
+                                                    </Typography>
+                                                </Box>
                                             </Box>
                                         </Box>
                                     ))
                                 ) : (
-                                    <Typography color="textSecondary">No order data available</Typography>
+                                    <Typography
+                                        color="textSecondary"
+                                        sx={{
+                                            textAlign: 'center',
+                                            py: 4,
+                                            fontStyle: 'italic'
+                                        }}
+                                    >
+                                        No order data available
+                                    </Typography>
                                 )}
                             </Paper>
                         </Grid>
@@ -399,17 +1180,17 @@ const Dashboard = () => {
     );
 };
 
-// Helper function
+// Enhanced Helper function with gradients
 const getStatusColor = (status) => {
     switch (status) {
         case 'Verified':
-            return '#4caf50';
+            return '#4ade80';
         case 'Pending':
-            return '#ff9800';
+            return '#f59e0b';
         case 'Rejected':
-            return '#f44336';
+            return '#ef4444';
         default:
-            return '#9e9e9e';
+            return '#9ca3af';
     }
 };
 

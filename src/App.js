@@ -22,8 +22,9 @@ import SearchPage from './components/Users/SearchPage';
 
 import AdminApplications from './components/Users/AdminApplications';
 
+import './assets/styling/styles.css';
 
-// Common
+
 import { PageLoader } from './components/Common/LoadingSpinner';
 
 function App() {

@@ -4,17 +4,24 @@ const API_BASE_URL = 'http://localhost:5000/api';
 
 
 const api = axios.create({
-  baseURL: `${API_BASE_URL}/admin`,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+    baseURL: `${API_BASE_URL}/admin`,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+});
+
+const notificationsApi = axios.create({
+    baseURL: `${API_BASE_URL}`,
+    headers: {
+        'Content-Type': 'application/json',
+    },
 });
 
 const authApi = axios.create({
-  baseURL: `${API_BASE_URL}/auth`,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+    baseURL: `${API_BASE_URL}/auth`,
+    headers: {
+        'Content-Type': 'application/json',
+    },
 });
 
 const deviceApi = axios.create({
@@ -25,35 +32,35 @@ const deviceApi = axios.create({
 });
 
 
-
 export const adminAPI = {
 
 
+    // Dashboard
+    getDashboardData: () => api.get('/dashboard'),
 
+    // Users
+    getAllUsers: () => api.get('/all-users'),
+    getClientUsers: () => api.get('/client-users'),
+    getClientUserById: (id) => api.get(`/client-users/${id}`),
+    updateUserStatus: (id, data) =>
+        api.patch(`/client-users/${id}/status`, data),
 
-  // Dashboard
-  getDashboardData: () => api.get('/dashboard'),
+    // Operational Users
+    getOperationalUsers: () => api.get('/operational-users'),
+    getOperationalUserById: (id) =>
+        api.get(`/operational-users/${id}`),
 
-  // Users
-  getAllUsers: () => api.get('/all-users'),
-  getClientUsers: () => api.get('/client-users'),
-  getClientUserById: (id) => api.get(`/client-users/${id}`),
-  updateUserStatus: (id, data) =>
-    api.patch(`/client-users/${id}/status`, data),
+    // Statistics
+    getStatistics: () => api.get('/statistics'),
+    getRecentRegistrations: () => api.get('/recent-registrations'),
+    getActivitySummary: () => api.get('/activity-summary'),
 
-  // Operational Users
-  getOperationalUsers: () => api.get('/operational-users'),
-  getOperationalUserById: (id) =>
-    api.get(`/operational-users/${id}`),
+    // Search
+    searchUsers: (query) => api.get(`/search?query=${query}`),
 
-  // Statistics
-  getStatistics: () => api.get('/statistics'),
-  getRecentRegistrations: () => api.get('/recent-registrations'),
-  getActivitySummary: () => api.get('/activity-summary'),
+    //notifications
 
-  // Search
-  searchUsers: (query) => api.get(`/search?query=${query}`),
-
+    //invoices
     downloadInvoice: (userId) => api.get(`/client-users/${userId}/invoice`, {
         responseType: 'blob', // Important for file downloads
     }),
@@ -65,9 +72,57 @@ export const adminAPI = {
     getInvoiceInfo: (userId) => api.get(`/client-users/${userId}/invoice/info`),
 
     // Also update your getClientUserById to include invoice info
-    getEnhancedStatistics: () => axios.get('/api/admin/statistics/enhanced'),
-    getDashboardMetrics: () => axios.get('/api/admin/statistics/dashboard'),
-    getPerformanceStats: () => axios.get('/api/admin/statistics/performance'),
+    getEnhancedStatistics: () => api.get('/statistics/enhanced'),
+    getDashboardMetrics: () => api.get('/statistics/dashboard'),
+    getPerformanceStats: () => api.get('/statistics/performance'),
+};
+
+export const notificationsAPI = {
+    // Get all notifications (Admin endpoint)
+    getNotifications: () =>
+        notificationsApi.get('/notifications/all'),
+
+    // CORRECT: Your backend has '/api/notifications/user'
+    getUserNotifications: (userId, userType) =>
+        notificationsApi.get('/notifications/user', {
+            params: { user_id: userId, user_type: userType }
+        }),
+
+    // CORRECT: Your backend has '/api/notifications/unread-count'
+    getUnreadCount: (userId, userType) => {
+        return notificationsApi.get('/notifications/unread-count', {
+            params: { user_id: userId, user_type: userType }
+        });
+    },
+
+    // Mark notification as read
+    markAsRead: (notificationId, userId, userType) => {
+        return notificationsApi.patch(`/notifications/${notificationId}/read`, {
+            user_id: userId,
+            user_type: userType
+        });
+    },
+
+    // Mark all as read for logged-in admin
+    markAllAsRead: (userId, userType) => {
+        return notificationsApi.patch('/notifications/mark-all-read', {
+            user_id: userId,
+            user_type: userType
+        });
+    },
+
+    // Delete notification
+    deleteNotification: (notificationId) => {
+        const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
+        const adminId = adminUser.op_user_id || adminUser.id;
+
+        return notificationsApi.delete(`/notifications/${notificationId}`, {
+            data: {
+                user_id: adminId,
+                user_type: 'Operational'
+            }
+        });
+    }
 };
 
 export const deviceAPI = {
@@ -82,7 +137,6 @@ export const deviceAPI = {
         deviceApi.put(`/applications/admin/applications/${applicationId}/status`, data),
 
 
-
     getApplicationDetails: (applicationId) =>
         deviceApi.get(`/applications/admin/applications/${applicationId}`),
 
@@ -92,6 +146,6 @@ export const deviceAPI = {
 };
 
 export const authAPI = {
-  login: (loginData) => authApi.post('/login', loginData),
-  testConnection: () => authApi.get('/test'),
+    login: (loginData) => authApi.post('/login', loginData),
+    testConnection: () => authApi.get('/test'),
 };

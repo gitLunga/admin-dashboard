@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box,
     Paper,
@@ -30,8 +30,8 @@ import {
     Tooltip as RechartsTooltip,
     Legend,
     ResponsiveContainer,
-    LineChart,
-    Line,
+
+
     AreaChart,
     Area,
 } from 'recharts';
@@ -42,7 +42,6 @@ import {
     Person as PersonIcon,
     CheckCircle as CheckCircleIcon,
     Pending as PendingIcon,
-    Block as BlockIcon,
     TrendingUp as TrendingUpIcon,
     Equalizer as EqualizerIcon,
     Info as InfoIcon,
@@ -165,6 +164,10 @@ const Statistics = () => {
                 adminAPI.getDashboardMetrics()
             ]);
 
+            console.log('Basic stats response:', basicResponse?.value?.data);
+            console.log('Enhanced stats response:', enhancedResponse?.value?.data);
+            console.log('Dashboard response:', dashboardResponse?.value?.data);
+
             // Handle basic stats
             if (basicResponse.status === 'fulfilled') {
                 setBasicStats(basicResponse.value.data.data.statistics);
@@ -175,6 +178,7 @@ const Statistics = () => {
             // Handle enhanced stats
             if (enhancedResponse.status === 'fulfilled') {
                 setEnhancedStats(enhancedResponse.value.data.data.statistics);
+
             } else {
                 console.log('Enhanced stats not available');
             }
