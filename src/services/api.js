@@ -146,6 +146,8 @@ export const deviceAPI = {
 };
 
 export const authAPI = {
-    login: (loginData) => authApi.post('/login', loginData),
-    testConnection: () => authApi.get('/test'),
+  login: (loginData) => authApi.post('/login', loginData),
+    registerOperational: (userData) => authApi.post('/register-operational', userData),
+
+  testConnection: () => authApi.get('/test'),
 };
