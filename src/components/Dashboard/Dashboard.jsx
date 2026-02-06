@@ -4,13 +4,12 @@ import {
     Paper,
     Typography,
     Box,
-    CircularProgress,
     Alert,
     Button,
     Skeleton,
 } from '@mui/material';
 import { adminAPI } from '../../services/api';
-import StatsCard from './StatsCard';
+// import StatsCard from './StatsCard';
 import RecentRegistrations from './RecentRegistrations';
 import {
     People as PeopleIcon,

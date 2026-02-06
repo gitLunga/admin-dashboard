@@ -7,7 +7,6 @@ import {
     ListItemText,
     Box,
     Typography,
-    Divider,
     IconButton,
     useMediaQuery,
     useTheme,
