@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Dialog,
     DialogTitle,
@@ -31,45 +31,7 @@ const DocumentViewer = ({ open, documentId, fileName, documentType, documentStat
     const [error, setError] = useState(null);
     const [blobUrl, setBlobUrl] = useState(null);
 
-    // Fetch document info when opened
-    useEffect(() => {
-        if (open && documentId) {
-            fetchDocumentInfo();
-        }
-
-        // Cleanup blob URL on unmount
-        return () => {
-            if (blobUrl) {
-                URL.revokeObjectURL(blobUrl);
-            }
-        };
-    }, [open, documentId]);
-
-    const fetchDocumentInfo = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            // Since we don't have a getDocumentInfo endpoint yet,
-            // we'll create a basic info object from props
-            setDocumentInfo({
-                file_name: fileName,
-                document_type: documentType,
-                document_status: documentStatus,
-                // We'll get mime_type from the view response
-            });
-
-            // Pre-fetch the document for faster viewing
-            await fetchDocumentBlob();
-        } catch (err) {
-            console.error('Error fetching document info:', err);
-            setError('Failed to load document information');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchDocumentBlob = async () => {
+    const fetchDocumentBlob = useCallback(async () => {
         try {
             const response = await adminAPI.viewDocument(documentId);
             const blob = new Blob([response.data], {
@@ -78,7 +40,6 @@ const DocumentViewer = ({ open, documentId, fileName, documentType, documentStat
             const url = URL.createObjectURL(blob);
             setBlobUrl(url);
 
-            // Update document info with mime type
             setDocumentInfo(prev => ({
                 ...prev,
                 mime_type: response.headers['content-type'],
@@ -91,7 +52,41 @@ const DocumentViewer = ({ open, documentId, fileName, documentType, documentStat
             setError('Failed to load document');
             return null;
         }
-    };
+    }, [documentId]);
+
+    const fetchDocumentInfo = useCallback(async () => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            setDocumentInfo({
+                file_name: fileName,
+                document_type: documentType,
+                document_status: documentStatus,
+            });
+
+            await fetchDocumentBlob();
+        } catch (err) {
+            console.error('Error fetching document info:', err);
+            setError('Failed to load document information');
+        } finally {
+            setLoading(false);
+        }
+    }, [fileName, documentType, documentStatus, fetchDocumentBlob]);
+
+    // Fetch document info when opened
+    useEffect(() => {
+        if (open && documentId) {
+            fetchDocumentInfo();
+        }
+
+        // Cleanup blob URL on unmount
+        return () => {
+            if (blobUrl) {
+                URL.revokeObjectURL(blobUrl);
+            }
+        };
+    }, [open, documentId, fetchDocumentInfo, blobUrl]);
 
     const handleDownload = async () => {
         try {
@@ -118,11 +113,9 @@ const DocumentViewer = ({ open, documentId, fileName, documentType, documentStat
         try {
             setLoading(true);
 
-            // If we already have the blob URL, use it
             if (blobUrl) {
                 window.open(blobUrl, '_blank');
             } else {
-                // Otherwise fetch and open
                 const url = await fetchDocumentBlob();
                 if (url) {
                     window.open(url, '_blank');
