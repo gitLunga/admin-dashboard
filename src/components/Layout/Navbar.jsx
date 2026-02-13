@@ -93,13 +93,24 @@ const Navbar = ({ onDrawerToggle }) => {
     const [notificationError, setNotificationError] = useState(null);
 
     // Fetch notifications and unread count
+// In your Navbar.jsx, update the fetchNotifications function:
+
     const fetchNotifications = async () => {
         try {
             setLoading(true);
             setNotificationError(null);
 
-            // Get current admin user
-            const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
+            // Get current admin user - simple and direct
+            const adminUserStr = localStorage.getItem('adminUser');
+            if (!adminUserStr) {
+                console.warn('No admin user found');
+                setNotifications([]);
+                setUnreadCount(0);
+                return;
+            }
+
+            const adminUser = JSON.parse(adminUserStr);
+            // Try to get op_user_id first, fallback to regular id
             const adminId = adminUser.op_user_id || adminUser.id;
 
             if (!adminId) {
@@ -109,17 +120,18 @@ const Navbar = ({ onDrawerToggle }) => {
                 return;
             }
 
-            // FIX: Call the correct functions with parameters
+            console.log('Fetching notifications for admin ID:', adminId);
+
+            // Call the API with the ID
             const [notificationsRes, unreadRes] = await Promise.all([
-                notificationsAPI.getUserNotifications(adminId, 'Operational'), // Get notifications for THIS admin
-                notificationsAPI.getUnreadCount(adminId, 'Operational')        // Get unread count for THIS admin
+                notificationsAPI.getUserNotifications(adminId, 'Operational'),
+                notificationsAPI.getUnreadCount(adminId, 'Operational')
             ]);
 
             console.log('Notifications response:', notificationsRes.data);
             console.log('Unread count response:', unreadRes.data);
 
-            // Handle the response format your backend returns
-            // Your backend returns: { success: true, data: [...], count: X }
+            // Handle the response
             setNotifications(notificationsRes.data.data || []);
             setUnreadCount(unreadRes.data.unreadCount || 0);
 
@@ -133,6 +145,7 @@ const Navbar = ({ onDrawerToggle }) => {
             setRefreshing(false);
         }
     };
+
 
     useEffect(() => {
         // Initial fetch

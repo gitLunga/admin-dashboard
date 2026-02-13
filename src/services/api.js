@@ -75,6 +75,23 @@ export const adminAPI = {
     getEnhancedStatistics: () => api.get('/statistics/enhanced'),
     getDashboardMetrics: () => api.get('/statistics/dashboard'),
     getPerformanceStats: () => api.get('/statistics/performance'),
+
+// Get all documents for a client user
+    getUserDocuments: (userId) => api.get(`/client-users/${userId}/documents`),
+
+// Download any document by document ID
+    downloadDocument: (documentId) => api.get(`/documents/${documentId}/download`, {
+        responseType: 'blob',
+    }),
+
+// View any document inline
+    viewDocument: (documentId) => api.get(`/documents/${documentId}/view`, {
+        responseType: 'blob',
+    }),
+
+// Update document status
+    updateDocumentStatus: (documentId, status, notes) =>
+        api.patch(`/documents/${documentId}/status`, { status, notes }),
 };
 
 export const notificationsAPI = {

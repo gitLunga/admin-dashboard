@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box,
     Paper,
@@ -20,6 +20,16 @@ import {
     Tab,
     IconButton,
     ButtonGroup,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    TextField,
+    ListItemSecondaryAction,
 } from '@mui/material';
 import {
     Person as PersonIcon,
@@ -34,18 +44,21 @@ import {
     Pending as PendingIcon,
     Block as RejectedIcon,
     Download as DownloadIcon,
-    Visibility as ViewIcon, // ADDED
-    PictureAsPdf as PdfIcon, // ADDED
-    Description, // ADDED
+    Visibility as ViewIcon,
+    PictureAsPdf as PdfIcon,
+    Description,
+    Image as ImageIcon,
 } from '@mui/icons-material';
-import {useParams, useNavigate} from 'react-router-dom';
-import {adminAPI} from '../../services/api';
-import {format} from 'date-fns';
+import { useParams, useNavigate } from 'react-router-dom';
+import { adminAPI } from '../../services/api';
+import { format } from 'date-fns';
 import StatusUpdateModal from './StatusUpdateModal';
 import InvoiceViewer from "../admin/InvoiceViewer";
+import DocumentViewer from '../../components/admin/DocumentViewer';
+import QuickDocumentActions from '../../components/admin/QuickDocumentActions'; // IMPORT THIS!
 
 const UserDetail = () => {
-    const {id} = useParams();
+    const { id } = useParams();
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -54,10 +67,40 @@ const UserDetail = () => {
     const [modalOpen, setModalOpen] = useState(false);
     const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
 
-    // Fixed: Added dependency array
+    // Document state variables
+    const [userDocuments, setUserDocuments] = useState([]);
+    const [loadingDocuments, setLoadingDocuments] = useState(false);
+    const [documentsError, setDocumentsError] = useState(null);
+    const [selectedDocument, setSelectedDocument] = useState(null);
+    const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+
+    // REMOVED: viewerOpen, documentUrl, handleViewDocument, handleDownloadDocument
+    // These are now handled by QuickDocumentActions and DocumentViewer
+
+    const [statusValue, setStatusValue] = useState('Pending');
+    const [statusNotes, setStatusNotes] = useState('');
+
+    const isClientUser = user?.user_type === 'client';
+
+    // Fetch user details
     useEffect(() => {
         fetchUserDetails();
-    }, [id]); // id is the only dependency needed
+    }, [id]);
+
+    // Fetch documents when tab changes to Documents
+    useEffect(() => {
+        if (isClientUser && activeTab === 2) {
+            fetchUserDocuments();
+        }
+    }, [id, activeTab, isClientUser]);
+
+    // Reset status form when dialog opens
+    useEffect(() => {
+        if (selectedDocument) {
+            setStatusValue(selectedDocument.document_status);
+            setStatusNotes('');
+        }
+    }, [selectedDocument]);
 
     const fetchUserDetails = async () => {
         try {
@@ -65,11 +108,11 @@ const UserDetail = () => {
             // Try to fetch as client user first
             try {
                 const response = await adminAPI.getClientUserById(id);
-                setUser({...response.data.data.user, user_type: 'client'});
+                setUser({ ...response.data.data.user, user_type: 'client' });
             } catch (clientError) {
                 // If not found as client, try as operational user
                 const response = await adminAPI.getOperationalUserById(id);
-                setUser({...response.data.data.user, user_type: 'operational'});
+                setUser({ ...response.data.data.user, user_type: 'operational' });
             }
         } catch (err) {
             setError('User not found');
@@ -78,9 +121,44 @@ const UserDetail = () => {
         }
     };
 
+    const fetchUserDocuments = async () => {
+        if (!isClientUser) return;
+
+        try {
+            setLoadingDocuments(true);
+            setDocumentsError(null);
+            const response = await adminAPI.getUserDocuments(id);
+            setUserDocuments(response.data.data.documents || []);
+        } catch (err) {
+            console.error('Error fetching documents:', err);
+            setDocumentsError('Failed to load documents');
+        } finally {
+            setLoadingDocuments(false);
+        }
+    };
+
+    // Handle document status update
+    const handleDocumentStatusUpdate = async (status, notes) => {
+        if (!selectedDocument) return;
+
+        try {
+            await adminAPI.updateDocumentStatus(
+                selectedDocument.document_id,
+                status,
+                notes || ''
+            );
+            setStatusDialogOpen(false);
+            setSelectedDocument(null);
+            fetchUserDocuments(); // Refresh the list
+        } catch (error) {
+            console.error('Status update failed:', error);
+            setDocumentsError('Failed to update document status');
+        }
+    };
+
     const handleStatusUpdate = async (status, notes) => {
         try {
-            await adminAPI.updateUserStatus(id, {status, notes});
+            await adminAPI.updateUserStatus(id, { status, notes });
             fetchUserDetails();
             setModalOpen(false);
         } catch (err) {
@@ -88,7 +166,7 @@ const UserDetail = () => {
         }
     };
 
-    // ADDED: Handle invoice download
+    // Handle invoice download
     const handleDownloadInvoice = async () => {
         try {
             const response = await adminAPI.downloadInvoice(id);
@@ -109,11 +187,11 @@ const UserDetail = () => {
     const getStatusIcon = (status) => {
         switch (status) {
             case 'Verified':
-                return <VerifiedIcon color="success"/>;
+                return <VerifiedIcon color="success" />;
             case 'Pending':
-                return <PendingIcon color="warning"/>;
+                return <PendingIcon color="warning" />;
             case 'Rejected':
-                return <RejectedIcon color="error"/>;
+                return <RejectedIcon color="error" />;
             default:
                 return null;
         }
@@ -143,26 +221,24 @@ const UserDetail = () => {
     if (loading) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-                <CircularProgress/>
+                <CircularProgress />
             </Box>
         );
     }
 
     if (error || !user) {
         return (
-            <Alert severity="error" sx={{mt: 2}}>
+            <Alert severity="error" sx={{ mt: 2 }}>
                 {error || 'User not found'}
             </Alert>
         );
     }
 
-    const isClientUser = user.user_type === 'client';
-
     return (
-        <Box sx={{p: 3}}>
+        <Box sx={{ p: 3 }}>
             <Box display="flex" alignItems="center" mb={3}>
-                <IconButton onClick={() => navigate(-1)} sx={{mr: 2}}>
-                    <ArrowBackIcon/>
+                <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
+                    <ArrowBackIcon />
                 </IconButton>
                 <Typography variant="h4">
                     User Details
@@ -183,7 +259,7 @@ const UserDetail = () => {
                                         bgcolor: isClientUser ? 'primary.main' : 'secondary.main',
                                     }}
                                 >
-                                    <PersonIcon sx={{fontSize: 48}}/>
+                                    <PersonIcon sx={{ fontSize: 48 }} />
                                 </Avatar>
                                 <Typography variant="h5" gutterBottom>
                                     {user.title} {user.first_name} {user.last_name}
@@ -191,7 +267,7 @@ const UserDetail = () => {
                                 <Chip
                                     label={isClientUser ? 'Client User' : 'Operational User'}
                                     color={isClientUser ? 'primary' : 'secondary'}
-                                    sx={{mb: 1}}
+                                    sx={{ mb: 1 }}
                                 />
                                 <Box display="flex" alignItems="center" gap={1}>
                                     {getStatusIcon(user.registration_status)}
@@ -203,31 +279,31 @@ const UserDetail = () => {
                                 </Box>
                             </Box>
 
-                            <Divider sx={{my: 2}}/>
+                            <Divider sx={{ my: 2 }} />
 
                             <List dense>
                                 <ListItem>
                                     <ListItemIcon>
-                                        <EmailIcon/>
+                                        <EmailIcon />
                                     </ListItemIcon>
-                                    <ListItemText primary="Email" secondary={user.email}/>
+                                    <ListItemText primary="Email" secondary={user.email} />
                                 </ListItem>
 
                                 {user.phone_number && (
                                     <ListItem>
                                         <ListItemIcon>
-                                            <PhoneIcon/>
+                                            <PhoneIcon />
                                         </ListItemIcon>
-                                        <ListItemText primary="Phone" secondary={user.phone_number}/>
+                                        <ListItemText primary="Phone" secondary={user.phone_number} />
                                     </ListItem>
                                 )}
 
                                 {user.region && (
                                     <ListItem>
                                         <ListItemIcon>
-                                            <LocationIcon/>
+                                            <LocationIcon />
                                         </ListItemIcon>
-                                        <ListItemText primary="Region" secondary={user.region}/>
+                                        <ListItemText primary="Region" secondary={user.region} />
                                     </ListItem>
                                 )}
 
@@ -236,34 +312,34 @@ const UserDetail = () => {
                                         {user.persal_id && (
                                             <ListItem>
                                                 <ListItemIcon>
-                                                    <WorkIcon/>
+                                                    <WorkIcon />
                                                 </ListItemIcon>
-                                                <ListItemText primary="Persal ID" secondary={user.persal_id}/>
+                                                <ListItemText primary="Persal ID" secondary={user.persal_id} />
                                             </ListItem>
                                         )}
 
                                         {user.department_id && (
                                             <ListItem>
                                                 <ListItemIcon>
-                                                    <WorkIcon/>
+                                                    <WorkIcon />
                                                 </ListItemIcon>
-                                                <ListItemText primary="Department" secondary={user.department_id}/>
+                                                <ListItemText primary="Department" secondary={user.department_id} />
                                             </ListItem>
                                         )}
                                     </>
                                 ) : (
                                     <ListItem>
                                         <ListItemIcon>
-                                            <WorkIcon/>
+                                            <WorkIcon />
                                         </ListItemIcon>
-                                        <ListItemText primary="Role" secondary={user.user_role}/>
+                                        <ListItemText primary="Role" secondary={user.user_role} />
                                     </ListItem>
                                 )}
 
                                 {user.created_at && (
                                     <ListItem>
                                         <ListItemIcon>
-                                            <CalendarIcon/>
+                                            <CalendarIcon />
                                         </ListItemIcon>
                                         <ListItemText
                                             primary="Registered"
@@ -278,7 +354,7 @@ const UserDetail = () => {
                                     <Button
                                         fullWidth
                                         variant="contained"
-                                        startIcon={<EditIcon/>}
+                                        startIcon={<EditIcon />}
                                         onClick={() => setModalOpen(true)}
                                     >
                                         Update Status
@@ -291,12 +367,12 @@ const UserDetail = () => {
 
                 {/* Right Column - Tabs and Details */}
                 <Grid item xs={12} md={8}>
-                    <Paper sx={{mb: 2}}>
+                    <Paper sx={{ mb: 2 }}>
                         <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
-                            <Tab label="Overview"/>
-                            <Tab label="Activity"/>
-                            <Tab label="Documents"/>
-                            {isClientUser && <Tab label="Contract Details"/>}
+                            <Tab label="Overview" />
+                            <Tab label="Activity" />
+                            <Tab label="Documents" />
+                            {isClientUser && <Tab label="Contract Details" />}
                         </Tabs>
                     </Paper>
 
@@ -350,7 +426,7 @@ const UserDetail = () => {
                                                     <Typography variant="body2" color="textSecondary">
                                                         Verification Notes
                                                     </Typography>
-                                                    <Paper variant="outlined" sx={{p: 2, mt: 1, bgcolor: 'grey.50'}}>
+                                                    <Paper variant="outlined" sx={{ p: 2, mt: 1, bgcolor: 'grey.50' }}>
                                                         <Typography variant="body2">
                                                             {user.verification_notes}
                                                         </Typography>
@@ -380,71 +456,126 @@ const UserDetail = () => {
                     {activeTab === 2 && (
                         <Card>
                             <CardContent>
-                                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                                     <Typography variant="h6">
-                                        Documents
+                                        User Documents
                                     </Typography>
-                                    {isClientUser && user.has_invoice && (
-                                        <ButtonGroup variant="contained">
-                                            <Button
-                                                onClick={() => setInvoiceDialogOpen(true)}
-                                                startIcon={<ViewIcon />}
-                                            >
-                                                View Invoice
-                                            </Button>
-                                            <Button
-                                                onClick={handleDownloadInvoice}
-                                                startIcon={<DownloadIcon />}
-                                            >
-                                                Download
-                                            </Button>
-                                        </ButtonGroup>
+                                    {isClientUser && (
+                                        <Chip
+                                            label={`${userDocuments.length} document(s)`}
+                                            size="small"
+                                            color="primary"
+                                            variant="outlined"
+                                        />
                                     )}
                                 </Box>
 
-                                {isClientUser && user.has_invoice ? (
-                                    <Box>
-                                        <Card variant="outlined" sx={{ p: 2, mb: 2 }}>
-                                            <Box display="flex" alignItems="center" mb={1}>
-                                                {user.invoice_file_name?.toLowerCase().endsWith('.pdf') ? (
-                                                    <PdfIcon color="error" sx={{ mr: 1 }} />
-                                                ) : (
-                                                    <Description color="action" sx={{ mr: 1 }} />
-                                                )}
-                                                <Typography variant="subtitle1">
-                                                    {user.invoice_file_name || 'invoice.pdf'}
-                                                </Typography>
-                                            </Box>
-                                            <Typography variant="body2" color="textSecondary">
-                                                Contract invoice uploaded during profile completion
-                                            </Typography>
-                                            <Box display="flex" gap={1} mt={2}>
-                                                <Button
-                                                    size="small"
-                                                    variant="outlined"
-                                                    startIcon={<ViewIcon />}
-                                                    onClick={() => setInvoiceDialogOpen(true)}
-                                                >
-                                                    View
-                                                </Button>
-                                                <Button
-                                                    size="small"
-                                                    variant="contained"
-                                                    startIcon={<DownloadIcon />}
-                                                    onClick={handleDownloadInvoice}
-                                                >
-                                                    Download
-                                                </Button>
-                                            </Box>
-                                        </Card>
-                                    </Box>
-                                ) : (
+                                {!isClientUser ? (
                                     <Alert severity="info">
-                                        {isClientUser
-                                            ? 'No documents uploaded yet'
-                                            : 'Operational users do not upload documents'
-                                        }
+                                        Operational users do not upload documents
                                     </Alert>
+                                ) : loadingDocuments ? (
+                                    <Box display="flex" justifyContent="center" p={3}>
+                                        <CircularProgress size={30} />
+                                    </Box>
+                                ) : documentsError ? (
+                                    <Alert severity="error" onClose={() => setDocumentsError(null)}>
+                                        {documentsError}
+                                    </Alert>
+                                ) : userDocuments.length === 0 ? (
+                                    <Alert severity="info">
+                                        No documents uploaded yet
+                                    </Alert>
+                                ) : (
+                                    <List>
+                                        {userDocuments.map((doc, index) => (
+                                            <React.Fragment key={doc.document_id}>
+                                                {index > 0 && <Divider />}
+                                                <ListItem alignItems="flex-start">
+                                                    <ListItemIcon>
+                                                        {doc.file_name?.toLowerCase().endsWith('.pdf') ? (
+                                                            <PdfIcon color="error" />
+                                                        ) : doc.file_name?.toLowerCase().match(/\.(jpg|jpeg|png)$/) ? (
+                                                            <ImageIcon color="info" />
+                                                        ) : (
+                                                            <Description color="action" />
+                                                        )}
+                                                    </ListItemIcon>
+                                                    <ListItemText
+                                                        primary={
+                                                            <Box display="flex" alignItems="center" gap={1}>
+                                                                <Typography variant="subtitle2">
+                                                                    {doc.document_type === 'Proof_of_Residence'
+                                                                        ? 'Proof of Residence'
+                                                                        : doc.document_type}
+                                                                </Typography>
+                                                                <Chip
+                                                                    size="small"
+                                                                    label={doc.document_status}
+                                                                    color={
+                                                                        doc.document_status === 'Verified' ? 'success' :
+                                                                            doc.document_status === 'Rejected' ? 'error' : 'warning'
+                                                                    }
+                                                                    icon={
+                                                                        doc.document_status === 'Verified' ? <VerifiedIcon /> :
+                                                                            doc.document_status === 'Rejected' ? <RejectedIcon /> :
+                                                                                <PendingIcon />
+                                                                    }
+                                                                />
+                                                            </Box>
+                                                        }
+                                                        secondary={
+                                                            <>
+                                                                <Typography variant="caption" display="block" color="textSecondary">
+                                                                    {doc.file_name}
+                                                                </Typography>
+                                                                <Typography variant="caption" display="block" color="textSecondary">
+                                                                    Uploaded: {formatDate(doc.upload_date)}
+                                                                    {doc.file_size && ` • ${(doc.file_size / 1024).toFixed(1)} KB`}
+                                                                </Typography>
+                                                                {doc.verification_notes && (
+                                                                    <Paper variant="outlined" sx={{ p: 1, mt: 1, bgcolor: 'grey.50' }}>
+                                                                        <Typography variant="caption" color="textSecondary">
+                                                                            Notes: {doc.verification_notes}
+                                                                        </Typography>
+                                                                    </Paper>
+                                                                )}
+                                                            </>
+                                                        }
+                                                    />
+                                                    <ListItemSecondaryAction>
+                                                        <ButtonGroup size="small" variant="outlined">
+                                                            {/* QuickDocumentActions handles both View and Download */}
+                                                            <QuickDocumentActions
+                                                                documentId={doc.document_id}
+                                                                fileName={doc.file_name}
+                                                                documentType={doc.document_type}
+                                                                documentStatus={doc.document_status}
+                                                            />
+
+                                                            {/* Status update button */}
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => {
+                                                                    setSelectedDocument(doc);
+                                                                    setStatusDialogOpen(true);
+                                                                }}
+                                                                title="Update Status"
+                                                                color={
+                                                                    doc.document_status === 'Pending' ? 'warning' :
+                                                                        doc.document_status === 'Verified' ? 'success' : 'error'
+                                                                }
+                                                            >
+                                                                {doc.document_status === 'Pending' && <PendingIcon />}
+                                                                {doc.document_status === 'Verified' && <VerifiedIcon />}
+                                                                {doc.document_status === 'Rejected' && <RejectedIcon />}
+                                                            </IconButton>
+                                                        </ButtonGroup>
+                                                    </ListItemSecondaryAction>
+                                                </ListItem>
+                                            </React.Fragment>
+                                        ))}
+                                    </List>
                                 )}
                             </CardContent>
                         </Card>
@@ -497,6 +628,73 @@ const UserDetail = () => {
                     />
                 </>
             )}
+
+            {/* Document Status Update Dialog */}
+            <Dialog open={statusDialogOpen} onClose={() => setStatusDialogOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>
+                    Update Document Status
+                </DialogTitle>
+                <DialogContent dividers>
+                    {selectedDocument && (
+                        <Box>
+                            <Typography variant="subtitle2" gutterBottom>
+                                Document: {selectedDocument.document_type}
+                            </Typography>
+                            <Typography variant="body2" color="textSecondary" gutterBottom>
+                                Current Status:
+                                <Chip
+                                    size="small"
+                                    label={selectedDocument.document_status}
+                                    color={
+                                        selectedDocument.document_status === 'Verified' ? 'success' :
+                                            selectedDocument.document_status === 'Rejected' ? 'error' : 'warning'
+                                    }
+                                    sx={{ ml: 1 }}
+                                />
+                            </Typography>
+
+                            <FormControl fullWidth margin="normal">
+                                <InputLabel>New Status</InputLabel>
+                                <Select
+                                    value={statusValue}
+                                    label="New Status"
+                                    onChange={(e) => setStatusValue(e.target.value)}
+                                >
+                                    <MenuItem value="Pending">Pending</MenuItem>
+                                    <MenuItem value="Verified">Verified</MenuItem>
+                                    <MenuItem value="Rejected">Rejected</MenuItem>
+                                </Select>
+                            </FormControl>
+
+                            <TextField
+                                fullWidth
+                                margin="normal"
+                                label="Verification Notes"
+                                multiline
+                                rows={3}
+                                value={statusNotes}
+                                onChange={(e) => setStatusNotes(e.target.value)}
+                                placeholder="Add notes about this verification..."
+                            />
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setStatusDialogOpen(false)}>
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={() => handleDocumentStatusUpdate(statusValue, statusNotes)}
+                        disabled={!selectedDocument || statusValue === selectedDocument.document_status}
+                    >
+                        Update Status
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* REMOVED: Old Document Viewer Dialog - Now using DocumentViewer component via QuickDocumentActions */}
+
         </Box>
     );
 };

@@ -80,24 +80,47 @@ const LoginPage = () => {
         setSuccess('');
 
         try {
-            await authAPI.login({
+            // Get the response from the login API
+            const response = await authAPI.login({
                 email: formData.email,
                 password: formData.password,
             });
 
+            console.log('Login response:', response.data); // For debugging
+
+            // Extract user and token from response (handle different response structures)
+            const responseData = response.data.data || response.data;
+            const { user, token } = responseData;
+
+            // Store the token
+            if (token) {
+                localStorage.setItem('adminToken', token);
+            }
+
+            // Store user data - just the essential info needed
+            localStorage.setItem('adminUser', JSON.stringify({
+                id: user.id,                    // Regular user ID
+                op_user_id: user.op_user_id,     // Operational user ID if it exists
+                name: user.name || 'Admin User',
+                email: user.email,
+            }));
+
             setSuccess('Login successful! Redirecting...');
 
+            // Handle remember me
             if (formData.rememberMe) {
                 localStorage.setItem('remember_email', formData.email);
             } else {
                 localStorage.removeItem('remember_email');
             }
 
+            // Redirect after a short delay
             setTimeout(() => {
                 navigate('/dashboard');
             }, 1000);
 
         } catch (err) {
+            console.error('Login error:', err);
             setError(
                 err.response?.data?.message || 'Invalid email or password'
             );
