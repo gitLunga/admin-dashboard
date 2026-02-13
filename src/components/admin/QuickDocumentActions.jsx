@@ -14,8 +14,8 @@ import {
     MoreVert as MoreVertIcon,
     Download as DownloadIcon,
     Visibility as ViewIcon,
-    Receipt as InvoiceIcon,
-    Description as DocumentIcon,
+    // Receipt as InvoiceIcon,
+    // Description as DocumentIcon,
 } from '@mui/icons-material';
 import { adminAPI } from '../../services/api';
 import DocumentViewer from './DocumentViewer';

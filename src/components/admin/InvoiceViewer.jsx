@@ -1,5 +1,5 @@
 // src/components/admin/InvoiceViewer.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Dialog,
     DialogTitle,
@@ -22,26 +22,20 @@ import {
     PictureAsPdf as PdfIcon,
     Description as DocIcon,
     Image as ImageIcon,
-    Description, // ADD THIS
+    Description,
 } from '@mui/icons-material';
 import { adminAPI } from '../../services/api';
-
-// Remove or fix this line - either define API_BASE_URL or use a different approach
-// const API_BASE_URL = 'http://localhost:5000'; // Define this if needed
 
 const InvoiceViewer = ({ open, userId, userName, onClose }) => {
     const [loading, setLoading] = useState(false);
     const [invoiceInfo, setInvoiceInfo] = useState(null);
     const [error, setError] = useState(null);
 
-    // Fixed: Added proper dependency array
-    useEffect(() => {
-        if (open && userId) {
-            fetchInvoiceInfo();
-        }
-    }, [open, userId]); // Added userId to dependencies
+    // Wrap fetchInvoiceInfo in useCallback to prevent unnecessary re-renders
+    const fetchInvoiceInfo = useCallback(async () => {
+        // Don't fetch if no userId
+        if (!userId) return;
 
-    const fetchInvoiceInfo = async () => {
         try {
             setLoading(true);
             setError(null);
@@ -54,9 +48,18 @@ const InvoiceViewer = ({ open, userId, userName, onClose }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [userId]); // userId is the only dependency
 
-    const handleDownload = async () => {
+    // Fetch invoice info when dialog opens or userId changes
+    useEffect(() => {
+        if (open && userId) {
+            fetchInvoiceInfo();
+        }
+    }, [open, userId, fetchInvoiceInfo]); // Added all dependencies
+
+    const handleDownload = useCallback(async () => {
+        if (!userId || !invoiceInfo) return;
+
         try {
             setLoading(true);
             const response = await adminAPI.downloadInvoice(userId);
@@ -76,9 +79,11 @@ const InvoiceViewer = ({ open, userId, userName, onClose }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [userId, invoiceInfo]);
 
-    const handleView = async () => {
+    const handleView = useCallback(async () => {
+        if (!userId || !invoiceInfo) return;
+
         try {
             setLoading(true);
             const response = await adminAPI.viewInvoice(userId);
@@ -87,15 +92,20 @@ const InvoiceViewer = ({ open, userId, userName, onClose }) => {
             const blob = new Blob([response.data], { type: invoiceInfo.mime_type });
             const url = window.URL.createObjectURL(blob);
             window.open(url, '_blank');
+
+            // Clean up the URL after opening
+            setTimeout(() => {
+                window.URL.revokeObjectURL(url);
+            }, 100);
         } catch (err) {
             console.error('View error:', err);
             setError('Failed to view invoice');
         } finally {
             setLoading(false);
         }
-    };
+    }, [userId, invoiceInfo]);
 
-    const getFileIcon = (fileName) => {
+    const getFileIcon = useCallback((fileName) => {
         if (!fileName) return <Description />;
 
         if (fileName.toLowerCase().endsWith('.pdf')) {
@@ -106,24 +116,46 @@ const InvoiceViewer = ({ open, userId, userName, onClose }) => {
             return <DocIcon color="info" />;
         }
         return <Description />;
-    };
+    }, []);
 
-    const formatFileSize = (bytes) => {
+    const formatFileSize = useCallback((bytes) => {
         if (bytes === 0) return '0 Bytes';
         const k = 1024;
         const sizes = ['Bytes', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    };
+    }, []);
+
+    // Reset state when dialog closes
+    const handleClose = useCallback(() => {
+        setInvoiceInfo(null);
+        setError(null);
+        setLoading(false);
+        onClose();
+    }, [onClose]);
+
+    const handleImageError = useCallback((e) => {
+        e.target.onerror = null;
+        e.target.style.display = 'none';
+        // Optionally show a fallback icon
+        const parent = e.target.parentNode;
+        if (parent) {
+            const fallbackIcon = document.createElement('div');
+            fallbackIcon.innerHTML = '📄';
+            fallbackIcon.style.fontSize = '48px';
+            fallbackIcon.style.textAlign = 'center';
+            parent.appendChild(fallbackIcon);
+        }
+    }, []);
 
     return (
-        <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+        <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
             <DialogTitle>
                 <Box display="flex" justifyContent="space-between" alignItems="center">
                     <Typography variant="h6">
                         Invoice for {userName}
                     </Typography>
-                    <IconButton onClick={onClose} size="small">
+                    <IconButton onClick={handleClose} size="small">
                         <CloseIcon />
                     </IconButton>
                 </Box>
@@ -175,7 +207,9 @@ const InvoiceViewer = ({ open, userId, userName, onClose }) => {
                                         Uploaded Date
                                     </Typography>
                                     <Typography variant="body1">
-                                        {new Date(invoiceInfo.uploaded_date).toLocaleDateString()}
+                                        {invoiceInfo.uploaded_date
+                                            ? new Date(invoiceInfo.uploaded_date).toLocaleDateString()
+                                            : 'N/A'}
                                     </Typography>
                                 </Grid>
 
@@ -184,7 +218,7 @@ const InvoiceViewer = ({ open, userId, userName, onClose }) => {
                                         File Type
                                     </Typography>
                                     <Typography variant="body1">
-                                        {invoiceInfo.mime_type}
+                                        {invoiceInfo.mime_type || 'Unknown'}
                                     </Typography>
                                 </Grid>
 
@@ -201,8 +235,8 @@ const InvoiceViewer = ({ open, userId, userName, onClose }) => {
                             </Grid>
                         </Box>
 
-                        {/* Preview Section - Fixed: Removed API_BASE_URL dependency */}
-                        {invoiceInfo.mime_type.includes('image') && invoiceInfo.file_path ? (
+                        {/* Preview Section */}
+                        {invoiceInfo.mime_type?.includes('image') && invoiceInfo.file_path ? (
                             <Box mb={3}>
                                 <Typography variant="subtitle1" gutterBottom>
                                     Preview
@@ -215,22 +249,19 @@ const InvoiceViewer = ({ open, userId, userName, onClose }) => {
                                         p: 2,
                                         display: 'flex',
                                         justifyContent: 'center',
+                                        minHeight: '100px',
                                     }}
                                 >
-                                    {/* Use relative path or serve from your API */}
                                     <img
-                                        src={`/api${invoiceInfo.file_path}`} // Changed to relative path
+                                        src={`/api${invoiceInfo.file_path}`}
                                         alt="Invoice preview"
-                                        style={{ maxWidth: '100%', maxHeight: '300px' }}
-                                        onError={(e) => {
-                                            e.target.onerror = null;
-                                            // Show a placeholder or hide the image
-                                            e.target.style.display = 'none';
-                                        }}
+                                        style={{ maxWidth: '100%', maxHeight: '300px', objectFit: 'contain' }}
+                                        onError={handleImageError}
+                                        loading="lazy"
                                     />
                                 </Box>
                             </Box>
-                        ) : invoiceInfo.mime_type.includes('pdf') && (
+                        ) : invoiceInfo.mime_type?.includes('pdf') && (
                             <Box mb={3}>
                                 <Typography variant="subtitle1" gutterBottom>
                                     PDF Document
@@ -246,11 +277,12 @@ const InvoiceViewer = ({ open, userId, userName, onClose }) => {
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         flexDirection: 'column',
+                                        bgcolor: 'grey.50',
                                     }}
                                 >
                                     <PdfIcon sx={{ fontSize: 48, color: 'error.main', mb: 2 }} />
-                                    <Typography color="textSecondary">
-                                        PDF document preview not available inline.
+                                    <Typography color="textSecondary" align="center">
+                                        PDF document preview not available inline.<br />
                                         Click "View" to open in new tab.
                                     </Typography>
                                 </Box>
@@ -264,8 +296,8 @@ const InvoiceViewer = ({ open, userId, userName, onClose }) => {
                 )}
             </DialogContent>
 
-            <DialogActions>
-                <Button onClick={onClose} color="inherit">
+            <DialogActions sx={{ p: 2 }}>
+                <Button onClick={handleClose} color="inherit">
                     Close
                 </Button>
                 {invoiceInfo && (
@@ -284,7 +316,7 @@ const InvoiceViewer = ({ open, userId, userName, onClose }) => {
                             variant="contained"
                             disabled={loading}
                         >
-                            {loading ? 'Downloading...' : 'Download'}
+                            {loading ? 'Processing...' : 'Download'}
                         </Button>
                     </>
                 )}
