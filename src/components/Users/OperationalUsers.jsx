@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Box, Paper, Typography, IconButton, Chip, Alert, CircularProgress,
+    Box, Paper, Typography, IconButton, Chip, CircularProgress,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     TablePagination, Avatar, Button, Dialog, DialogTitle, DialogContent,
-    DialogActions, MenuItem, Select, FormControl, TextField,
+    DialogActions, MenuItem, Select, TextField,
     Tooltip, useMediaQuery, useTheme,
 } from '@mui/material';
 import {
@@ -12,7 +12,9 @@ import {
     Clear as ClearIcon, ManageAccounts as ManageIcon, Close as CloseIcon,
 } from '@mui/icons-material';
 import { adminAPI } from '../../services/api';
+import { useNavigate } from 'react-router-dom';
 import { USER_ROLES } from '../../utils/constants';
+import { useToast } from '../../hooks/useToast';
 
 const T = {
     bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
@@ -54,15 +56,17 @@ const InputField = ({ label, name, value, onChange, type = 'text', required }) =
 const OperationalUsers = () => {
     const theme    = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const navigate = useNavigate();
+    const { success, error: toastError, warning } = useToast();
 
     const [users,        setUsers]        = useState([]);
     const [loading,      setLoading]      = useState(true);
-    const [error,        setError]        = useState(null);
     const [searchTerm,   setSearchTerm]   = useState('');
     const [page,         setPage]         = useState(0);
     const [rowsPerPage,  setRowsPerPage]  = useState(10);
     const [dialogOpen,   setDialogOpen]   = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
+    const [submitting,   setSubmitting]   = useState(false);
     const [formData,     setFormData]     = useState({ first_name: '', last_name: '', email: '', user_role: 'Admin' });
 
     useEffect(() => { fetchOperationalUsers(); }, []);
@@ -71,19 +75,29 @@ const OperationalUsers = () => {
         try {
             setLoading(true);
             const response = await adminAPI.getOperationalUsers();
-            setUsers(response.data.data.users);
-        } catch (err) { setError(err.message || 'Failed to fetch operational users'); }
-        finally { setLoading(false); }
+            setUsers(response.data?.data?.users ?? []);
+        } catch (err) {
+            const msg = err.response?.data?.message || 'Failed to fetch operational users';
+            toastError(msg, 'Failed to Load');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleSearch = async () => {
-        if (searchTerm.length < 2) { fetchOperationalUsers(); return; }
+        if (searchTerm.trim().length < 2) {
+            fetchOperationalUsers();
+            return;
+        }
         try {
             setLoading(true);
-            const response = await adminAPI.searchUsers(searchTerm);
-            setUsers(response.data.data.users.filter(u => u.user_type === 'operational'));
-        } catch (err) { setError(err.message || 'Search failed'); }
-        finally { setLoading(false); }
+            const response = await adminAPI.searchUsers(searchTerm.trim());
+            setUsers((response.data?.data?.users ?? []).filter(u => u.user_type === 'operational'));
+        } catch (err) {
+            toastError(err.response?.data?.message || 'Search failed', 'Search Error');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleOpenDialog = (user = null) => {
@@ -98,7 +112,8 @@ const OperationalUsers = () => {
     };
 
     const handleCloseDialog = () => {
-        setDialogOpen(false); setSelectedUser(null);
+        setDialogOpen(false);
+        setSelectedUser(null);
         setFormData({ first_name: '', last_name: '', email: '', user_role: 'Admin' });
     };
 
@@ -108,14 +123,53 @@ const OperationalUsers = () => {
     };
 
     const handleSubmit = async () => {
-        try { handleCloseDialog(); fetchOperationalUsers(); }
-        catch (err) { setError(err.message || 'Operation failed'); }
+        // Basic validation
+        if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.email.trim()) {
+            warning('Please fill in all required fields.', 'Missing Fields');
+            return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            warning('Please enter a valid email address.', 'Invalid Email');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            if (selectedUser) {
+                // Edit existing — update endpoint if available
+                const response = await adminAPI.updateOperationalUser?.(selectedUser.op_user_id, formData);
+                const msg = response?.data?.message || `${formData.first_name} ${formData.last_name}'s profile has been updated.`;
+                success(msg, 'User Updated');
+            } else {
+                // Create new
+                const response = await adminAPI.createOperationalUser?.(formData);
+                const msg = response?.data?.message || `${formData.first_name} ${formData.last_name} has been added as a ${formData.user_role}.`;
+                success(msg, 'User Created');
+            }
+            handleCloseDialog();
+            fetchOperationalUsers();
+        } catch (err) {
+            const status = err.response?.status;
+            const msg = err.response?.data?.message || (selectedUser ? 'Failed to update user' : 'Failed to create user');
+            if (status === 409) {
+                toastError(msg, 'Duplicate Email');
+            } else {
+                toastError(msg, selectedUser ? 'Update Failed' : 'Creation Failed');
+            }
+        } finally {
+            setSubmitting(false);
+        }
     };
 
-    const handleDelete = async (userId) => {
-        if (window.confirm('Are you sure you want to delete this user?')) {
-            try { fetchOperationalUsers(); }
-            catch (err) { setError(err.message || 'Delete failed'); }
+    const handleDelete = async (user) => {
+        if (!window.confirm(`Are you sure you want to delete ${user.first_name} ${user.last_name}?`)) return;
+        try {
+            const response = await adminAPI.deleteOperationalUser?.(user.op_user_id);
+            const msg = response?.data?.message || `${user.first_name} ${user.last_name} has been removed.`;
+            success(msg, 'User Deleted');
+            fetchOperationalUsers();
+        } catch (err) {
+            toastError(err.response?.data?.message || 'Failed to delete user', 'Delete Failed');
         }
     };
 
@@ -126,7 +180,11 @@ const OperationalUsers = () => {
         u.user_role?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400, bgcolor: T.bg }}><CircularProgress sx={{ color: T.accent }} /></Box>;
+    if (loading && users.length === 0) return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400, bgcolor: T.bg }}>
+            <CircularProgress sx={{ color: T.accent }} />
+        </Box>
+    );
 
     return (
         <Box sx={{ p: { xs: 2, md: 3.5 }, bgcolor: T.bg, minHeight: '100vh' }}>
@@ -164,14 +222,12 @@ const OperationalUsers = () => {
                             onKeyPress={e => e.key === 'Enter' && handleSearch()}
                             style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem', color: T.text }}
                         />
-                        {searchTerm && <IconButton size="small" onClick={() => setSearchTerm('')} sx={{ p: 0.3, color: T.muted }}><ClearIcon sx={{ fontSize: 13 }} /></IconButton>}
+                        {searchTerm && <IconButton size="small" onClick={() => { setSearchTerm(''); fetchOperationalUsers(); }} sx={{ p: 0.3, color: T.muted }}><ClearIcon sx={{ fontSize: 13 }} /></IconButton>}
                     </Box>
                     <Chip label={`${filteredUsers.length} user${filteredUsers.length !== 1 ? 's' : ''}`} size="small"
                           sx={{ height: 28, fontSize: '0.75rem', fontWeight: 700, bgcolor: T.purpleSoft, color: T.purple, fontFamily: 'JetBrains Mono, monospace' }} />
                 </Box>
             </Paper>
-
-            {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2, borderRadius: '10px', fontSize: '0.83rem' }}>{error}</Alert>}
 
             {/* Table */}
             <Paper elevation={0} sx={{ borderRadius: '14px', border: `1px solid ${T.border}`, bgcolor: T.surface, overflow: 'hidden' }}>
@@ -219,13 +275,13 @@ const OperationalUsers = () => {
                                                 </IconButton>
                                             </Tooltip>
                                             <Tooltip title="View">
-                                                <IconButton size="small" onClick={() => window.location.href = `/operational-users/${user.op_user_id}`}
+                                                <IconButton size="small" onClick={() => navigate(`/operational-users/${user.op_user_id}`)}
                                                             sx={{ width: 28, height: 28, borderRadius: '8px', bgcolor: T.accentSoft, color: T.accent, '&:hover': { bgcolor: '#DBEAFE' } }}>
                                                     <ViewIcon sx={{ fontSize: 14 }} />
                                                 </IconButton>
                                             </Tooltip>
                                             <Tooltip title="Delete">
-                                                <IconButton size="small" onClick={() => handleDelete(user.op_user_id)}
+                                                <IconButton size="small" onClick={() => handleDelete(user)}
                                                             sx={{ width: 28, height: 28, borderRadius: '8px', bgcolor: T.roseSoft, color: T.rose, '&:hover': { bgcolor: '#FECACA' } }}>
                                                     <DeleteIcon sx={{ fontSize: 14 }} />
                                                 </IconButton>
@@ -285,7 +341,7 @@ const OperationalUsers = () => {
                             </Typography>
                             <Select name="user_role" value={formData.user_role} onChange={handleFormChange} fullWidth size="small"
                                     sx={{ borderRadius: '10px', bgcolor: T.bg, fontSize: '0.85rem', '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border }, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.accent }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: T.accent } }}>
-                                {USER_ROLES.map(role => (
+                                {(USER_ROLES || [{ value: 'Admin', label: 'Admin' }, { value: 'Manager', label: 'Manager' }, { value: 'Support', label: 'Support' }]).map(role => (
                                     <MenuItem key={role.value} value={role.value} sx={{ fontSize: '0.85rem' }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
                                             <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: ROLE_META[role.value]?.color || T.muted }} />
@@ -298,13 +354,12 @@ const OperationalUsers = () => {
                     </Box>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2.2, bgcolor: T.surface, borderTop: `1px solid ${T.border}`, gap: 1.5 }}>
-                    <Button onClick={handleCloseDialog}
-                            sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem', color: T.muted, border: `1px solid ${T.border}`, bgcolor: T.bg, '&:hover': { bgcolor: T.border } }}>
+                    <Button onClick={handleCloseDialog} sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem', color: T.muted, border: `1px solid ${T.border}`, bgcolor: T.bg, '&:hover': { bgcolor: T.border } }}>
                         Cancel
                     </Button>
-                    <Button onClick={handleSubmit} variant="contained"
-                            sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem', bgcolor: T.accent, boxShadow: 'none', '&:hover': { bgcolor: '#1641B8', boxShadow: `0 4px 14px ${T.accent}44` } }}>
-                        {selectedUser ? 'Save Changes' : 'Create User'}
+                    <Button onClick={handleSubmit} variant="contained" disabled={submitting}
+                            sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem', bgcolor: T.accent, boxShadow: 'none', '&:hover': { bgcolor: '#1641B8', boxShadow: `0 4px 14px ${T.accent}44` }, '&.Mui-disabled': { bgcolor: T.border, color: T.muted } }}>
+                        {submitting ? 'Saving…' : selectedUser ? 'Save Changes' : 'Create User'}
                     </Button>
                 </DialogActions>
             </Dialog>

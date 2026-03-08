@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Box, Paper, Typography, TextField, IconButton, Chip, Alert,
+    Box, Paper, Typography, IconButton, Chip, Alert,
     CircularProgress, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, TablePagination, Avatar, FormControl,
-    InputLabel, Select, MenuItem, Stack, Button, useMediaQuery, useTheme,
+    Select, MenuItem, Button, useMediaQuery, useTheme,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -12,12 +12,13 @@ import {
     FilterList as FilterListIcon,
     Clear as ClearIcon,
     People as PeopleIcon,
-    PersonAdd as PersonAddIcon,
 } from '@mui/icons-material';
 import { adminAPI } from '../../services/api';
+import { useNavigate } from 'react-router-dom';
 import StatusUpdateModal from './StatusUpdateModal';
+import { useToast } from '../../hooks/useToast';
 
-/* ── Shared design tokens ── */
+/* ── Design tokens ── */
 const T = {
     bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
     text: '#0F1F3D', muted: '#6B7A99',
@@ -49,6 +50,8 @@ const StatusChip = ({ status }) => {
 const ClientUsers = () => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const navigate = useNavigate();
+    const { success, error: toastError, info } = useToast();
 
     const [users, setUsers]               = useState([]);
     const [loading, setLoading]           = useState(true);
@@ -58,6 +61,7 @@ const ClientUsers = () => {
     const [rowsPerPage, setRowsPerPage]   = useState(10);
     const [selectedUser, setSelectedUser] = useState(null);
     const [modalOpen, setModalOpen]       = useState(false);
+    const [submitting, setSubmitting]     = useState(false);
     const [selectedRegion, setSelectedRegion] = useState('all');
     const [selectedStatus, setSelectedStatus] = useState('all');
 
@@ -66,23 +70,35 @@ const ClientUsers = () => {
     const fetchClientUsers = async () => {
         try {
             setLoading(true);
+            setError(null);
             const response = await adminAPI.getClientUsers();
-            setUsers(response.data.data.users);
+            const users = response.data?.data?.users;
+            if (!Array.isArray(users)) throw new Error('Unexpected response format');
+            setUsers(users);
         } catch (err) {
-            setError(err.message || 'Failed to fetch client users');
+            const msg = err.response?.data?.message || err.message || 'Failed to fetch client users';
+            setError(msg);
+            toastError(msg, 'Failed to Load');
         } finally {
             setLoading(false);
         }
     };
 
     const handleSearch = async () => {
-        if (searchTerm.length < 2) { fetchClientUsers(); return; }
+        if (searchTerm.trim().length < 2) {
+            info('Please enter at least 2 characters to search', 'Search');
+            return;
+        }
         try {
             setLoading(true);
-            const response = await adminAPI.searchUsers(searchTerm);
-            setUsers(response.data.data.users.filter(u => u.user_type === 'client'));
+            const response = await adminAPI.searchUsers(searchTerm.trim());
+            const users = response.data?.data?.users ?? [];
+            const clientOnly = users.filter(u => u.user_type === 'client');
+            setUsers(clientOnly);
+            if (clientOnly.length === 0) info('No client users matched your search', 'No Results');
         } catch (err) {
-            setError(err.message || 'Search failed');
+            const msg = err.response?.data?.message || 'Search failed';
+            toastError(msg, 'Search Error');
         } finally {
             setLoading(false);
         }
@@ -90,13 +106,27 @@ const ClientUsers = () => {
 
     const handleStatusUpdate = async (status, notes) => {
         if (!selectedUser) return;
+        setSubmitting(true);
         try {
-            await adminAPI.updateUserStatus(selectedUser.client_user_id, { status, notes });
-            fetchClientUsers();
+            const response = await adminAPI.updateUserStatus(selectedUser.client_user_id, { status, notes });
+            const msg = response.data?.message
+                || `${selectedUser.first_name} ${selectedUser.last_name}'s status updated to ${status}.`;
+
+            success(msg, 'Status Updated');
             setModalOpen(false);
             setSelectedUser(null);
+            fetchClientUsers();
         } catch (err) {
-            setError(err.message || 'Failed to update status');
+            // 409 = already verified and cannot be changed
+            const msg = err.response?.data?.message || 'Failed to update status';
+            const isConflict = err.response?.status === 409;
+            if (isConflict) {
+                toastError(msg, 'Cannot Change Status');
+            } else {
+                toastError(msg, 'Update Failed');
+            }
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -114,11 +144,10 @@ const ClientUsers = () => {
     }), [users, searchTerm, selectedRegion, selectedStatus]);
 
     const hasFilters = selectedRegion !== 'all' || selectedStatus !== 'all' || searchTerm.trim() !== '';
-    const clearAll   = () => { setSelectedRegion('all'); setSelectedStatus('all'); setSearchTerm(''); setPage(0); };
-
+    const clearAll   = () => { setSelectedRegion('all'); setSelectedStatus('all'); setSearchTerm(''); setPage(0); fetchClientUsers(); };
     const getInitials = (u) => `${u.first_name?.[0] || ''}${u.last_name?.[0] || ''}`.toUpperCase();
 
-    if (loading) return (
+    if (loading && users.length === 0) return (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400, bgcolor: T.bg }}>
             <CircularProgress sx={{ color: T.accent }} />
         </Box>
@@ -142,15 +171,21 @@ const ClientUsers = () => {
                         Manage and review all judicial system client users
                     </Typography>
                 </Box>
-                <Chip
-                    label={`${filteredUsers.length} user${filteredUsers.length !== 1 ? 's' : ''}`}
-                    sx={{ bgcolor: T.accentSoft, color: T.accent, fontWeight: 700, fontSize: '0.78rem', height: 32, fontFamily: 'JetBrains Mono, monospace' }}
-                />
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <Chip
+                        label={`${filteredUsers.length} user${filteredUsers.length !== 1 ? 's' : ''}`}
+                        sx={{ bgcolor: T.accentSoft, color: T.accent, fontWeight: 700, fontSize: '0.78rem', height: 32, fontFamily: 'JetBrains Mono, monospace' }}
+                    />
+                    <Button onClick={fetchClientUsers} size="small" variant="outlined"
+                            sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.81rem', color: T.accent, borderColor: T.border, bgcolor: T.surface, '&:hover': { bgcolor: T.accentSoft, borderColor: T.accent } }}>
+                        Refresh
+                    </Button>
+                </Box>
             </Box>
 
             {/* ── Search & Filters ── */}
             <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, mb: 2.5, borderRadius: '14px', border: `1px solid ${T.border}`, bgcolor: T.surface }}>
-                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: hasFilters ? 2 : 0 }}>
                     {/* Search */}
                     <Box sx={{
                         display: 'flex', alignItems: 'center', gap: 1,
@@ -168,7 +203,7 @@ const ClientUsers = () => {
                             style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem', color: T.text }}
                         />
                         {searchTerm && (
-                            <IconButton size="small" onClick={() => setSearchTerm('')} sx={{ p: 0.3, color: T.muted }}>
+                            <IconButton size="small" onClick={() => { setSearchTerm(''); fetchClientUsers(); }} sx={{ p: 0.3, color: T.muted }}>
                                 <ClearIcon sx={{ fontSize: 14 }} />
                             </IconButton>
                         )}
@@ -176,17 +211,9 @@ const ClientUsers = () => {
 
                     {/* Region Filter */}
                     <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 160 } }}>
-                        <Select
-                            value={selectedRegion}
-                            displayEmpty
-                            onChange={e => { setSelectedRegion(e.target.value); setPage(0); }}
-                            sx={{ borderRadius: '10px', fontSize: '0.83rem', bgcolor: T.bg,
-                                '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border },
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.accent },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: T.accent },
-                            }}
-                            renderValue={v => v === 'all' ? 'All Regions' : v}
-                        >
+                        <Select value={selectedRegion} displayEmpty onChange={e => { setSelectedRegion(e.target.value); setPage(0); }}
+                                sx={{ borderRadius: '10px', fontSize: '0.83rem', bgcolor: T.bg, '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border }, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.accent }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: T.accent } }}
+                                renderValue={v => v === 'all' ? 'All Regions' : v}>
                             <MenuItem value="all" sx={{ fontSize: '0.83rem' }}>All Regions</MenuItem>
                             {uniqueRegions.map(r => <MenuItem key={r} value={r} sx={{ fontSize: '0.83rem' }}>{r}</MenuItem>)}
                         </Select>
@@ -194,19 +221,11 @@ const ClientUsers = () => {
 
                     {/* Status Filter */}
                     <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 160 } }}>
-                        <Select
-                            value={selectedStatus}
-                            displayEmpty
-                            onChange={e => { setSelectedStatus(e.target.value); setPage(0); }}
-                            sx={{ borderRadius: '10px', fontSize: '0.83rem', bgcolor: T.bg,
-                                '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border },
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.accent },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: T.accent },
-                            }}
-                            renderValue={v => v === 'all' ? 'All Statuses' : v}
-                        >
+                        <Select value={selectedStatus} displayEmpty onChange={e => { setSelectedStatus(e.target.value); setPage(0); }}
+                                sx={{ borderRadius: '10px', fontSize: '0.83rem', bgcolor: T.bg, '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border }, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.accent }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: T.accent } }}
+                                renderValue={v => v === 'all' ? 'All Statuses' : v}>
                             <MenuItem value="all" sx={{ fontSize: '0.83rem' }}>All Statuses</MenuItem>
-                            {['Verified','Pending','Rejected'].map(s => (
+                            {['Verified', 'Pending', 'Rejected'].map(s => (
                                 <MenuItem key={s} value={s} sx={{ fontSize: '0.83rem' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                         <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: STATUS_META[s]?.dot || T.muted }} />
@@ -234,8 +253,7 @@ const ClientUsers = () => {
                             <Chip label={`"${searchTerm}"`} size="small" onDelete={() => setSearchTerm('')}
                                   sx={{ bgcolor: T.purpleSoft, color: T.purple, fontSize: '0.72rem', fontWeight: 600, height: 24 }} />
                         )}
-                        <Button size="small" onClick={clearAll} sx={{ fontSize: '0.71rem', color: T.muted, textTransform: 'none', py: 0, fontFamily: 'Plus Jakarta Sans, sans-serif',
-                            '&:hover': { color: T.rose } }}>
+                        <Button size="small" onClick={clearAll} sx={{ fontSize: '0.71rem', color: T.muted, textTransform: 'none', py: 0, fontFamily: 'Plus Jakarta Sans, sans-serif', '&:hover': { color: T.rose } }}>
                             Clear all
                         </Button>
                     </Box>
@@ -267,7 +285,7 @@ const ClientUsers = () => {
                                     <TableCell colSpan={6} sx={{ py: 8, textAlign: 'center', borderBottom: 'none' }}>
                                         <PeopleIcon sx={{ fontSize: 44, color: T.border, mb: 1.5 }} />
                                         <Typography sx={{ fontSize: '0.9rem', fontWeight: 600, color: T.muted, mb: 0.5 }}>
-                                            No users found
+                                            {hasFilters ? 'No users match your filters' : 'No client users found'}
                                         </Typography>
                                         {hasFilters && (
                                             <Button onClick={clearAll} size="small" sx={{ mt: 1, color: T.accent, textTransform: 'none', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.8rem' }}>
@@ -317,11 +335,15 @@ const ClientUsers = () => {
                                         </TableCell>
                                         <TableCell sx={{ py: 1.8, borderBottom: `1px solid ${T.border}` }}>
                                             <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                                <IconButton size="small" onClick={() => { setSelectedUser(user); setModalOpen(true); }}
-                                                            sx={{ width: 30, height: 30, borderRadius: '8px', bgcolor: T.amberSoft, color: T.amber, '&:hover': { bgcolor: '#FDE68A' } }}>
+                                                <IconButton size="small"
+                                                            onClick={() => { setSelectedUser(user); setModalOpen(true); }}
+                                                            disabled={user.registration_status === 'Verified'}
+                                                            title={user.registration_status === 'Verified' ? 'Already verified' : 'Update Status'}
+                                                            sx={{ width: 30, height: 30, borderRadius: '8px', bgcolor: user.registration_status === 'Verified' ? T.bg : T.amberSoft, color: user.registration_status === 'Verified' ? T.muted : T.amber, '&:hover': { bgcolor: '#FDE68A' }, '&.Mui-disabled': { bgcolor: T.bg, color: T.border } }}>
                                                     <EditIcon sx={{ fontSize: 15 }} />
                                                 </IconButton>
-                                                <IconButton size="small" onClick={() => window.location.href = `/client-users/${user.client_user_id}`}
+                                                <IconButton size="small"
+                                                            onClick={() => navigate(`/client-users/${user.client_user_id}`)}
                                                             sx={{ width: 30, height: 30, borderRadius: '8px', bgcolor: T.accentSoft, color: T.accent, '&:hover': { bgcolor: '#DBEAFE' } }}>
                                                     <ViewIcon sx={{ fontSize: 15 }} />
                                                 </IconButton>
@@ -348,9 +370,12 @@ const ClientUsers = () => {
             </Paper>
 
             {selectedUser && (
-                <StatusUpdateModal open={modalOpen} user={selectedUser}
-                                   onClose={() => { setModalOpen(false); setSelectedUser(null); }}
-                                   onSubmit={handleStatusUpdate}
+                <StatusUpdateModal
+                    open={modalOpen}
+                    user={selectedUser}
+                    submitting={submitting}
+                    onClose={() => { setModalOpen(false); setSelectedUser(null); }}
+                    onSubmit={handleStatusUpdate}
                 />
             )}
         </Box>
