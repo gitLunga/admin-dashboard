@@ -1,4 +1,3 @@
-// In QuickDocumentActions.jsx - add isInvoice prop
 import React, { useState } from 'react';
 import {
     IconButton,
@@ -14,8 +13,6 @@ import {
     MoreVert as MoreVertIcon,
     Download as DownloadIcon,
     Visibility as ViewIcon,
-    // Receipt as InvoiceIcon,
-    // Description as DocumentIcon,
 } from '@mui/icons-material';
 import { adminAPI } from '../../services/api';
 import DocumentViewer from './DocumentViewer';
@@ -39,11 +36,28 @@ const QuickDocumentActions = ({ documentId, fileName, documentType, documentStat
             setLoading(true);
             handleMenuClose();
 
-            const response = await adminAPI.downloadDocument(documentId);
+            console.log('📥 Downloading document:', documentId);
+
+            const response = await adminAPI.downloadDocument(documentId, {
+                responseType: 'blob'
+            });
+
+            // Get filename from Content-Disposition header or use provided fileName
+            const contentDisposition = response.headers['content-disposition'];
+            let filename = fileName;
+
+            if (contentDisposition) {
+                const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (match && match[1]) {
+                    filename = match[1].replace(/['"]/g, '');
+                }
+            }
+
+            // Create download link
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', fileName || 'document.pdf');
+            link.setAttribute('download', filename || `document-${documentId}.pdf`);
             document.body.appendChild(link);
             link.click();
             link.remove();
@@ -58,7 +72,7 @@ const QuickDocumentActions = ({ documentId, fileName, documentType, documentStat
             console.error('Download error:', error);
             setSnackbar({
                 open: true,
-                message: `Failed to download ${isInvoice ? 'invoice' : 'document'}`,
+                message: error.response?.data?.message || `Failed to download ${isInvoice ? 'invoice' : 'document'}`,
                 severity: 'error'
             });
         } finally {

@@ -1,93 +1,120 @@
-import React, { useState, useEffect , useCallback} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
-    Box,
-    Paper,
-    Typography,
-    TextField,
-    IconButton,
-    Chip,
-    Alert,
-    CircularProgress,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    TablePagination,
-    Avatar,
-    Tooltip,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
-    Button,
-    Grid,
-    Card,
-    CardContent,
-    Menu,
-    ListItemIcon,
-    ListItemText,
-    Divider,
-    Stack,
-    LinearProgress,
-    useTheme,
+    Box, Paper, Typography, TextField, IconButton, Chip, Alert,
+    CircularProgress, Table, TableBody, TableCell, TableContainer,
+    TableHead, TableRow, TablePagination, Avatar, Tooltip,
+    FormControl, Select, MenuItem, Button, Grid,
+    Menu, ListItemIcon, ListItemText, Divider, Stack, useTheme, useMediaQuery,
 } from '@mui/material';
 import {
-    Search as SearchIcon,
-    FilterList as FilterIcon,
-    Person as PersonIcon,
-    PhoneAndroid as DeviceIcon,
-    Refresh as RefreshIcon,
-    CheckCircle as ApprovedIcon,
-    Cancel as RejectedIcon,
-    Pending as PendingIcon,
-    Block as CancelledIcon,
-    Visibility as ViewIcon,
-    Edit as EditIcon,
-    MoreVert as MoreIcon,
-    Email as EmailIcon,
-    Call as CallIcon,
-    BarChart as ChartIcon,
-    Groups as UsersIcon,
-    TrendingUp as TrendingIcon,
-    AccessTime as TimeIcon,
-    Category as CategoryIcon,
-    Store as StoreIcon,
+    Search as SearchIcon, FilterList as FilterIcon, Refresh as RefreshIcon,
+    CheckCircle as ApprovedIcon, Cancel as RejectedIcon, Pending as PendingIcon,
+    Block as CancelledIcon, Visibility as ViewIcon, Edit as EditIcon,
+    MoreVert as MoreIcon, Email as EmailIcon, Call as CallIcon,
+    Person as PersonIcon, PhoneAndroid as DeviceIcon,
+    BarChart as ChartIcon, Groups as UsersIcon, TrendingUp as TrendingIcon,
+    AccessTime as TimeIcon, Category as CategoryIcon, Store as StoreIcon,
+    Clear as ClearIcon,
 } from '@mui/icons-material';
-import { deviceAPI } from '../../services/api';
-import { useNavigate } from 'react-router-dom';
+import {deviceAPI} from '../../services/api';
+import {useNavigate} from 'react-router-dom';
 import ApplicationStatusDialog from './ApplicationStatusDialog';
 import ApplicationDetailsDialog from './ApplicationDetailsDialog';
 
-const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+/* ── Shared tokens ── */
+const T = {
+    bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
+    text: '#0F1F3D', muted: '#6B7A99',
+    accent: '#1E4FD8', accentSoft: '#EBF0FF',
+    green: '#059669', greenSoft: '#D1FAE5',
+    amber: '#D97706', amberSoft: '#FEF3C7',
+    rose: '#DC2626', roseSoft: '#FEE2E2',
+    purple: '#7C3AED', purpleSoft: '#EDE9FE',
+    cyan: '#0891B2', cyanSoft: '#CFFAFE',
+};
+
+const STATUS_META = {
+    Approved: {color: T.green, soft: T.greenSoft, icon: ApprovedIcon},
+    Pending: {color: T.amber, soft: T.amberSoft, icon: PendingIcon},
+    Rejected: {color: T.rose, soft: T.roseSoft, icon: RejectedIcon},
+    Cancelled: {color: T.muted, soft: '#F1F5F9', icon: CancelledIcon},
+};
+
+const formatDate = (d) => {
+    if (!d) return '—';
     try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-        });
-    } catch (error) {
-        return 'Invalid Date';
+        return new Date(d).toLocaleDateString('en-ZA', {year: 'numeric', month: 'short', day: 'numeric'});
+    } catch {
+        return '—';
     }
 };
+const fmt = (n) => parseInt(n) || 0;
+const fmtR = (a) => new Intl.NumberFormat('en-ZA', {
+    style: 'currency',
+    currency: 'ZAR',
+    minimumFractionDigits: 2
+}).format(a || 0);
 
-const formatNumber = (num) => {
-    return parseInt(num) || 0;
+const StatusChip = ({status}) => {
+    const m = STATUS_META[status] || {color: T.muted, soft: '#F1F5F9', icon: PendingIcon};
+    const Icon = m.icon;
+    return (
+        <Box sx={{
+            display: 'inline-flex', alignItems: 'center', gap: 0.7,
+            px: 1.2, py: 0.4, borderRadius: '20px', bgcolor: m.soft, border: `1px solid ${m.color}28`
+        }}>
+            <Icon sx={{fontSize: 11, color: m.color}}/>
+            <Typography sx={{fontSize: '0.72rem', fontWeight: 600, color: m.color}}>{status}</Typography>
+        </Box>
+    );
 };
 
-const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-ZA', {
-        style: 'currency',
-        currency: 'ZAR',
-        minimumFractionDigits: 2,
-    }).format(amount || 0);
-};
+const MiniStatCard = ({label, value, sub, color, soft, Icon, delay}) => (
+    <Paper elevation={0} sx={{
+        p: 2.4, borderRadius: '14px', bgcolor: T.surface, border: `1px solid ${T.border}`,
+        position: 'relative', overflow: 'hidden',
+        animation: `fadeUp 0.45s ease-out ${delay}s both`,
+        transition: 'transform 0.2s, box-shadow 0.2s',
+        '&:hover': {transform: 'translateY(-2px)', boxShadow: `0 8px 24px ${color}22`, borderColor: `${color}44`},
+    }}>
+        <Box sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 3,
+            bgcolor: color,
+            borderRadius: '14px 14px 0 0'
+        }}/>
+        <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mt: 0.5}}>
+            <Box>
+                <Typography sx={{
+                    fontSize: '0.67rem',
+                    fontWeight: 700,
+                    color: T.muted,
+                    letterSpacing: 1,
+                    textTransform: 'uppercase',
+                    mb: 0.8
+                }}>{label}</Typography>
+                <Typography className="mono" sx={{
+                    fontSize: '2.1rem',
+                    fontWeight: 500,
+                    lineHeight: 1,
+                    color,
+                    mb: 0.6
+                }}>{value}</Typography>
+                <Typography sx={{fontSize: '0.7rem', color: T.muted}}>{sub}</Typography>
+            </Box>
+            <Box sx={{p: 1.2, borderRadius: '10px', bgcolor: soft}}><Icon sx={{fontSize: 20, color}}/></Box>
+        </Box>
+    </Paper>
+);
 
 const AdminApplications = () => {
     const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const navigate = useNavigate();
+
     const [applications, setApplications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [statsLoading, setStatsLoading] = useState(false);
@@ -95,50 +122,24 @@ const AdminApplications = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
-    const [filters, setFilters] = useState({
-        status: 'all',
-        user_type: 'all',
-        region: 'all',
-    });
+    const [filters, setFilters] = useState({status: 'all', user_type: 'all', region: 'all'});
     const [stats, setStats] = useState(null);
-    const [statusDialog, setStatusDialog] = useState({
-        open: false,
-        application: null,
-    });
-    const [detailsDialog, setDetailsDialog] = useState({
-        open: false,
-        application: null,
-    });
+    const [statusDialog, setStatusDialog] = useState({open: false, application: null});
+    const [detailsDialog, setDetailsDialog] = useState({open: false, application: null});
     const [anchorEl, setAnchorEl] = useState(null);
     const [selectedApp, setSelectedApp] = useState(null);
-    // const [activeStatsTab, setActiveStatsTab] = useState('overview');
-    const navigate = useNavigate();
-
-
 
     const fetchApplications = useCallback(async (customFilters = {}) => {
         try {
             setLoading(true);
-            const allFilters = { ...filters, ...customFilters };
-            let queryParams = '';
-            const params = [];
-
-            Object.keys(allFilters).forEach(key => {
-                if (allFilters[key] && allFilters[key] !== 'all') {
-                    params.push(`${key}=${encodeURIComponent(allFilters[key])}`);
-                }
-            });
-
-            if (params.length > 0) {
-                queryParams = '?' + params.join('&');
-            }
-
-            const response = await deviceAPI.getAllApplications(queryParams);
+            const all = {...filters, ...customFilters};
+            const params = Object.keys(all).filter(k => all[k] && all[k] !== 'all').map(k => `${k}=${encodeURIComponent(all[k])}`);
+            const q = params.length ? '?' + params.join('&') : '';
+            const response = await deviceAPI.getAllApplications(q);
             setApplications(response.data?.data || []);
             setError(null);
         } catch (err) {
             setError(err.message || 'Failed to fetch applications');
-            console.error('Error fetching applications:', err);
         } finally {
             setLoading(false);
         }
@@ -148,37 +149,9 @@ const AdminApplications = () => {
         try {
             setStatsLoading(true);
             const response = await deviceAPI.getApplicationStatistics();
-            console.log('Statistics response:', response.data);
-            setStats(response.data?.data || {
-                summary: {
-                    total_applications: 0,
-                    pending: 0,
-                    approved: 0,
-                    rejected: 0,
-                    cancelled: 0,
-                    unique_users: 0,
-                    avg_processing_days: 0
-                },
-                device_stats: [],
-                user_type_stats: [],
-                trend: []
-            });
-        } catch (err) {
-            console.error('Failed to fetch statistics:', err);
-            setStats({
-                summary: {
-                    total_applications: 0,
-                    pending: 0,
-                    approved: 0,
-                    rejected: 0,
-                    cancelled: 0,
-                    unique_users: 0,
-                    avg_processing_days: 0
-                },
-                device_stats: [],
-                user_type_stats: [],
-                trend: []
-            });
+            setStats(response.data?.data || null);
+        } catch {
+            setStats(null);
         } finally {
             setStatsLoading(false);
         }
@@ -189,10 +162,18 @@ const AdminApplications = () => {
         fetchStatistics();
     }, [fetchApplications, fetchStatistics]);
 
-    const handleSearch = (e) => {
-        if (e.key === 'Enter') {
-            fetchApplications({ search: searchTerm });
-        }
+    const handleFilterChange = (name, value) => {
+        const next = {...filters, [name]: value};
+        setFilters(next);
+        setPage(0);
+        fetchApplications(next);
+    };
+
+    const handleClearFilters = () => {
+        const cleared = {status: 'all', user_type: 'all', region: 'all'};
+        setFilters(cleared);
+        setSearchTerm('');
+        fetchApplications(cleared);
     };
 
     const handleRefresh = () => {
@@ -201,84 +182,13 @@ const AdminApplications = () => {
         fetchStatistics();
     };
 
-    const handleFilterChange = (filterName, value) => {
-        const newFilters = { ...filters, [filterName]: value };
-        setFilters(newFilters);
-        setPage(0);
-        fetchApplications(newFilters);
-    };
-
-    const handleClearFilters = () => {
-        const clearedFilters = {
-            status: 'all',
-            user_type: 'all',
-            region: 'all',
-        };
-        setFilters(clearedFilters);
-        setSearchTerm('');
-        fetchApplications(clearedFilters);
-    };
-
-    const getStatusIcon = (status) => {
-        switch (status) {
-            case 'Approved':
-                return <ApprovedIcon fontSize="small" />;
-            case 'Rejected':
-                return <RejectedIcon fontSize="small" />;
-            case 'Pending':
-                return <PendingIcon fontSize="small" />;
-            case 'Cancelled':
-                return <CancelledIcon fontSize="small" />;
-            default:
-                return <PendingIcon fontSize="small" />;
-        }
-    };
-
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'Approved':
-                return 'success';
-            case 'Rejected':
-                return 'error';
-            case 'Pending':
-                return 'warning';
-            case 'Cancelled':
-                return 'default';
-            default:
-                return 'default';
-        }
-    };
-
-    const calculateApprovalRate = () => {
-        if (!stats?.summary) return 0;
-        const total = formatNumber(stats.summary.total_applications);
-        const approved = formatNumber(stats.summary.approved);
-        return total > 0 ? Math.round((approved / total) * 100) : 0;
-    };
-
-    const getTopDevice = () => {
-        if (!stats?.device_stats || stats.device_stats.length === 0) return 'N/A';
-        const topDevice = stats.device_stats.reduce((prev, current) =>
-            formatNumber(prev.total_applications) > formatNumber(current.total_applications) ? prev : current
-        );
-        return topDevice.device_name;
-    };
-
-    const getTopUserType = () => {
-        if (!stats?.user_type_stats || stats.user_type_stats.length === 0) return 'N/A';
-        const topType = stats.user_type_stats.reduce((prev, current) =>
-            formatNumber(prev.total_applications) > formatNumber(current.total_applications) ? prev : current
-        );
-        return topType.user_type;
-    };
-
-    const handleStatusUpdate = async (applicationId, statusData) => {
+    const handleStatusUpdate = async (appId, statusData) => {
         try {
-            const response = await deviceAPI.updateApplicationStatus(applicationId, statusData);
+            const response = await deviceAPI.updateApplicationStatus(appId, statusData);
             if (response.data?.success) {
                 fetchApplications();
                 fetchStatistics();
-                setStatusDialog({ open: false, application: null });
+                setStatusDialog({open: false, application: null});
             } else {
                 setError(response.data?.message || 'Failed to update status');
             }
@@ -287,789 +197,672 @@ const AdminApplications = () => {
         }
     };
 
-    const handleMenuClick = (event, application) => {
-        setAnchorEl(event.currentTarget);
-        setSelectedApp(application);
+    const approvalRate = () => {
+        if (!stats?.summary) return 0;
+        const total = fmt(stats.summary.total_applications);
+        return total > 0 ? Math.round((fmt(stats.summary.approved) / total) * 100) : 0;
     };
 
-    const handleMenuClose = () => {
-        setAnchorEl(null);
-        setSelectedApp(null);
-    };
+    const getInitials = (a) => `${a.first_name?.[0] || ''}${a.last_name?.[0] || ''}`.toUpperCase();
 
-    if (loading && applications.length === 0) {
-        return (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-                <CircularProgress />
-            </Box>
-        );
-    }
+    if (loading && applications.length === 0) return (
+        <Box sx={{display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400, bgcolor: T.bg}}>
+            <CircularProgress sx={{color: T.accent}}/>
+        </Box>
+    );
 
     return (
-        <Box sx={{ p: 3 }}>
-            {/* Header */}
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+        <Box sx={{p: {xs: 2, md: 3.5}, bgcolor: T.bg, minHeight: '100vh'}}>
+
+            {/* ── Header ── */}
+            <Box sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                mb: 3,
+                flexWrap: 'wrap',
+                gap: 1.5,
+                animation: 'fadeUp 0.4s ease-out'
+            }}>
                 <Box>
-                    <Typography variant="h4" gutterBottom fontWeight="bold">
-                        Application Management
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                        Manage and review all device applications • Total: {formatNumber(stats?.summary?.total_applications) || 0} applications
+                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1.2, mb: 0.3}}>
+                        <Box sx={{p: 1, borderRadius: '10px', bgcolor: T.purpleSoft}}>
+                            <DeviceIcon sx={{fontSize: 20, color: T.purple}}/>
+                        </Box>
+                        <Typography sx={{
+                            fontSize: {xs: '1.25rem', md: '1.6rem'},
+                            fontWeight: 800,
+                            color: T.text,
+                            letterSpacing: '-0.3px'
+                        }}>
+                            Application Management
+                        </Typography>
+                    </Box>
+                    <Typography sx={{fontSize: '0.78rem', color: T.muted, ml: 0.5}}>
+                        Manage and review all device applications
+                        {stats?.summary && <> · <span style={{
+                            fontFamily: 'JetBrains Mono, monospace',
+                            color: T.accent
+                        }}>{fmt(stats.summary.total_applications)}</span> total</>}
                     </Typography>
                 </Box>
-                <Box display="flex" gap={1}>
-                    <Tooltip title="Refresh Data">
-                        <IconButton onClick={handleRefresh} sx={{ bgcolor: 'primary.50' }}>
-                            <RefreshIcon />
-                        </IconButton>
-                    </Tooltip>
-                </Box>
+                <Button onClick={handleRefresh} startIcon={<RefreshIcon sx={{fontSize: '16px !important'}}/>}
+                        variant="outlined" size="small" sx={{
+                    borderRadius: '10px', textTransform: 'none', fontWeight: 600,
+                    fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.81rem',
+                    color: T.accent, borderColor: T.border, bgcolor: T.surface,
+                    '&:hover': {bgcolor: T.accentSoft, borderColor: T.accent},
+                }}>
+                    Refresh
+                </Button>
             </Box>
 
-            {/* Statistics Section */}
-            {stats && !statsLoading && (
-                <Box sx={{ mb: 4 }}>
-                    {/* Main Stats Cards */}
-                    <Grid container spacing={3} sx={{ mb: 3 }}>
-                        <Grid item xs={12} sm={6} md={3}>
-                            <Card sx={{
-                                height: '100%',
-                                bgcolor: 'primary.50',
-                                borderLeft: `4px solid ${theme.palette.primary.main}`,
-                            }}>
-                                <CardContent>
-                                    <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                                        <Box>
-                                            <Typography color="textSecondary" variant="caption" gutterBottom>
-                                                Total Applications
-                                            </Typography>
-                                            <Typography variant="h3" component="div" fontWeight="bold">
-                                                {formatNumber(stats.summary?.total_applications)}
-                                            </Typography>
-                                            <Typography variant="caption" color="textSecondary">
-                                                From {formatNumber(stats.summary?.unique_users)} unique users
-                                            </Typography>
-                                        </Box>
-                                        <Avatar sx={{
-                                            bgcolor: 'primary.100',
-                                            color: 'primary.main',
-                                            width: 48,
-                                            height: 48
-                                        }}>
-                                            <ChartIcon />
-                                        </Avatar>
-                                    </Box>
-                                    <LinearProgress
-                                        variant="determinate"
-                                        value={100}
-                                        sx={{
-                                            mt: 2,
-                                            height: 6,
-                                            borderRadius: 3,
-                                            bgcolor: 'primary.50'
-                                        }}
-                                    />
-                                </CardContent>
-                            </Card>
+            {/* ── Stats Cards ── */}
+            {stats?.summary && (
+                <Grid container spacing={2.5} sx={{mb: 3}}>
+                    {[
+                        {
+                            label: 'Total Applications',
+                            value: fmt(stats.summary.total_applications),
+                            sub: `${fmt(stats.summary.unique_users)} unique users`,
+                            color: T.accent,
+                            soft: T.accentSoft,
+                            Icon: ChartIcon,
+                            delay: 0.06
+                        },
+                        {
+                            label: 'Approved',
+                            value: fmt(stats.summary.approved),
+                            sub: `${approvalRate()}% approval rate`,
+                            color: T.green,
+                            soft: T.greenSoft,
+                            Icon: ApprovedIcon,
+                            delay: 0.12
+                        },
+                        {
+                            label: 'Pending Review',
+                            value: fmt(stats.summary.pending),
+                            sub: 'Need attention',
+                            color: T.amber,
+                            soft: T.amberSoft,
+                            Icon: PendingIcon,
+                            delay: 0.18
+                        },
+                        {
+                            label: 'Avg Processing',
+                            value: parseFloat(stats.summary.avg_processing_days || 0).toFixed(1),
+                            sub: 'Days to process',
+                            color: T.cyan,
+                            soft: T.cyanSoft,
+                            Icon: TimeIcon,
+                            delay: 0.24
+                        },
+                    ].map(s => (
+                        <Grid item xs={6} md={3} key={s.label}>
+                            <MiniStatCard {...s} />
                         </Grid>
-
-                        <Grid item xs={12} sm={6} md={3}>
-                            <Card sx={{
-                                height: '100%',
-                                bgcolor: 'success.50',
-                                borderLeft: `4px solid ${theme.palette.success.main}`,
-                            }}>
-                                <CardContent>
-                                    <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                                        <Box>
-                                            <Typography color="textSecondary" variant="caption" gutterBottom>
-                                                Approved
-                                            </Typography>
-                                            <Typography variant="h3" component="div" fontWeight="bold" color="success.main">
-                                                {formatNumber(stats.summary?.approved)}
-                                            </Typography>
-                                            <Typography variant="caption" color="textSecondary">
-                                                {calculateApprovalRate()}% approval rate
-                                            </Typography>
-                                        </Box>
-                                        <Avatar sx={{
-                                            bgcolor: 'success.100',
-                                            color: 'success.main',
-                                            width: 48,
-                                            height: 48
-                                        }}>
-                                            <ApprovedIcon />
-                                        </Avatar>
-                                    </Box>
-                                    <LinearProgress
-                                        variant="determinate"
-                                        value={calculateApprovalRate()}
-                                        sx={{
-                                            mt: 2,
-                                            height: 6,
-                                            borderRadius: 3,
-                                            bgcolor: 'success.100'
-                                        }}
-                                    />
-                                </CardContent>
-                            </Card>
-                        </Grid>
-
-                        <Grid item xs={12} sm={6} md={3}>
-                            <Card sx={{
-                                height: '100%',
-                                bgcolor: 'warning.50',
-                                borderLeft: `4px solid ${theme.palette.warning.main}`,
-                            }}>
-                                <CardContent>
-                                    <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                                        <Box>
-                                            <Typography color="textSecondary" variant="caption" gutterBottom>
-                                                Pending Review
-                                            </Typography>
-                                            <Typography variant="h3" component="div" fontWeight="bold" color="warning.main">
-                                                {formatNumber(stats.summary?.pending)}
-                                            </Typography>
-                                            <Typography variant="caption" color="textSecondary">
-                                                Need attention
-                                            </Typography>
-                                        </Box>
-                                        <Avatar sx={{
-                                            bgcolor: 'warning.100',
-                                            color: 'warning.main',
-                                            width: 48,
-                                            height: 48
-                                        }}>
-                                            <PendingIcon />
-                                        </Avatar>
-                                    </Box>
-                                    <LinearProgress
-                                        variant="determinate"
-                                        value={(formatNumber(stats.summary?.pending) / formatNumber(stats.summary?.total_applications)) * 100 || 0}
-                                        sx={{
-                                            mt: 2,
-                                            height: 6,
-                                            borderRadius: 3,
-                                            bgcolor: 'warning.100'
-                                        }}
-                                    />
-                                </CardContent>
-                            </Card>
-                        </Grid>
-
-                        <Grid item xs={12} sm={6} md={3}>
-                            <Card sx={{
-                                height: '100%',
-                                bgcolor: 'info.50',
-                                borderLeft: `4px solid ${theme.palette.info.main}`,
-                            }}>
-                                <CardContent>
-                                    <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                                        <Box>
-                                            <Typography color="textSecondary" variant="caption" gutterBottom>
-                                                Avg. Processing Time
-                                            </Typography>
-                                            <Typography variant="h3" component="div" fontWeight="bold" color="info.main">
-                                                {parseFloat(stats.summary?.avg_processing_days || 0).toFixed(1)}
-                                            </Typography>
-                                            <Typography variant="caption" color="textSecondary">
-                                                Days to process
-                                            </Typography>
-                                        </Box>
-                                        <Avatar sx={{
-                                            bgcolor: 'info.100',
-                                            color: 'info.main',
-                                            width: 48,
-                                            height: 48
-                                        }}>
-                                            <TimeIcon />
-                                        </Avatar>
-                                    </Box>
-                                    <LinearProgress
-                                        variant="determinate"
-                                        value={Math.min(parseFloat(stats.summary?.avg_processing_days || 0) * 10, 100)}
-                                        sx={{
-                                            mt: 2,
-                                            height: 6,
-                                            borderRadius: 3,
-                                            bgcolor: 'info.100'
-                                        }}
-                                    />
-                                </CardContent>
-                            </Card>
-                        </Grid>
-                    </Grid>
-
-                    {/* Quick Insights */}
-                    <Grid container spacing={2} sx={{ mb: 3 }}>
-                        <Grid item xs={12}>
-                            <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                                <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
-                                    Quick Insights
-                                </Typography>
-                                <Grid container spacing={2}>
-                                    <Grid item xs={6} md={3}>
-                                        <Box display="flex" alignItems="center" gap={1}>
-                                            <StoreIcon color="primary" fontSize="small" />
-                                            <Typography variant="body2">
-                                                Top Device: <strong>{getTopDevice()}</strong>
-                                            </Typography>
-                                        </Box>
-                                    </Grid>
-                                    <Grid item xs={6} md={3}>
-                                        <Box display="flex" alignItems="center" gap={1}>
-                                            <UsersIcon color="secondary" fontSize="small" />
-                                            <Typography variant="body2">
-                                                Top User Type: <strong>{getTopUserType()}</strong>
-                                            </Typography>
-                                        </Box>
-                                    </Grid>
-                                    <Grid item xs={6} md={3}>
-                                        <Box display="flex" alignItems="center" gap={1}>
-                                            <CategoryIcon color="warning" fontSize="small" />
-                                            <Typography variant="body2">
-                                                Available Devices: <strong>{stats.device_stats?.length || 0}</strong>
-                                            </Typography>
-                                        </Box>
-                                    </Grid>
-                                    <Grid item xs={6} md={3}>
-                                        <Box display="flex" alignItems="center" gap={1}>
-                                            <TrendingIcon color="success" fontSize="small" />
-                                            <Typography variant="body2">
-                                                Last 30 Days: <strong>{stats.trend?.reduce((sum, day) => sum + formatNumber(day.applications), 0) || 0}</strong>
-                                            </Typography>
-                                        </Box>
-                                    </Grid>
-                                </Grid>
-                            </Paper>
-                        </Grid>
-                    </Grid>
-                </Box>
+                    ))}
+                </Grid>
             )}
 
-            {/* Filters and Search */}
-            <Paper sx={{ mb: 3, p: 2.5, borderRadius: 2, boxShadow: 1 }}>
-                <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} md={4}>
-                        <TextField
-                            fullWidth
-                            placeholder="Search by name, email, device..."
-                            variant="outlined"
-                            size="small"
+            {/* Quick Insights */}
+            {stats?.device_stats?.length > 0 && (
+                <Paper elevation={0} sx={{
+                    p: 2,
+                    mb: 2.5,
+                    borderRadius: '14px',
+                    border: `1px solid ${T.border}`,
+                    bgcolor: T.surface,
+                    animation: 'fadeUp 0.4s ease-out 0.28s both'
+                }}>
+                    <Typography sx={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        color: T.muted,
+                        letterSpacing: 1,
+                        textTransform: 'uppercase',
+                        mb: 1.5
+                    }}>
+                        Quick Insights
+                    </Typography>
+                    <Box sx={{display: 'flex', flexWrap: 'wrap', gap: 2}}>
+                        {[
+                            {
+                                Icon: StoreIcon,
+                                color: T.accent,
+                                label: 'Top Device',
+                                value: stats.device_stats?.[0]?.device_name || '—'
+                            },
+                            {
+                                Icon: UsersIcon,
+                                color: T.purple,
+                                label: 'Top User Type',
+                                value: stats.user_type_stats?.[0]?.user_type || '—'
+                            },
+                            {
+                                Icon: CategoryIcon,
+                                color: T.amber,
+                                label: 'Device Types',
+                                value: `${stats.device_stats?.length || 0} devices`
+                            },
+                            {
+                                Icon: TrendingIcon,
+                                color: T.green,
+                                label: 'Last 30 Days',
+                                value: stats.trend?.reduce((s, d) => s + fmt(d.applications), 0) || 0
+                            },
+                        ].map(({Icon, color, label, value}) => (
+                            <Box key={label} sx={{display: 'flex', alignItems: 'center', gap: 1}}>
+                                <Box sx={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: '8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    bgcolor: `${color}12`
+                                }}>
+                                    <Icon sx={{fontSize: 15, color}}/>
+                                </Box>
+                                <Box>
+                                    <Typography sx={{
+                                        fontSize: '0.67rem',
+                                        color: T.muted,
+                                        fontWeight: 600,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: 0.8
+                                    }}>{label}</Typography>
+                                    <Typography
+                                        sx={{fontSize: '0.82rem', fontWeight: 700, color: T.text}}>{value}</Typography>
+                                </Box>
+                            </Box>
+                        ))}
+                    </Box>
+                </Paper>
+            )}
+
+            {/* ── Filters ── */}
+            <Paper elevation={0} sx={{
+                p: {xs: 2, md: 2.5},
+                mb: 2.5,
+                borderRadius: '14px',
+                border: `1px solid ${T.border}`,
+                bgcolor: T.surface
+            }}>
+                <Box sx={{display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center'}}>
+                    {/* Search */}
+                    <Box sx={{
+                        display: 'flex', alignItems: 'center', gap: 1,
+                        bgcolor: T.bg, border: `1px solid ${T.border}`, borderRadius: '10px',
+                        px: 1.5, py: 0.7, flex: 1, minWidth: {xs: '100%', md: 220},
+                        '&:focus-within': {borderColor: T.accent, boxShadow: `0 0 0 3px ${T.accentSoft}`},
+                        transition: 'all 0.2s',
+                    }}>
+                        <SearchIcon sx={{fontSize: 16, color: T.muted, flexShrink: 0}}/>
+                        <input
+                            placeholder="Search by name, email, device…"
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            onKeyPress={handleSearch}
-                            InputProps={{
-                                startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-                                sx: { borderRadius: 2 }
+                            onChange={e => setSearchTerm(e.target.value)}
+                            onKeyPress={e => e.key === 'Enter' && fetchApplications({search: searchTerm})}
+                            style={{
+                                border: 'none',
+                                outline: 'none',
+                                background: 'transparent',
+                                width: '100%',
+                                fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                fontSize: '0.83rem',
+                                color: T.text
                             }}
                         />
-                    </Grid>
-                    <Grid item xs={6} md={2}>
-                        <FormControl fullWidth size="small">
-                            <InputLabel shrink>Status</InputLabel>
-                            <Select
-                                value={filters.status}
-                                label="Status"
-                                onChange={(e) => handleFilterChange('status', e.target.value)}
-                                sx={{ borderRadius: 2 }}
-                            >
-                                <MenuItem value="all">All Status</MenuItem>
-                                <MenuItem value="Pending">
-                                    <Box display="flex" alignItems="center" gap={1}>
-                                        <PendingIcon fontSize="small" color="warning" />
-                                        Pending
-                                    </Box>
-                                </MenuItem>
-                                <MenuItem value="Approved">
-                                    <Box display="flex" alignItems="center" gap={1}>
-                                        <ApprovedIcon fontSize="small" color="success" />
-                                        Approved
-                                    </Box>
-                                </MenuItem>
-                                <MenuItem value="Rejected">
-                                    <Box display="flex" alignItems="center" gap={1}>
-                                        <RejectedIcon fontSize="small" color="error" />
-                                        Rejected
-                                    </Box>
-                                </MenuItem>
-                                <MenuItem value="Cancelled">
-                                    <Box display="flex" alignItems="center" gap={1}>
-                                        <CancelledIcon fontSize="small" color="default" />
-                                        Cancelled
-                                    </Box>
-                                </MenuItem>
+                        {searchTerm && <IconButton size="small" onClick={() => setSearchTerm('')}
+                                                   sx={{p: 0.3, color: T.muted}}><ClearIcon
+                            sx={{fontSize: 13}}/></IconButton>}
+                    </Box>
+
+                    {/* Dropdowns */}
+                    {[
+                        {
+                            key: 'status',
+                            label: 'Status',
+                            opts: [['all', 'All Status'], ['Pending', 'Pending'], ['Approved', 'Approved'], ['Rejected', 'Rejected'], ['Cancelled', 'Cancelled']]
+                        },
+                        {
+                            key: 'user_type',
+                            label: 'User Type',
+                            opts: [['all', 'All Types'], ['Advocate', 'Advocate'], ['Magistrate', 'Magistrate'], ['Prosecutor', 'Prosecutor']]
+                        },
+                        {
+                            key: 'region',
+                            label: 'Region',
+                            opts: [['all', 'All Regions'], ['Gauteng', 'Gauteng'], ['Western Cape', 'Western Cape'], ['KwaZulu-Natal', 'KZN'], ['Eastern Cape', 'Eastern Cape'], ['Free State', 'Free State'], ['Limpopo', 'Limpopo'], ['Mpumalanga', 'Mpumalanga'], ['North West', 'North West'], ['Northern Cape', 'Northern Cape']]
+                        },
+                    ].map(({key, label, opts}) => (
+                        <FormControl key={key} size="small" sx={{minWidth: {xs: '100%', sm: 140}}}>
+                            <Select value={filters[key]} displayEmpty
+                                    onChange={e => handleFilterChange(key, e.target.value)}
+                                    renderValue={v => v === 'all' ? label : opts.find(o => o[0] === v)?.[1] || v}
+                                    sx={{
+                                        borderRadius: '10px', fontSize: '0.82rem', bgcolor: T.bg,
+                                        '& .MuiOutlinedInput-notchedOutline': {borderColor: T.border},
+                                        '&:hover .MuiOutlinedInput-notchedOutline': {borderColor: T.accent},
+                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {borderColor: T.accent},
+                                    }}>
+                                {opts.map(([v, l]) => <MenuItem key={v} value={v}
+                                                                sx={{fontSize: '0.82rem'}}>{l}</MenuItem>)}
                             </Select>
                         </FormControl>
-                    </Grid>
-                    <Grid item xs={6} md={2}>
-                        <FormControl fullWidth size="small">
-                            <InputLabel shrink>User Type</InputLabel>
-                            <Select
-                                value={filters.user_type}
-                                label="User Type"
-                                onChange={(e) => handleFilterChange('user_type', e.target.value)}
-                                sx={{ borderRadius: 2 }}
-                            >
-                                <MenuItem value="all">All Types</MenuItem>
-                                <MenuItem value="Advocate">Advocate</MenuItem>
-                                <MenuItem value="Magistrate">Magistrate</MenuItem>
-                                <MenuItem value="Prosecutor">Prosecutor</MenuItem>
-                            </Select>
-                        </FormControl>
-                    </Grid>
-                    <Grid item xs={6} md={2}>
-                        <FormControl fullWidth size="small">
-                            <InputLabel shrink>Region</InputLabel>
-                            <Select
-                                value={filters.region}
-                                label="Region"
-                                onChange={(e) => handleFilterChange('region', e.target.value)}
-                                sx={{ borderRadius: 2 }}
-                            >
-                                <MenuItem value="all">All Regions</MenuItem>
-                                <MenuItem value="Gauteng">Gauteng</MenuItem>
-                                <MenuItem value="Western Cape">Western Cape</MenuItem>
-                                <MenuItem value="KwaZulu-Natal">KZN</MenuItem>
-                                <MenuItem value="Eastern Cape">Eastern Cape</MenuItem>
-                                <MenuItem value="Free State">Free State</MenuItem>
-                                <MenuItem value="Limpopo">Limpopo</MenuItem>
-                                <MenuItem value="Mpumalanga">Mpumalanga</MenuItem>
-                                <MenuItem value="North West">North West</MenuItem>
-                                <MenuItem value="Northern Cape">Northern Cape</MenuItem>
-                            </Select>
-                        </FormControl>
-                    </Grid>
-                    <Grid item xs={6} md={2}>
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            onClick={handleRefresh}
-                            size="small"
-                            startIcon={<RefreshIcon />}
-                            sx={{ borderRadius: 2, py: 1 }}
-                        >
-                            Refresh
-                        </Button>
-                    </Grid>
-                </Grid>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
-                    <Typography variant="caption" color="textSecondary">
-                        Showing {applications.length} applications
-                    </Typography>
-                    <Button
-                        variant="outlined"
-                        onClick={handleClearFilters}
-                        size="small"
-                        startIcon={<FilterIcon />}
-                        sx={{ borderRadius: 2 }}
-                    >
-                        Clear Filters
+                    ))}
+
+                    <Button onClick={handleClearFilters} size="small"
+                            startIcon={<FilterIcon sx={{fontSize: '14px !important'}}/>}
+                            sx={{
+                                borderRadius: '10px',
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                fontSize: '0.8rem',
+                                color: T.muted,
+                                border: `1px solid ${T.border}`,
+                                bgcolor: T.bg,
+                                px: 2,
+                                '&:hover': {color: T.rose, borderColor: T.rose, bgcolor: T.roseSoft}
+                            }}>
+                        Clear
                     </Button>
+                </Box>
+                <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1.5}}>
+                    <Typography sx={{fontSize: '0.71rem', color: T.muted}}>
+                        Showing <span style={{
+                        fontFamily: 'JetBrains Mono, monospace',
+                        color: T.accent,
+                        fontWeight: 600
+                    }}>{applications.length}</span> applications
+                    </Typography>
                 </Box>
             </Paper>
 
-            {error && (
-                <Alert
-                    severity="error"
-                    sx={{ mb: 2, borderRadius: 2 }}
-                    onClose={() => setError(null)}
-                >
-                    {error}
-                </Alert>
-            )}
+            {error && <Alert severity="error" onClose={() => setError(null)}
+                             sx={{mb: 2, borderRadius: '10px', fontSize: '0.83rem'}}>{error}</Alert>}
 
-            {/* Applications Table */}
-            <Paper sx={{ borderRadius: 2, overflow: 'hidden', boxShadow: 2 }}>
+            {/* ── Table ── */}
+            <Paper elevation={0}
+                   sx={{borderRadius: '14px', border: `1px solid ${T.border}`, bgcolor: T.surface, overflow: 'hidden'}}>
                 <TableContainer>
-                    <Table>
+                    <Table size={isMobile ? 'small' : 'medium'}>
                         <TableHead>
-                            <TableRow sx={{
-                                bgcolor: theme.palette.mode === 'light' ? 'primary.50' : 'primary.900',
-                            }}>
-                                <TableCell sx={{ fontWeight: 'bold', py: 2 }}>Application ID</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', py: 2 }}>Applicant Details</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', py: 2 }}>Device & Plan</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', py: 2 }}>Status</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', py: 2 }}>Submitted</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', py: 2 }}>Actions</TableCell>
+                            <TableRow sx={{bgcolor: T.bg}}>
+                                {['ID', 'Applicant', !isMobile && 'Device & Plan', 'Status', !isMobile && 'Submitted', 'Actions'].filter(Boolean).map(h => (
+                                    <TableCell key={h} sx={{
+                                        fontWeight: 700,
+                                        fontSize: '0.7rem',
+                                        color: T.muted,
+                                        letterSpacing: 0.8,
+                                        textTransform: 'uppercase',
+                                        py: 1.6,
+                                        borderBottom: `1px solid ${T.border}`
+                                    }}>{h}</TableCell>
+                                ))}
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {applications.length > 0 ? (
-                                applications
-                                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                                    .map((app) => (
-                                        <TableRow
-                                            key={app.application_id}
-                                            hover
-                                            sx={{
-                                                '&:hover': { bgcolor: 'action.hover' },
-                                                transition: 'background-color 0.2s'
-                                            }}
-                                        >
-                                            <TableCell>
-                                                <Box>
-                                                    <Typography variant="body2" fontWeight="bold" color="primary">
-                                                        #{app.application_id}
-                                                    </Typography>
-                                                    <Typography variant="caption" color="textSecondary">
-                                                        Device ID: {app.device_id}
-                                                    </Typography>
-                                                </Box>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Box display="flex" alignItems="center">
-                                                    <Avatar
-                                                        sx={{
-                                                            width: 40,
-                                                            height: 40,
-                                                            mr: 2,
-                                                            bgcolor: app.user_type === 'Advocate' ? 'primary.main' : 'secondary.main',
-                                                            fontWeight: 'bold'
-                                                        }}
-                                                    >
-                                                        {app.first_name?.[0]}{app.last_name?.[0]}
-                                                    </Avatar>
-                                                    <Box>
-                                                        <Typography variant="body2" fontWeight="medium">
-                                                            {app.first_name} {app.last_name}
-                                                        </Typography>
-                                                        <Stack direction="row" spacing={0.5} alignItems="center">
-                                                            <Typography variant="caption" color="textSecondary">
-                                                                {app.email}
-                                                            </Typography>
-                                                            {app.phone_number && (
-                                                                <Typography variant="caption" color="textSecondary">
-                                                                    • {app.phone_number}
-                                                                </Typography>
-                                                            )}
-                                                        </Stack>
-                                                        <Stack direction="row" spacing={1} mt={0.5}>
-                                                            <Chip
-                                                                label={app.user_type || 'N/A'}
-                                                                size="small"
-                                                                color={app.user_type === 'Advocate' ? 'primary' : 'secondary'}
-                                                                variant="outlined"
-                                                                sx={{ height: 20, fontSize: '0.7rem' }}
-                                                            />
-                                                            {app.region && (
-                                                                <Chip
-                                                                    label={app.region}
-                                                                    size="small"
-                                                                    variant="outlined"
-                                                                    sx={{ height: 20, fontSize: '0.7rem' }}
-                                                                />
-                                                            )}
-                                                        </Stack>
-                                                    </Box>
-                                                </Box>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Box>
-                                                    <Typography variant="body2" fontWeight="medium">
-                                                        {app.device_name || 'N/A'}
-                                                    </Typography>
-                                                    <Typography variant="caption" color="textSecondary" display="block">
-                                                        {app.manufacturer || ''} {app.model ? '• ' + app.model : ''}
-                                                    </Typography>
-                                                    <Stack direction="row" spacing={1} mt={0.5} alignItems="center">
-                                                        <Chip
-                                                            label={app.plan_name || 'N/A'}
-                                                            size="small"
-                                                            color="info"
-                                                            variant="outlined"
-                                                            sx={{ height: 20, fontSize: '0.7rem' }}
-                                                        />
-                                                        <Typography variant="caption" fontWeight="medium" color="primary">
-                                                            {formatCurrency(app.monthly_cost)}
-                                                        </Typography>
-                                                    </Stack>
-                                                    {app.contract_duration_months && (
-                                                        <Typography variant="caption" color="textSecondary" display="block">
-                                                            {app.contract_duration_months} months contract
-                                                        </Typography>
-                                                    )}
-                                                </Box>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Chip
-                                                    icon={getStatusIcon(app.application_status)}
-                                                    label={app.application_status}
-                                                    color={getStatusColor(app.application_status)}
-                                                    size="small"
-                                                    sx={{
-                                                        minWidth: 100,
-                                                        fontWeight: 'medium',
-                                                        boxShadow: 1
-                                                    }}
-                                                />
-                                                {app.rejection_reason && app.application_status === 'Rejected' && (
-                                                    <Tooltip title={app.rejection_reason} arrow>
-                                                        <Typography
-                                                            variant="caption"
-                                                            color="error"
-                                                            display="block"
-                                                            sx={{
-                                                                mt: 0.5,
-                                                                cursor: 'help'
-                                                            }}
-                                                        >
-                                                            Reason: {app.rejection_reason.substring(0, 30)}...
-                                                        </Typography>
-                                                    </Tooltip>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Box>
-                                                    <Typography variant="body2" fontWeight="medium">
-                                                        {formatDate(app.submission_date)}
-                                                    </Typography>
-                                                    {app.last_updated && app.last_updated !== app.submission_date && (
-                                                        <Typography variant="caption" color="textSecondary">
-                                                            Updated: {formatDate(app.last_updated)}
-                                                        </Typography>
-                                                    )}
-                                                </Box>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Stack direction="row" spacing={0.5}>
-                                                    <Tooltip title="View Details">
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={() => setDetailsDialog({ open: true, application: app })}
-                                                            sx={{
-                                                                bgcolor: 'primary.50',
-                                                                '&:hover': { bgcolor: 'primary.100' }
-                                                            }}
-                                                        >
-                                                            <ViewIcon fontSize="small" color="primary" />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                    <Tooltip title="Update Status">
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={() => setStatusDialog({ open: true, application: app })}
-                                                            disabled={app.application_status === 'Cancelled'}
-                                                            sx={{
-                                                                bgcolor: app.application_status === 'Cancelled' ? 'grey.100' : 'warning.50',
-                                                                '&:hover': {
-                                                                    bgcolor: app.application_status === 'Cancelled' ? 'grey.100' : 'warning.100'
-                                                                }
-                                                            }}
-                                                        >
-                                                            <EditIcon fontSize="small" color={app.application_status === 'Cancelled' ? 'disabled' : 'warning'} />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                    <Tooltip title="More Options">
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={(e) => handleMenuClick(e, app)}
-                                                            sx={{
-                                                                bgcolor: 'grey.50',
-                                                                '&:hover': { bgcolor: 'grey.100' }
-                                                            }}
-                                                        >
-                                                            <MoreIcon fontSize="small" />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                </Stack>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                            ) : (
+                            {applications.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
-                                        <DeviceIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2, opacity: 0.5 }} />
-                                        <Typography variant="h6" color="textSecondary" gutterBottom>
-                                            No applications found
-                                        </Typography>
-                                        <Typography variant="body2" color="textSecondary">
-                                            {searchTerm
-                                                ? 'Try adjusting your search criteria'
-                                                : 'Try applying different filters or refresh the page'}
-                                        </Typography>
-                                        <Button
-                                            variant="outlined"
-                                            sx={{ mt: 2 }}
-                                            onClick={handleRefresh}
-                                            startIcon={<RefreshIcon />}
-                                        >
-                                            Refresh Data
-                                        </Button>
+                                    <TableCell colSpan={6} sx={{py: 8, textAlign: 'center', borderBottom: 'none'}}>
+                                        <DeviceIcon sx={{fontSize: 44, color: T.border, mb: 1.5}}/>
+                                        <Typography
+                                            sx={{fontSize: '0.88rem', fontWeight: 600, color: T.muted, mb: 0.5}}>No
+                                            applications found</Typography>
+                                        <Typography sx={{fontSize: '0.78rem', color: T.muted}}>Try adjusting your
+                                            filters</Typography>
+                                        <Button onClick={handleRefresh} size="small" sx={{
+                                            mt: 2,
+                                            color: T.accent,
+                                            textTransform: 'none',
+                                            fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                        }}>Refresh</Button>
                                     </TableCell>
                                 </TableRow>
+                            ) : (
+                                applications.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((app, i) => (
+                                    <TableRow key={app.application_id} hover sx={{
+                                        '&:hover': {bgcolor: T.bg}, transition: 'background-color 0.15s ease',
+                                        animation: `fadeUp 0.35s ease-out ${i * 0.025}s both`,
+                                    }}>
+                                        {/* ID */}
+                                        <TableCell sx={{py: 1.8, borderBottom: `1px solid ${T.border}`}}>
+                                            <Typography className="mono" sx={{
+                                                fontSize: '0.78rem',
+                                                fontWeight: 600,
+                                                color: T.accent
+                                            }}>#{app.application_id}</Typography>
+                                            <Typography className="mono" sx={{
+                                                fontSize: '0.65rem',
+                                                color: T.muted
+                                            }}>Dev: {app.device_id}</Typography>
+                                        </TableCell>
+                                        {/* Applicant */}
+                                        <TableCell sx={{py: 1.8, borderBottom: `1px solid ${T.border}`}}>
+                                            <Box sx={{display: 'flex', alignItems: 'center', gap: 1.2}}>
+                                                <Avatar sx={{
+                                                    width: 34,
+                                                    height: 34,
+                                                    borderRadius: '10px',
+                                                    bgcolor: T.accentSoft,
+                                                    color: T.accent,
+                                                    fontSize: '0.73rem',
+                                                    fontWeight: 700,
+                                                    fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                                }}>
+                                                    {getInitials(app)}
+                                                </Avatar>
+                                                <Box>
+                                                    <Typography sx={{
+                                                        fontSize: '0.82rem',
+                                                        fontWeight: 600,
+                                                        color: T.text
+                                                    }}>{app.first_name} {app.last_name}</Typography>
+                                                    <Typography sx={{
+                                                        fontSize: '0.7rem',
+                                                        color: T.muted
+                                                    }}>{app.email}</Typography>
+                                                    <Box sx={{display: 'flex', gap: 0.5, mt: 0.4, flexWrap: 'wrap'}}>
+                                                        {app.user_type && <Chip label={app.user_type} size="small" sx={{
+                                                            height: 18,
+                                                            fontSize: '0.65rem',
+                                                            fontWeight: 600,
+                                                            bgcolor: T.purpleSoft,
+                                                            color: T.purple
+                                                        }}/>}
+                                                        {app.region && <Chip label={app.region} size="small" sx={{
+                                                            height: 18,
+                                                            fontSize: '0.65rem',
+                                                            bgcolor: T.bg,
+                                                            color: T.muted,
+                                                            border: `1px solid ${T.border}`
+                                                        }}/>}
+                                                    </Box>
+                                                </Box>
+                                            </Box>
+                                        </TableCell>
+                                        {/* Device */}
+                                        {!isMobile && (
+                                            <TableCell sx={{py: 1.8, borderBottom: `1px solid ${T.border}`}}>
+                                                <Typography sx={{
+                                                    fontSize: '0.82rem',
+                                                    fontWeight: 600,
+                                                    color: T.text
+                                                }}>{app.device_name || '—'}</Typography>
+                                                <Typography sx={{
+                                                    fontSize: '0.7rem',
+                                                    color: T.muted
+                                                }}>{app.manufacturer}{app.model ? ` · ${app.model}` : ''}</Typography>
+                                                <Box sx={{display: 'flex', gap: 0.5, mt: 0.4, alignItems: 'center'}}>
+                                                    {app.plan_name && <Chip label={app.plan_name} size="small" sx={{
+                                                        height: 18,
+                                                        fontSize: '0.65rem',
+                                                        bgcolor: T.cyanSoft,
+                                                        color: T.cyan
+                                                    }}/>}
+                                                    <Typography className="mono" sx={{
+                                                        fontSize: '0.7rem',
+                                                        fontWeight: 600,
+                                                        color: T.accent
+                                                    }}>{fmtR(app.monthly_cost)}</Typography>
+                                                </Box>
+                                                {app.contract_duration_months && <Typography sx={{
+                                                    fontSize: '0.68rem',
+                                                    color: T.muted
+                                                }}>{app.contract_duration_months} mo contract</Typography>}
+                                            </TableCell>
+                                        )}
+                                        {/* Status */}
+                                        <TableCell sx={{py: 1.8, borderBottom: `1px solid ${T.border}`}}>
+                                            <StatusChip status={app.application_status}/>
+                                            {app.rejection_reason && app.application_status === 'Rejected' && (
+                                                <Tooltip title={app.rejection_reason} arrow>
+                                                    <Typography sx={{
+                                                        fontSize: '0.67rem',
+                                                        color: T.rose,
+                                                        mt: 0.4,
+                                                        cursor: 'help',
+                                                        maxWidth: 120,
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap'
+                                                    }}>
+                                                        {app.rejection_reason.substring(0, 25)}…
+                                                    </Typography>
+                                                </Tooltip>
+                                            )}
+                                        </TableCell>
+                                        {/* Date */}
+                                        {!isMobile && (
+                                            <TableCell sx={{py: 1.8, borderBottom: `1px solid ${T.border}`}}>
+                                                <Typography sx={{
+                                                    fontSize: '0.8rem',
+                                                    color: T.text
+                                                }}>{formatDate(app.submission_date)}</Typography>
+                                                {app.last_updated && app.last_updated !== app.submission_date && (
+                                                    <Typography sx={{
+                                                        fontSize: '0.68rem',
+                                                        color: T.muted
+                                                    }}>Upd: {formatDate(app.last_updated)}</Typography>
+                                                )}
+                                            </TableCell>
+                                        )}
+                                        {/* Actions */}
+                                        <TableCell sx={{py: 1.8, borderBottom: `1px solid ${T.border}`}}>
+                                            <Box sx={{display: 'flex', gap: 0.5}}>
+                                                <Tooltip title="View Details">
+                                                    <IconButton size="small" onClick={() => setDetailsDialog({
+                                                        open: true,
+                                                        application: app
+                                                    })}
+                                                                sx={{
+                                                                    width: 28,
+                                                                    height: 28,
+                                                                    borderRadius: '8px',
+                                                                    bgcolor: T.accentSoft,
+                                                                    color: T.accent,
+                                                                    '&:hover': {bgcolor: '#DBEAFE'}
+                                                                }}>
+                                                        <ViewIcon sx={{fontSize: 14}}/>
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Update Status">
+                                                    <span>
+                                                        <IconButton size="small"
+                                                                    onClick={() => setStatusDialog({
+                                                                        open: true,
+                                                                        application: app
+                                                                    })}
+                                                                    disabled={app.application_status === 'Cancelled'}
+                                                                    sx={{
+                                                                        width: 28, height: 28, borderRadius: '8px',
+                                                                        bgcolor: app.application_status === 'Cancelled' ? T.bg : T.amberSoft,
+                                                                        color: app.application_status === 'Cancelled' ? T.muted : T.amber,
+                                                                        '&:hover': {bgcolor: app.application_status !== 'Cancelled' ? '#FDE68A' : undefined}
+                                                                    }}>
+                                                            <EditIcon sx={{fontSize: 14}}/>
+                                                        </IconButton>
+                                                    </span>
+                                                </Tooltip>
+                                                <Tooltip title="More">
+                                                    <IconButton size="small" onClick={e => {
+                                                        setAnchorEl(e.currentTarget);
+                                                        setSelectedApp(app);
+                                                    }}
+                                                                sx={{
+                                                                    width: 28,
+                                                                    height: 28,
+                                                                    borderRadius: '8px',
+                                                                    bgcolor: T.bg,
+                                                                    color: T.muted,
+                                                                    border: `1px solid ${T.border}`,
+                                                                    '&:hover': {bgcolor: T.border}
+                                                                }}>
+                                                        <MoreIcon sx={{fontSize: 14}}/>
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </Box>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
                             )}
                         </TableBody>
                     </Table>
                 </TableContainer>
                 {applications.length > 0 && (
                     <TablePagination
-                        rowsPerPageOptions={[10, 25, 50, 100]}
-                        component="div"
-                        count={applications.length}
-                        rowsPerPage={rowsPerPage}
-                        page={page}
-                        onPageChange={(e, newPage) => setPage(newPage)}
-                        onRowsPerPageChange={(e) => {
+                        rowsPerPageOptions={[10, 25, 50, 100]} component="div"
+                        count={applications.length} rowsPerPage={rowsPerPage} page={page}
+                        onPageChange={(e, p) => setPage(p)}
+                        onRowsPerPageChange={e => {
                             setRowsPerPage(parseInt(e.target.value, 10));
                             setPage(0);
                         }}
                         sx={{
-                            borderTop: `1px solid ${theme.palette.divider}`,
-                            '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-                                fontWeight: 'medium'
-                            }
+                            borderTop: `1px solid ${T.border}`,
+                            '& *': {fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.8rem'}
                         }}
                     />
                 )}
             </Paper>
 
-            {/* Status Update Dialog */}
-            <ApplicationStatusDialog
-                open={statusDialog.open}
-                application={statusDialog.application}
-                onClose={() => setStatusDialog({ open: false, application: null })}
-                onUpdate={handleStatusUpdate}
-            />
-
-            {/* Application Details Dialog */}
-            <ApplicationDetailsDialog
-                open={detailsDialog.open}
-                application={detailsDialog.application}
-                onClose={() => setDetailsDialog({ open: false, application: null })}
-            />
-
-            {/* More Options Menu */}
-            <Menu
-                anchorEl={anchorEl}
-                open={Boolean(anchorEl)}
-                onClose={handleMenuClose}
-                PaperProps={{
-                    sx: {
-                        minWidth: 200,
-                        borderRadius: 2,
-                        boxShadow: 3
-                    }
-                }}
-            >
-                {selectedApp && (
-                    <>
-                        <MenuItem
-                            onClick={() => {
-                                setDetailsDialog({ open: true, application: selectedApp });
-                                handleMenuClose();
-                            }}
-                            sx={{ py: 1.5 }}
-                        >
-                            <ListItemIcon>
-                                <ViewIcon fontSize="small" color="primary" />
-                            </ListItemIcon>
-                            <ListItemText primary="View Details" />
-                        </MenuItem>
-                        {selectedApp.client_user_id && (
-                            <MenuItem
-                                onClick={() => {
-                                    navigate(`/client-users/${selectedApp.client_user_id}`);
-                                    handleMenuClose();
-                                }}
-                                sx={{ py: 1.5 }}
-                            >
-                                <ListItemIcon>
-                                    <PersonIcon fontSize="small" color="info" />
-                                </ListItemIcon>
-                                <ListItemText primary="View User Profile" />
-                            </MenuItem>
-                        )}
-                        {selectedApp.email && (
-                            <MenuItem
-                                onClick={() => {
-                                    window.open(`mailto:${selectedApp.email}`, '_blank');
-                                    handleMenuClose();
-                                }}
-                                sx={{ py: 1.5 }}
-                            >
-                                <ListItemIcon>
-                                    <EmailIcon fontSize="small" color="action" />
-                                </ListItemIcon>
-                                <ListItemText primary="Email User" />
-                            </MenuItem>
-                        )}
-                        {selectedApp.phone_number && (
-                            <MenuItem
-                                onClick={() => {
-                                    window.open(`tel:${selectedApp.phone_number}`, '_blank');
-                                    handleMenuClose();
-                                }}
-                                sx={{ py: 1.5 }}
-                            >
-                                <ListItemIcon>
-                                    <CallIcon fontSize="small" color="action" />
-                                </ListItemIcon>
-                                <ListItemText primary="Call User" />
-                            </MenuItem>
-                        )}
-                        <Divider />
-                        <MenuItem
-                            onClick={() => {
-                                setStatusDialog({ open: true, application: selectedApp });
-                                handleMenuClose();
-                            }}
-                            sx={{ py: 1.5 }}
-                        >
-                            <ListItemIcon>
-                                <EditIcon fontSize="small" color="warning" />
-                            </ListItemIcon>
-                            <ListItemText primary="Update Status" />
-                        </MenuItem>
-                    </>
-                )}
-            </Menu>
-
-            {/* Additional Stats Section */}
-            {stats && stats.device_stats && stats.device_stats.length > 0 && (
-                <Paper sx={{ mt: 3, p: 3, borderRadius: 2 }}>
-                    <Typography variant="h6" gutterBottom fontWeight="bold">
-                        Device Statistics
-                    </Typography>
+            {/* Device Stats Breakdown */}
+            {stats?.device_stats?.length > 0 && (
+                <Paper elevation={0} sx={{
+                    mt: 2.5,
+                    p: 3,
+                    borderRadius: '14px',
+                    border: `1px solid ${T.border}`,
+                    bgcolor: T.surface,
+                    animation: 'fadeUp 0.4s ease-out 0.35s both'
+                }}>
+                    <Typography sx={{fontWeight: 700, fontSize: '0.9rem', color: T.text, mb: 2}}>Device
+                        Breakdown</Typography>
                     <Grid container spacing={2}>
-                        {stats.device_stats.slice(0, 4).map((device, index) => (
-                            <Grid item xs={12} sm={6} md={3} key={index}>
-                                <Card variant="outlined" sx={{ height: '100%' }}>
-                                    <CardContent>
-                                        <Typography variant="subtitle2" fontWeight="medium" gutterBottom>
-                                            {device.device_name}
-                                        </Typography>
-                                        <Typography variant="caption" color="textSecondary" display="block" gutterBottom>
-                                            {device.manufacturer}
-                                        </Typography>
-                                        <Stack spacing={1} mt={1}>
-                                            <Box display="flex" justifyContent="space-between">
-                                                <Typography variant="caption">Total:</Typography>
-                                                <Typography variant="caption" fontWeight="bold">
-                                                    {formatNumber(device.total_applications)}
-                                                </Typography>
-                                            </Box>
-                                            <Box display="flex" justifyContent="space-between">
-                                                <Typography variant="caption">Approved:</Typography>
-                                                <Typography variant="caption" color="success.main" fontWeight="bold">
-                                                    {formatNumber(device.approved_count)}
-                                                </Typography>
-                                            </Box>
-                                            <Box display="flex" justifyContent="space-between">
-                                                <Typography variant="caption">Pending:</Typography>
-                                                <Typography variant="caption" color="warning.main" fontWeight="bold">
-                                                    {formatNumber(device.pending_count)}
-                                                </Typography>
-                                            </Box>
-                                        </Stack>
-                                    </CardContent>
-                                </Card>
+                        {stats.device_stats.slice(0, 4).map((d, i) => (
+                            <Grid item xs={6} md={3} key={i}>
+                                <Box sx={{
+                                    p: 2,
+                                    borderRadius: '10px',
+                                    bgcolor: T.bg,
+                                    border: `1px solid ${T.border}`,
+                                    transition: 'border-color 0.2s',
+                                    '&:hover': {borderColor: T.accent}
+                                }}>
+                                    <Typography sx={{
+                                        fontSize: '0.82rem',
+                                        fontWeight: 700,
+                                        color: T.text,
+                                        mb: 0.3
+                                    }}>{d.device_name}</Typography>
+                                    <Typography
+                                        sx={{fontSize: '0.7rem', color: T.muted, mb: 1}}>{d.manufacturer}</Typography>
+                                    <Box sx={{display: 'flex', justifyContent: 'space-between', mb: 0.5}}>
+                                        <Typography sx={{fontSize: '0.7rem', color: T.muted}}>Total</Typography>
+                                        <Typography className="mono" sx={{
+                                            fontSize: '0.78rem',
+                                            fontWeight: 600,
+                                            color: T.text
+                                        }}>{fmt(d.total_applications)}</Typography>
+                                    </Box>
+                                    <Box sx={{display: 'flex', justifyContent: 'space-between', mb: 0.5}}>
+                                        <Typography sx={{fontSize: '0.7rem', color: T.muted}}>Approved</Typography>
+                                        <Typography className="mono" sx={{
+                                            fontSize: '0.78rem',
+                                            fontWeight: 600,
+                                            color: T.green
+                                        }}>{fmt(d.approved_count)}</Typography>
+                                    </Box>
+                                    <Box sx={{display: 'flex', justifyContent: 'space-between'}}>
+                                        <Typography sx={{fontSize: '0.7rem', color: T.muted}}>Pending</Typography>
+                                        <Typography className="mono" sx={{
+                                            fontSize: '0.78rem',
+                                            fontWeight: 600,
+                                            color: T.amber
+                                        }}>{fmt(d.pending_count)}</Typography>
+                                    </Box>
+                                </Box>
                             </Grid>
                         ))}
                     </Grid>
                 </Paper>
             )}
+
+            {/* Dialogs */}
+            <ApplicationStatusDialog open={statusDialog.open} application={statusDialog.application}
+                                     onClose={() => setStatusDialog({open: false, application: null})}
+                                     onUpdate={handleStatusUpdate}/>
+            <ApplicationDetailsDialog open={detailsDialog.open} application={detailsDialog.application}
+                                      onClose={() => setDetailsDialog({open: false, application: null})}/>
+
+            {/* Context Menu */}
+            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => {
+                setAnchorEl(null);
+                setSelectedApp(null);
+            }}
+                  PaperProps={{
+                      elevation: 0,
+                      sx: {
+                          borderRadius: '12px',
+                          border: `1px solid ${T.border}`,
+                          boxShadow: '0 8px 30px rgba(15,31,61,0.10)',
+                          minWidth: 190
+                      }
+                  }}>
+                {selectedApp && [
+                    {
+                        Icon: ViewIcon,
+                        color: T.accent,
+                        label: 'View Details',
+                        action: () => setDetailsDialog({open: true, application: selectedApp})
+                    },
+                    selectedApp.client_user_id && {
+                        Icon: PersonIcon,
+                        color: T.purple,
+                        label: 'View User Profile',
+                        action: () => navigate(`/client-users/${selectedApp.client_user_id}`)
+                    },
+                    selectedApp.email && {
+                        Icon: EmailIcon,
+                        color: T.muted,
+                        label: 'Email User',
+                        action: () => window.open(`mailto:${selectedApp.email}`, '_blank')
+                    },
+                    selectedApp.phone_number && {
+                        Icon: CallIcon,
+                        color: T.muted,
+                        label: 'Call User',
+                        action: () => window.open(`tel:${selectedApp.phone_number}`, '_blank')
+                    },
+                    'divider',
+                    {
+                        Icon: EditIcon,
+                        color: T.amber,
+                        label: 'Update Status',
+                        action: () => setStatusDialog({open: true, application: selectedApp})
+                    },
+                ].filter(Boolean).map((item, i) => item === 'divider' ?
+                    <Divider key={i} sx={{borderColor: T.border}}/> : (
+                        <MenuItem key={item.label} onClick={() => {
+                            item.action();
+                            setAnchorEl(null);
+                            setSelectedApp(null);
+                        }}
+                                  sx={{
+                                      gap: 1.5,
+                                      py: 1.2,
+                                      fontSize: '0.83rem',
+                                      color: T.text,
+                                      '&:hover': {bgcolor: T.bg}
+                                  }}>
+                            <item.Icon sx={{fontSize: 16, color: item.color}}/>
+                            {item.label}
+                        </MenuItem>
+                    ))}
+            </Menu>
         </Box>
     );
 };

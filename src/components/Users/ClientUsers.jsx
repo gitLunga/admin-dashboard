@@ -1,51 +1,67 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Box,
-    Paper,
-    Typography,
-    TextField,
-    IconButton,
-    Chip,
-    Alert,
-    CircularProgress,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    TablePagination,
-    Avatar,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
-    Stack,
+    Box, Paper, Typography, TextField, IconButton, Chip, Alert,
+    CircularProgress, Table, TableBody, TableCell, TableContainer,
+    TableHead, TableRow, TablePagination, Avatar, FormControl,
+    InputLabel, Select, MenuItem, Stack, Button, useMediaQuery, useTheme,
 } from '@mui/material';
 import {
     Search as SearchIcon,
     Edit as EditIcon,
     Visibility as ViewIcon,
     FilterList as FilterListIcon,
+    Clear as ClearIcon,
+    People as PeopleIcon,
+    PersonAdd as PersonAddIcon,
 } from '@mui/icons-material';
 import { adminAPI } from '../../services/api';
 import StatusUpdateModal from './StatusUpdateModal';
 
-const ClientUsers = () => {
-    const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
-    const [selectedUser, setSelectedUser] = useState(null);
-    const [modalOpen, setModalOpen] = useState(false);
-    const [selectedRegion, setSelectedRegion] = useState('all');
-    const [selectedStatus, setSelectedStatus] = useState('all'); // New state for status filter
+/* ── Shared design tokens ── */
+const T = {
+    bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
+    text: '#0F1F3D', muted: '#6B7A99',
+    accent: '#1E4FD8', accentSoft: '#EBF0FF',
+    green: '#059669', greenSoft: '#D1FAE5',
+    amber: '#D97706', amberSoft: '#FEF3C7',
+    rose: '#DC2626', roseSoft: '#FEE2E2',
+    purple: '#7C3AED', purpleSoft: '#EDE9FE',
+};
 
-    useEffect(() => {
-        fetchClientUsers();
-    }, []);
+const STATUS_META = {
+    Verified: { color: T.green,  soft: T.greenSoft,  dot: '#059669' },
+    Pending:  { color: T.amber,  soft: T.amberSoft,  dot: '#D97706' },
+    Rejected: { color: T.rose,   soft: T.roseSoft,   dot: '#DC2626' },
+};
+
+const StatusChip = ({ status }) => {
+    const meta = STATUS_META[status] || { color: T.muted, soft: '#F1F5F9', dot: T.muted };
+    return (
+        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.7,
+            px: 1.2, py: 0.4, borderRadius: '20px',
+            bgcolor: meta.soft, border: `1px solid ${meta.color}28` }}>
+            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: meta.dot, flexShrink: 0 }} />
+            <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: meta.color }}>{status}</Typography>
+        </Box>
+    );
+};
+
+const ClientUsers = () => {
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+    const [users, setUsers]               = useState([]);
+    const [loading, setLoading]           = useState(true);
+    const [error, setError]               = useState(null);
+    const [searchTerm, setSearchTerm]     = useState('');
+    const [page, setPage]                 = useState(0);
+    const [rowsPerPage, setRowsPerPage]   = useState(10);
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [modalOpen, setModalOpen]       = useState(false);
+    const [selectedRegion, setSelectedRegion] = useState('all');
+    const [selectedStatus, setSelectedStatus] = useState('all');
+
+    useEffect(() => { fetchClientUsers(); }, []);
 
     const fetchClientUsers = async () => {
         try {
@@ -60,18 +76,11 @@ const ClientUsers = () => {
     };
 
     const handleSearch = async () => {
-        if (searchTerm.length < 2) {
-            fetchClientUsers();
-            return;
-        }
-
+        if (searchTerm.length < 2) { fetchClientUsers(); return; }
         try {
             setLoading(true);
             const response = await adminAPI.searchUsers(searchTerm);
-            const filtered = response.data.data.users.filter(
-                (user) => user.user_type === 'client'
-            );
-            setUsers(filtered);
+            setUsers(response.data.data.users.filter(u => u.user_type === 'client'));
         } catch (err) {
             setError(err.message || 'Search failed');
         } finally {
@@ -81,350 +90,249 @@ const ClientUsers = () => {
 
     const handleStatusUpdate = async (status, notes) => {
         if (!selectedUser) return;
-
         try {
-            console.log('Updating user status:', {
-                userId: selectedUser.client_user_id,
-                status,
-                notes
-            });
-
             await adminAPI.updateUserStatus(selectedUser.client_user_id, { status, notes });
-            // Refresh users list
             fetchClientUsers();
             setModalOpen(false);
             setSelectedUser(null);
         } catch (err) {
-            console.error('Error updating status:', err);
             setError(err.message || 'Failed to update status');
         }
     };
 
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'Verified':
-                return 'success';
-            case 'Pending':
-                return 'warning';
-            case 'Rejected':
-                return 'error';
-            default:
-                return 'default';
-        }
-    };
-
-    // Get unique regions from users for the filter dropdown
     const uniqueRegions = useMemo(() => {
-        const regions = users
-            .map(user => user.region)
-            .filter(region => region && region.trim() !== '');
-        return ['All Regions', ...new Set(regions)].sort();
+        const r = users.map(u => u.region).filter(r => r?.trim());
+        return [...new Set(r)].sort();
     }, [users]);
 
-    // Get unique statuses from users
-    const uniqueStatuses = useMemo(() => {
-        const statuses = users
-            .map(user => user.registration_status)
-            .filter(status => status && status.trim() !== '');
-        return ['All Statuses', ...new Set(statuses)].sort();
-    }, [users]);
+    const filteredUsers = useMemo(() => users.filter(u => {
+        const s = searchTerm.toLowerCase();
+        const matchSearch = !s || u.first_name?.toLowerCase().includes(s) || u.last_name?.toLowerCase().includes(s) || u.email?.toLowerCase().includes(s) || u.persal_id?.toLowerCase().includes(s);
+        const matchRegion = selectedRegion === 'all' || u.region === selectedRegion;
+        const matchStatus = selectedStatus === 'all' || u.registration_status === selectedStatus;
+        return matchSearch && matchRegion && matchStatus;
+    }), [users, searchTerm, selectedRegion, selectedStatus]);
 
-    // Filter users based on search term, region, AND status
-    const filteredUsers = useMemo(() => {
-        return users.filter((user) => {
-            // Search filter
-            const matchesSearch =
-                user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                user.persal_id?.toLowerCase().includes(searchTerm.toLowerCase());
+    const hasFilters = selectedRegion !== 'all' || selectedStatus !== 'all' || searchTerm.trim() !== '';
+    const clearAll   = () => { setSelectedRegion('all'); setSelectedStatus('all'); setSearchTerm(''); setPage(0); };
 
-            // Region filter
-            const matchesRegion =
-                selectedRegion === 'all' ||
-                selectedRegion === 'All Regions' ||
-                user.region === selectedRegion;
+    const getInitials = (u) => `${u.first_name?.[0] || ''}${u.last_name?.[0] || ''}`.toUpperCase();
 
-            // Status filter
-            const matchesStatus =
-                selectedStatus === 'all' ||
-                selectedStatus === 'All Statuses' ||
-                user.registration_status === selectedStatus;
-
-            return matchesSearch && matchesRegion && matchesStatus;
-        });
-    }, [users, searchTerm, selectedRegion, selectedStatus]);
-
-    // Clear all filters
-    const clearAllFilters = () => {
-        setSelectedRegion('all');
-        setSelectedStatus('all');
-        setSearchTerm('');
-        setPage(0);
-    };
-
-    // Check if any filter is active
-    const hasActiveFilters = selectedRegion !== 'all' || selectedStatus !== 'all' || searchTerm.trim() !== '';
-
-    if (loading) {
-        return (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-                <CircularProgress />
-            </Box>
-        );
-    }
+    if (loading) return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400, bgcolor: T.bg }}>
+            <CircularProgress sx={{ color: T.accent }} />
+        </Box>
+    );
 
     return (
-        <Box sx={{ p: 3 }}>
-            <Typography variant="h4" gutterBottom>
-                Client Users Management
-            </Typography>
+        <Box sx={{ p: { xs: 2, md: 3.5 }, bgcolor: T.bg, minHeight: '100vh' }}>
 
-            {/* Search and Filter Section */}
-            <Box sx={{ mb: 3 }}>
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-                    <TextField
-                        placeholder="Search by name, email, or Persal ID..."
-                        variant="outlined"
-                        size="small"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        sx={{ flexGrow: 1, minWidth: '300px' }}
-                        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                    />
-                    <IconButton onClick={handleSearch}>
-                        <SearchIcon />
-                    </IconButton>
-                </Box>
-
-                {/* Filter Controls */}
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <FilterListIcon color="action" />
-                        <Typography variant="body2" color="textSecondary">
-                            Filters:
+            {/* ── Header ── */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 1.5, animation: 'fadeUp 0.4s ease-out' }}>
+                <Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mb: 0.3 }}>
+                        <Box sx={{ p: 1, borderRadius: '10px', bgcolor: T.accentSoft }}>
+                            <PeopleIcon sx={{ fontSize: 20, color: T.accent }} />
+                        </Box>
+                        <Typography sx={{ fontSize: { xs: '1.25rem', md: '1.6rem' }, fontWeight: 800, color: T.text, letterSpacing: '-0.3px' }}>
+                            Client Users
                         </Typography>
+                    </Box>
+                    <Typography sx={{ fontSize: '0.78rem', color: T.muted, ml: 0.5 }}>
+                        Manage and review all judicial system client users
+                    </Typography>
+                </Box>
+                <Chip
+                    label={`${filteredUsers.length} user${filteredUsers.length !== 1 ? 's' : ''}`}
+                    sx={{ bgcolor: T.accentSoft, color: T.accent, fontWeight: 700, fontSize: '0.78rem', height: 32, fontFamily: 'JetBrains Mono, monospace' }}
+                />
+            </Box>
+
+            {/* ── Search & Filters ── */}
+            <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, mb: 2.5, borderRadius: '14px', border: `1px solid ${T.border}`, bgcolor: T.surface }}>
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
+                    {/* Search */}
+                    <Box sx={{
+                        display: 'flex', alignItems: 'center', gap: 1,
+                        bgcolor: T.bg, border: `1px solid ${T.border}`, borderRadius: '10px',
+                        px: 1.5, py: 0.6, flex: 1, minWidth: { xs: '100%', sm: 240 },
+                        '&:focus-within': { borderColor: T.accent, boxShadow: `0 0 0 3px ${T.accentSoft}` },
+                        transition: 'all 0.2s ease',
+                    }}>
+                        <SearchIcon sx={{ fontSize: 17, color: T.muted, flexShrink: 0 }} />
+                        <input
+                            placeholder="Search by name, email, or Persal ID…"
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            onKeyPress={e => e.key === 'Enter' && handleSearch()}
+                            style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem', color: T.text }}
+                        />
+                        {searchTerm && (
+                            <IconButton size="small" onClick={() => setSearchTerm('')} sx={{ p: 0.3, color: T.muted }}>
+                                <ClearIcon sx={{ fontSize: 14 }} />
+                            </IconButton>
+                        )}
                     </Box>
 
                     {/* Region Filter */}
-                    <FormControl sx={{ minWidth: 180 }} size="small">
-                        <InputLabel>Region</InputLabel>
+                    <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 160 } }}>
                         <Select
                             value={selectedRegion}
-                            label="Region"
-                            onChange={(e) => {
-                                setSelectedRegion(e.target.value);
-                                setPage(0);
+                            displayEmpty
+                            onChange={e => { setSelectedRegion(e.target.value); setPage(0); }}
+                            sx={{ borderRadius: '10px', fontSize: '0.83rem', bgcolor: T.bg,
+                                '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border },
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.accent },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: T.accent },
                             }}
+                            renderValue={v => v === 'all' ? 'All Regions' : v}
                         >
-                            <MenuItem value="all">All Regions</MenuItem>
-                            {uniqueRegions.filter(region => region !== 'All Regions').map((region) => (
-                                <MenuItem key={region} value={region}>
-                                    {region || 'N/A'}
-                                </MenuItem>
-                            ))}
+                            <MenuItem value="all" sx={{ fontSize: '0.83rem' }}>All Regions</MenuItem>
+                            {uniqueRegions.map(r => <MenuItem key={r} value={r} sx={{ fontSize: '0.83rem' }}>{r}</MenuItem>)}
                         </Select>
                     </FormControl>
 
                     {/* Status Filter */}
-                    <FormControl sx={{ minWidth: 180 }} size="small">
-                        <InputLabel>Status</InputLabel>
+                    <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 160 } }}>
                         <Select
                             value={selectedStatus}
-                            label="Status"
-                            onChange={(e) => {
-                                setSelectedStatus(e.target.value);
-                                setPage(0);
+                            displayEmpty
+                            onChange={e => { setSelectedStatus(e.target.value); setPage(0); }}
+                            sx={{ borderRadius: '10px', fontSize: '0.83rem', bgcolor: T.bg,
+                                '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border },
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.accent },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: T.accent },
                             }}
+                            renderValue={v => v === 'all' ? 'All Statuses' : v}
                         >
-                            <MenuItem value="all">All Statuses</MenuItem>
-                            {uniqueStatuses.filter(status => status !== 'All Statuses').map((status) => (
-                                <MenuItem key={status} value={status}>
+                            <MenuItem value="all" sx={{ fontSize: '0.83rem' }}>All Statuses</MenuItem>
+                            {['Verified','Pending','Rejected'].map(s => (
+                                <MenuItem key={s} value={s} sx={{ fontSize: '0.83rem' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Box
-                                            sx={{
-                                                width: 8,
-                                                height: 8,
-                                                borderRadius: '50%',
-                                                bgcolor: status === 'Verified' ? 'success.main' :
-                                                    status === 'Pending' ? 'warning.main' :
-                                                        status === 'Rejected' ? 'error.main' : 'grey.500'
-                                            }}
-                                        />
-                                        {status}
+                                        <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: STATUS_META[s]?.dot || T.muted }} />
+                                        {s}
                                     </Box>
                                 </MenuItem>
                             ))}
                         </Select>
                     </FormControl>
-
-                    {/* Clear Filters Button */}
-                    {hasActiveFilters && (
-                        <Chip
-                            label="Clear All Filters"
-                            variant="outlined"
-                            size="small"
-                            onClick={clearAllFilters}
-                            sx={{ ml: 1 }}
-                        />
-                    )}
                 </Box>
-            </Box>
+
+                {/* Active filter chips */}
+                {hasFilters && (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+                        <Typography sx={{ fontSize: '0.71rem', color: T.muted, fontWeight: 600 }}>Active:</Typography>
+                        {selectedRegion !== 'all' && (
+                            <Chip label={`Region: ${selectedRegion}`} size="small" onDelete={() => setSelectedRegion('all')}
+                                  sx={{ bgcolor: T.accentSoft, color: T.accent, border: `1px solid ${T.accent}28`, fontSize: '0.72rem', fontWeight: 600, height: 24 }} />
+                        )}
+                        {selectedStatus !== 'all' && (
+                            <Chip label={`Status: ${selectedStatus}`} size="small" onDelete={() => setSelectedStatus('all')}
+                                  sx={{ bgcolor: STATUS_META[selectedStatus]?.soft, color: STATUS_META[selectedStatus]?.color, fontSize: '0.72rem', fontWeight: 600, height: 24 }} />
+                        )}
+                        {searchTerm && (
+                            <Chip label={`"${searchTerm}"`} size="small" onDelete={() => setSearchTerm('')}
+                                  sx={{ bgcolor: T.purpleSoft, color: T.purple, fontSize: '0.72rem', fontWeight: 600, height: 24 }} />
+                        )}
+                        <Button size="small" onClick={clearAll} sx={{ fontSize: '0.71rem', color: T.muted, textTransform: 'none', py: 0, fontFamily: 'Plus Jakarta Sans, sans-serif',
+                            '&:hover': { color: T.rose } }}>
+                            Clear all
+                        </Button>
+                    </Box>
+                )}
+            </Paper>
 
             {error && (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2, borderRadius: '10px', fontSize: '0.83rem' }}>
                     {error}
                 </Alert>
             )}
 
-            {/* Active Filters Display */}
-            {hasActiveFilters && (
-                <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" color="textSecondary" gutterBottom>
-                        Active Filters:
-                    </Typography>
-                    <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
-                        {selectedRegion !== 'all' && (
-                            <Chip
-                                label={`Region: ${selectedRegion}`}
-                                color="primary"
-                                variant="outlined"
-                                size="small"
-                                onDelete={() => setSelectedRegion('all')}
-                            />
-                        )}
-                        {selectedStatus !== 'all' && (
-                            <Chip
-                                label={`Status: ${selectedStatus}`}
-                                color={getStatusColor(selectedStatus)}
-                                variant="outlined"
-                                size="small"
-                                onDelete={() => setSelectedStatus('all')}
-                            />
-                        )}
-                        {searchTerm.trim() !== '' && (
-                            <Chip
-                                label={`Search: "${searchTerm}"`}
-                                color="info"
-                                variant="outlined"
-                                size="small"
-                                onDelete={() => setSearchTerm('')}
-                            />
-                        )}
-                        <Typography variant="caption" color="textSecondary" sx={{ alignSelf: 'center' }}>
-                            {filteredUsers.length} user(s) found
-                        </Typography>
-                    </Stack>
-                </Box>
-            )}
-
-            {/* Table Section */}
-            <TableContainer component={Paper}>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>User</TableCell>
-                            <TableCell>Contact</TableCell>
-                            <TableCell>Region</TableCell>
-                            <TableCell>User Type</TableCell>
-                            <TableCell>Status</TableCell>
-                            <TableCell>Actions</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {filteredUsers.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
-                                    <Typography color="textSecondary">
-                                        {hasActiveFilters ? (
-                                            <>
-                                                No users found matching your filters.
-                                                <br />
-                                                <Typography
-                                                    component="span"
-                                                    color="primary"
-                                                    sx={{ cursor: 'pointer' }}
-                                                    onClick={clearAllFilters}
-                                                >
-                                                    Clear all filters
-                                                </Typography>
-                                            </>
-                                        ) : 'No users found'}
-                                    </Typography>
-                                </TableCell>
+            {/* ── Table ── */}
+            <Paper elevation={0} sx={{ borderRadius: '14px', border: `1px solid ${T.border}`, bgcolor: T.surface, overflow: 'hidden' }}>
+                <TableContainer>
+                    <Table size={isMobile ? 'small' : 'medium'}>
+                        <TableHead>
+                            <TableRow sx={{ bgcolor: T.bg }}>
+                                {['User', !isMobile && 'Contact', !isMobile && 'Region', 'Status', 'Actions'].filter(Boolean).map(h => (
+                                    <TableCell key={h} sx={{ fontWeight: 700, fontSize: '0.72rem', color: T.muted, letterSpacing: 0.8, textTransform: 'uppercase', py: 1.6, borderBottom: `1px solid ${T.border}` }}>
+                                        {h}
+                                    </TableCell>
+                                ))}
                             </TableRow>
-                        ) : (
-                            filteredUsers
-                                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                                .map((user) => (
-                                    <TableRow key={user.client_user_id} hover>
-                                        <TableCell>
-                                            <Box display="flex" alignItems="center">
-                                                <Avatar sx={{ width: 32, height: 32, mr: 2, bgcolor: 'primary.main' }}>
-                                                    {user.first_name?.[0]}{user.last_name?.[0]}
+                        </TableHead>
+                        <TableBody>
+                            {filteredUsers.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={6} sx={{ py: 8, textAlign: 'center', borderBottom: 'none' }}>
+                                        <PeopleIcon sx={{ fontSize: 44, color: T.border, mb: 1.5 }} />
+                                        <Typography sx={{ fontSize: '0.9rem', fontWeight: 600, color: T.muted, mb: 0.5 }}>
+                                            No users found
+                                        </Typography>
+                                        {hasFilters && (
+                                            <Button onClick={clearAll} size="small" sx={{ mt: 1, color: T.accent, textTransform: 'none', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.8rem' }}>
+                                                Clear filters
+                                            </Button>
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                filteredUsers.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((user, i) => (
+                                    <TableRow key={user.client_user_id} hover sx={{
+                                        '&:hover': { bgcolor: T.bg },
+                                        transition: 'background-color 0.15s ease',
+                                        animation: `fadeUp 0.35s ease-out ${i * 0.03}s both`,
+                                    }}>
+                                        <TableCell sx={{ py: 1.8, borderBottom: `1px solid ${T.border}` }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                <Avatar sx={{ width: 34, height: 34, borderRadius: '10px', bgcolor: T.accentSoft, color: T.accent, fontSize: '0.73rem', fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                                    {getInitials(user)}
                                                 </Avatar>
                                                 <Box>
-                                                    <Typography variant="body2" fontWeight="medium">
+                                                    <Typography sx={{ fontSize: '0.83rem', fontWeight: 600, color: T.text }}>
                                                         {user.title} {user.first_name} {user.last_name}
                                                     </Typography>
-                                                    <Typography variant="caption" color="textSecondary">
-                                                        ID: {user.client_user_id}
+                                                    <Typography className="mono" sx={{ fontSize: '0.67rem', color: T.muted }}>
+                                                        #{user.client_user_id}
                                                     </Typography>
+                                                    {isMobile && (
+                                                        <Typography sx={{ fontSize: '0.72rem', color: T.muted, mt: 0.2 }}>{user.email}</Typography>
+                                                    )}
                                                 </Box>
                                             </Box>
                                         </TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2">{user.email}</Typography>
-                                            {user.phone_number && (
-                                                <Typography variant="caption" color="textSecondary">
-                                                    {user.phone_number}
-                                                </Typography>
-                                            )}
+                                        {!isMobile && (
+                                            <TableCell sx={{ py: 1.8, borderBottom: `1px solid ${T.border}` }}>
+                                                <Typography sx={{ fontSize: '0.8rem', color: T.text }}>{user.email}</Typography>
+                                                {user.phone_number && <Typography sx={{ fontSize: '0.71rem', color: T.muted }}>{user.phone_number}</Typography>}
+                                            </TableCell>
+                                        )}
+                                        {!isMobile && (
+                                            <TableCell sx={{ py: 1.8, borderBottom: `1px solid ${T.border}` }}>
+                                                <Typography sx={{ fontSize: '0.8rem', color: T.text }}>{user.region || '—'}</Typography>
+                                            </TableCell>
+                                        )}
+                                        <TableCell sx={{ py: 1.8, borderBottom: `1px solid ${T.border}` }}>
+                                            <StatusChip status={user.registration_status} />
                                         </TableCell>
-                                        <TableCell>
-                                            {user.region || 'N/A'}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                label={user.user_type}
-                                                size="small"
-                                                color="primary"
-                                                variant="outlined"
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                label={user.registration_status}
-                                                color={getStatusColor(user.registration_status)}
-                                                size="small"
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => {
-                                                    setSelectedUser(user);
-                                                    setModalOpen(true);
-                                                }}
-                                                title="Update Status"
-                                            >
-                                                <EditIcon />
-                                            </IconButton>
-                                            <IconButton
-                                                size="small"
-                                                onClick={() =>
-                                                    (window.location.href = `/client-users/${user.client_user_id}`)
-                                                }
-                                                title="View Details"
-                                            >
-                                                <ViewIcon />
-                                            </IconButton>
+                                        <TableCell sx={{ py: 1.8, borderBottom: `1px solid ${T.border}` }}>
+                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                                <IconButton size="small" onClick={() => { setSelectedUser(user); setModalOpen(true); }}
+                                                            sx={{ width: 30, height: 30, borderRadius: '8px', bgcolor: T.amberSoft, color: T.amber, '&:hover': { bgcolor: '#FDE68A' } }}>
+                                                    <EditIcon sx={{ fontSize: 15 }} />
+                                                </IconButton>
+                                                <IconButton size="small" onClick={() => window.location.href = `/client-users/${user.client_user_id}`}
+                                                            sx={{ width: 30, height: 30, borderRadius: '8px', bgcolor: T.accentSoft, color: T.accent, '&:hover': { bgcolor: '#DBEAFE' } }}>
+                                                    <ViewIcon sx={{ fontSize: 15 }} />
+                                                </IconButton>
+                                            </Box>
                                         </TableCell>
                                     </TableRow>
                                 ))
-                        )}
-                    </TableBody>
-                </Table>
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
                 {filteredUsers.length > 0 && (
                     <TablePagination
                         rowsPerPageOptions={[5, 10, 25]}
@@ -432,24 +340,17 @@ const ClientUsers = () => {
                         count={filteredUsers.length}
                         rowsPerPage={rowsPerPage}
                         page={page}
-                        onPageChange={(e, newPage) => setPage(newPage)}
-                        onRowsPerPageChange={(e) => {
-                            setRowsPerPage(parseInt(e.target.value, 10));
-                            setPage(0);
-                        }}
+                        onPageChange={(e, p) => setPage(p)}
+                        onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+                        sx={{ borderTop: `1px solid ${T.border}`, '& *': { fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.8rem' } }}
                     />
                 )}
-            </TableContainer>
+            </Paper>
 
             {selectedUser && (
-                <StatusUpdateModal
-                    open={modalOpen}
-                    user={selectedUser}
-                    onClose={() => {
-                        setModalOpen(false);
-                        setSelectedUser(null);
-                    }}
-                    onSubmit={handleStatusUpdate}
+                <StatusUpdateModal open={modalOpen} user={selectedUser}
+                                   onClose={() => { setModalOpen(false); setSelectedUser(null); }}
+                                   onSubmit={handleStatusUpdate}
                 />
             )}
         </Box>

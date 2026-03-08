@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+// javascript
+import React, {useState, useEffect, useCallback, useRef} from 'react';
 import {
     Dialog,
     DialogTitle,
@@ -23,84 +24,104 @@ import {
     Image as ImageIcon,
     Description,
 } from '@mui/icons-material';
-import { adminAPI } from '../../services/api';
+import {adminAPI} from '../../services/api';
 
-const DocumentViewer = ({ open, documentId, fileName, documentType, documentStatus, onClose }) => {
+const DocumentViewer = ({open, documentId, fileName, documentType, documentStatus, onClose}) => {
     const [loading, setLoading] = useState(false);
     const [documentInfo, setDocumentInfo] = useState(null);
     const [error, setError] = useState(null);
     const [blobUrl, setBlobUrl] = useState(null);
+    const [fetchAttempted, setFetchAttempted] = useState(false);
+    const urlRef = useRef(null);
 
-    const fetchDocumentBlob = useCallback(async () => {
-        try {
-            const response = await adminAPI.viewDocument(documentId);
-            const blob = new Blob([response.data], {
-                type: response.headers['content-type']
-            });
-            const url = URL.createObjectURL(blob);
-            setBlobUrl(url);
+    const fetchDocument = useCallback(async () => {
+        if (!documentId || !open) return null;
 
-            setDocumentInfo(prev => ({
-                ...prev,
-                mime_type: response.headers['content-type'],
-                file_size: response.headers['content-length']
-            }));
-
-            return url;
-        } catch (err) {
-            console.error('Error fetching document blob:', err);
-            setError('Failed to load document');
-            return null;
-        }
-    }, [documentId]);
-
-    const fetchDocumentInfo = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
+            setFetchAttempted(false);
 
-            setDocumentInfo({
-                file_name: fileName,
-                document_type: documentType,
-                document_status: documentStatus,
+            console.log('📄 Fetching document:', documentId);
+
+            const response = await adminAPI.viewDocument(documentId, {
+                responseType: 'blob'
             });
 
-            await fetchDocumentBlob();
+            const blob = new Blob([response.data], {
+                type: response.headers['content-type'] || 'application/octet-stream'
+            });
+            const url = URL.createObjectURL(blob);
+
+            // Revoke previous blob URL if present and store the new one in a ref
+            if (urlRef.current) {
+                try { URL.revokeObjectURL(urlRef.current); } catch (e) { /* ignore */ }
+            }
+            urlRef.current = url;
+            setBlobUrl(url);
+
+            setDocumentInfo({
+                file_name: fileName || 'document.pdf',
+                document_type: documentType,
+                document_status: documentStatus,
+                mime_type: response.headers['content-type'] || 'application/octet-stream',
+                file_size: response.headers['content-length'] || blob.size
+            });
+
+            console.log('✅ Document loaded successfully');
+            return url;
         } catch (err) {
-            console.error('Error fetching document info:', err);
-            setError('Failed to load document information');
+            console.error('❌ Error fetching document:', err);
+            setError(err.message || 'Failed to load document');
+            return null;
         } finally {
             setLoading(false);
+            setFetchAttempted(true);
         }
-    }, [fileName, documentType, documentStatus, fetchDocumentBlob]);
+    }, [documentId, open, fileName, documentType, documentStatus]);
 
-    // Fetch document info when opened
     useEffect(() => {
         if (open && documentId) {
-            fetchDocumentInfo();
+            fetchDocument();
         }
 
-        // Cleanup blob URL on unmount
         return () => {
-            if (blobUrl) {
-                URL.revokeObjectURL(blobUrl);
+            if (urlRef.current) {
+                try { URL.revokeObjectURL(urlRef.current); } catch (e) { /* ignore */ }
+                urlRef.current = null;
             }
+            setBlobUrl(null);
+            setDocumentInfo(null);
+            setError(null);
+            setFetchAttempted(false);
         };
-    }, [open, documentId, fetchDocumentInfo, blobUrl]);
+    }, [open, documentId, fetchDocument]);
 
     const handleDownload = async () => {
         try {
             setLoading(true);
-            const response = await adminAPI.downloadDocument(documentId);
 
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', fileName || 'document.pdf');
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
+            if (blobUrl) {
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.setAttribute('download', fileName || 'document.pdf');
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+            } else {
+                const response = await adminAPI.downloadDocument(documentId, {
+                    responseType: 'blob'
+                });
+
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', fileName || 'document.pdf');
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.URL.revokeObjectURL(url);
+            }
         } catch (err) {
             console.error('Download error:', err);
             setError('Failed to download document');
@@ -109,39 +130,38 @@ const DocumentViewer = ({ open, documentId, fileName, documentType, documentStat
         }
     };
 
-    const handleView = async () => {
-        try {
-            setLoading(true);
-
-            if (blobUrl) {
-                window.open(blobUrl, '_blank');
-            } else {
-                const url = await fetchDocumentBlob();
-                if (url) {
-                    window.open(url, '_blank');
-                }
-            }
-        } catch (err) {
-            console.error('View error:', err);
-            setError('Failed to view document');
-        } finally {
-            setLoading(false);
+    const handleView = () => {
+        if (blobUrl) {
+            window.open(blobUrl, '_blank');
+        } else {
+            setError('Document not ready for viewing');
         }
     };
 
     const getFileIcon = (fileName) => {
-        if (!fileName) return <Description />;
+        if (!fileName) return <Description/>;
+        const ext = fileName.split('.').pop()?.toLowerCase();
 
-        if (fileName.toLowerCase().endsWith('.pdf')) {
-            return <PdfIcon sx={{ fontSize: 48, color: 'error.main' }} />;
-        } else if (fileName.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/)) {
-            return <ImageIcon sx={{ fontSize: 48, color: 'info.main' }} />;
-        } else if (fileName.toLowerCase().match(/\.(doc|docx)$/)) {
-            return <DocIcon sx={{ fontSize: 48, color: 'primary.main' }} />;
-        } else if (fileName.toLowerCase().match(/\.(xls|xlsx|csv)$/)) {
-            return <Description sx={{ fontSize: 48, color: 'success.main' }} />;
+        switch (ext) {
+            case 'pdf':
+                return <PdfIcon sx={{fontSize: 48, color: 'error.main'}}/>;
+            case 'jpg':
+            case 'jpeg':
+            case 'png':
+            case 'gif':
+            case 'bmp':
+            case 'webp':
+                return <ImageIcon sx={{fontSize: 48, color: 'info.main'}}/>;
+            case 'doc':
+            case 'docx':
+                return <DocIcon sx={{fontSize: 48, color: 'primary.main'}}/>;
+            case 'xls':
+            case 'xlsx':
+            case 'csv':
+                return <Description sx={{fontSize: 48, color: 'success.main'}}/>;
+            default:
+                return <Description sx={{fontSize: 48}}/>;
         }
-        return <Description sx={{ fontSize: 48 }} />;
     };
 
     const formatFileSize = (bytes) => {
@@ -163,10 +183,14 @@ const DocumentViewer = ({ open, documentId, fileName, documentType, documentStat
 
     const getStatusColor = (status) => {
         switch (status) {
-            case 'Verified': return 'success';
-            case 'Rejected': return 'error';
-            case 'Pending': return 'warning';
-            default: return 'default';
+            case 'Verified':
+                return 'success';
+            case 'Rejected':
+                return 'error';
+            case 'Pending':
+                return 'warning';
+            default:
+                return 'default';
         }
     };
 
@@ -181,23 +205,22 @@ const DocumentViewer = ({ open, documentId, fileName, documentType, documentStat
                         </Typography>
                     </Box>
                     <IconButton onClick={onClose} size="small">
-                        <CloseIcon />
+                        <CloseIcon/>
                     </IconButton>
                 </Box>
             </DialogTitle>
 
             <DialogContent>
-                {loading && !documentInfo ? (
-                    <Box display="flex" justifyContent="center" p={3}>
-                        <CircularProgress />
+                {loading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+                        <CircularProgress/>
                     </Box>
                 ) : error ? (
-                    <Alert severity="error" sx={{ my: 2 }}>
+                    <Alert severity="error" sx={{my: 2}} onClose={() => setError(null)}>
                         {error}
                     </Alert>
                 ) : documentInfo ? (
                     <Box>
-                        {/* Document Info Card */}
                         <Box
                             sx={{
                                 p: 3,
@@ -211,19 +234,19 @@ const DocumentViewer = ({ open, documentId, fileName, documentType, documentStat
                             <Box display="flex" alignItems="center" mb={2}>
                                 {getFileIcon(documentInfo.file_name)}
                                 <Box ml={2}>
-                                    <Typography variant="h6">
+                                    <Typography variant="h6" noWrap sx={{maxWidth: 400}}>
                                         {documentInfo.file_name}
                                     </Typography>
                                     <Chip
                                         size="small"
                                         label={documentInfo.document_status || 'Unknown'}
                                         color={getStatusColor(documentInfo.document_status)}
-                                        sx={{ mt: 1 }}
+                                        sx={{mt: 1}}
                                     />
                                 </Box>
                             </Box>
 
-                            <Divider sx={{ my: 2 }} />
+                            <Divider sx={{my: 2}}/>
 
                             <Grid container spacing={2}>
                                 <Grid item xs={6}>
@@ -249,14 +272,13 @@ const DocumentViewer = ({ open, documentId, fileName, documentType, documentStat
                                         File Type
                                     </Typography>
                                     <Typography variant="body1">
-                                        {documentInfo.mime_type || 'Unknown'}
+                                        {documentInfo.mime_type?.split('/')[1]?.toUpperCase() || 'Unknown'}
                                     </Typography>
                                 </Grid>
                             </Grid>
                         </Box>
 
-                        {/* Preview Section */}
-                        {documentInfo.mime_type?.includes('image') && blobUrl ? (
+                        {blobUrl && documentInfo.mime_type?.includes('image') ? (
                             <Box mb={3}>
                                 <Typography variant="subtitle1" gutterBottom>
                                     Preview
@@ -270,6 +292,8 @@ const DocumentViewer = ({ open, documentId, fileName, documentType, documentStat
                                         display: 'flex',
                                         justifyContent: 'center',
                                         bgcolor: '#f5f5f5',
+                                        maxHeight: 400,
+                                        overflow: 'auto'
                                     }}
                                 >
                                     <img
@@ -283,50 +307,53 @@ const DocumentViewer = ({ open, documentId, fileName, documentType, documentStat
                                     />
                                 </Box>
                             </Box>
-                        ) : documentInfo.mime_type?.includes('pdf') && (
+                        ) : blobUrl && documentInfo.mime_type?.includes('pdf') ? (
                             <Box mb={3}>
                                 <Typography variant="subtitle1" gutterBottom>
-                                    PDF Document
+                                    PDF Preview
                                 </Typography>
                                 <Box
                                     sx={{
                                         border: '1px solid',
                                         borderColor: 'divider',
                                         borderRadius: 1,
-                                        p: 3,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        flexDirection: 'column',
-                                        bgcolor: '#f5f5f5',
+                                        height: 400,
+                                        overflow: 'hidden'
                                     }}
                                 >
-                                    <PdfIcon sx={{ fontSize: 64, color: 'error.main', mb: 2 }} />
-                                    <Typography color="textSecondary" align="center">
-                                        This PDF cannot be previewed inline.
-                                        <br />
-                                        Click "View" to open in a new tab.
-                                    </Typography>
+                                    <iframe
+                                        src={`${blobUrl}#toolbar=0&navpanes=0`}
+                                        title="PDF Preview"
+                                        width="100%"
+                                        height="100%"
+                                        style={{border: 'none'}}
+                                    />
                                 </Box>
+                            </Box>
+                        ) : (
+                            <Box mb={3}>
+                                <Alert severity="info">
+                                    This file type cannot be previewed. Click "View" to open in a new tab.
+                                </Alert>
                             </Box>
                         )}
                     </Box>
-                ) : (
-                    <Alert severity="info" sx={{ my: 2 }}>
+                ) : fetchAttempted ? (
+                    <Alert severity="warning" sx={{my: 2}}>
                         No document information available
                     </Alert>
-                )}
+                ) : null}
             </DialogContent>
 
             <DialogActions>
                 <Button onClick={onClose} color="inherit">
                     Close
                 </Button>
-                {documentInfo && (
+                {documentInfo && blobUrl && (
                     <>
                         <Button
                             onClick={handleView}
-                            startIcon={<ViewIcon />}
+                            startIcon={<ViewIcon/>}
                             variant="outlined"
                             disabled={loading}
                         >
@@ -334,7 +361,7 @@ const DocumentViewer = ({ open, documentId, fileName, documentType, documentStat
                         </Button>
                         <Button
                             onClick={handleDownload}
-                            startIcon={<DownloadIcon />}
+                            startIcon={<DownloadIcon/>}
                             variant="contained"
                             disabled={loading}
                         >

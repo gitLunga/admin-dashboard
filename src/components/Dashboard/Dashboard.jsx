@@ -1,15 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Grid,
-    Paper,
-    Typography,
-    Box,
-    Alert,
-    Button,
-    Skeleton,
+    Grid, Paper, Typography, Box, Alert, Button, Skeleton, Chip, Divider, Avatar,
 } from '@mui/material';
 import { adminAPI } from '../../services/api';
-// import StatsCard from './StatsCard';
 import RecentRegistrations from './RecentRegistrations';
 import {
     People as PeopleIcon,
@@ -20,1177 +13,374 @@ import {
     PendingActions as PendingIcon,
     Block as RejectedIcon,
     Refresh as RefreshIcon,
-    TrendingUp as TrendingUpIcon,
     EmojiEvents as TrophyIcon,
     Timeline as TimelineIcon,
+    KeyboardArrowUp as ArrowUpIcon,
 } from '@mui/icons-material';
 
+/* ─── Shared design tokens (keep in sync with Sidebar.jsx / Navbar.jsx) ─── */
+const T = {
+    bg:         '#F8F9FC',
+    surface:    '#FFFFFF',
+    border:     '#E8ECF4',
+    text:       '#0F1F3D',
+    muted:      '#6B7A99',
+    accent:     '#1E4FD8',
+    accentMid:  '#3366FF',
+    accentSoft: '#EBF0FF',
+    green:      '#059669',
+    greenSoft:  '#D1FAE5',
+    amber:      '#D97706',
+    amberSoft:  '#FEF3C7',
+    rose:       '#DC2626',
+    roseSoft:   '#FEE2E2',
+    purple:     '#7C3AED',
+    purpleSoft: '#EDE9FE',
+};
+
+const CARDS = [
+    { from: '#1E4FD8', soft: '#EBF0FF', shadow: 'rgba(30,79,216,0.12)' },
+    { from: '#059669', soft: '#D1FAE5', shadow: 'rgba(5,150,105,0.12)'  },
+    { from: '#D97706', soft: '#FEF3C7', shadow: 'rgba(217,119,6,0.12)'  },
+    { from: '#7C3AED', soft: '#EDE9FE', shadow: 'rgba(124,58,237,0.12)' },
+];
+
+const STATUS_CFG = {
+    Verified: { color: '#059669', soft: '#D1FAE5', Icon: VerifiedIcon  },
+    Pending:  { color: '#D97706', soft: '#FEF3C7', Icon: PendingIcon   },
+    Rejected: { color: '#DC2626', soft: '#FEE2E2', Icon: RejectedIcon  },
+};
+
+/* ─── Sub-components ─── */
+const LiveDot = () => (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
+        <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: T.green, animation: 'dotPulse 2s ease-in-out infinite' }} />
+        <Typography sx={{ fontSize: '0.67rem', fontWeight: 700, color: T.green, letterSpacing: 1, textTransform: 'uppercase' }}>
+            Live
+        </Typography>
+    </Box>
+);
+
+const StatCard = ({ label, value, sub, icon: Icon, palette, delay }) => (
+    <Box sx={{ animation: `fadeUp 0.5s ease-out ${delay}s both` }}>
+        <Paper elevation={0} sx={{
+            p: 2.8, borderRadius: '14px',
+            bgcolor: T.surface, border: `1px solid ${T.border}`,
+            position: 'relative', overflow: 'hidden',
+            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+            '&:hover': {
+                transform: 'translateY(-3px)',
+                boxShadow: `0 12px 32px ${palette.shadow}`,
+                borderColor: `${palette.from}44`,
+            },
+        }}>
+            <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, bgcolor: palette.from, borderRadius: '14px 14px 0 0' }} />
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mt: 0.5 }}>
+                <Box>
+                    <Typography sx={{ fontSize: '0.67rem', fontWeight: 700, color: T.muted, letterSpacing: 1, textTransform: 'uppercase', mb: 1.2 }}>
+                        {label}
+                    </Typography>
+                    <Typography className="mono" sx={{ fontSize: '2.4rem', fontWeight: 500, lineHeight: 1, color: palette.from, mb: 0.8 }}>
+                        {value ?? 0}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                        <ArrowUpIcon sx={{ fontSize: 13, color: palette.from }} />
+                        <Typography sx={{ fontSize: '0.7rem', color: T.muted }}>{sub}</Typography>
+                    </Box>
+                </Box>
+                <Box sx={{ p: 1.3, borderRadius: '12px', bgcolor: palette.soft }}>
+                    <Icon sx={{ fontSize: 22, color: palette.from }} />
+                </Box>
+            </Box>
+        </Paper>
+    </Box>
+);
+
+const SectionCard = ({ title, subtitle, accent = T.accent, children, delay = 0, sx = {} }) => (
+    <Paper elevation={0} sx={{
+        p: 3, height: '100%', borderRadius: '14px',
+        bgcolor: T.surface, border: `1px solid ${T.border}`,
+        animation: `fadeUp 0.5s ease-out ${delay}s both`,
+        transition: 'border-color 0.2s ease',
+        '&:hover': { borderColor: `${accent}33` },
+        ...sx,
+    }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.3, mb: 2.5 }}>
+            <Box sx={{ width: 3, height: 24, bgcolor: accent, borderRadius: 4, flexShrink: 0 }} />
+            <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: T.text }}>{title}</Typography>
+                {subtitle && <Typography sx={{ fontSize: '0.7rem', color: T.muted, mt: 0.1 }}>{subtitle}</Typography>}
+            </Box>
+        </Box>
+        {children}
+    </Paper>
+);
+
+const StatusRow = ({ label, count, total, cfg, delay }) => {
+    const pct = total ? ((count / total) * 100).toFixed(1) : 0;
+    const { color, soft, Icon } = cfg;
+    return (
+        <Box sx={{ mb: 2.5, animation: `fadeUp 0.4s ease-out ${delay}s both` }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.9 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ width: 26, height: 26, borderRadius: '8px', bgcolor: soft, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon sx={{ fontSize: 14, color }} />
+                    </Box>
+                    <Box>
+                        <Typography sx={{ fontSize: '0.79rem', fontWeight: 600, color: T.text }}>{label}</Typography>
+                        <Typography className="mono" sx={{ fontSize: '0.64rem', color: T.muted }}>{pct}%</Typography>
+                    </Box>
+                </Box>
+                <Typography className="mono" sx={{ fontSize: '1.05rem', fontWeight: 600, color: T.text }}>{count}</Typography>
+            </Box>
+            <Box sx={{ height: 5, bgcolor: T.bg, borderRadius: 3, overflow: 'hidden', border: `1px solid ${T.border}` }}>
+                <Box sx={{
+                    width: `${pct}%`, height: '100%', bgcolor: color, borderRadius: 3,
+                    animation: 'barGrow 0.8s ease-out', animationDelay: `${delay + 0.1}s`, animationFillMode: 'both',
+                }} />
+            </Box>
+        </Box>
+    );
+};
+
+const RankRow = ({ rank, name, id, count, accent, delay }) => (
+    <Box sx={{
+        display: 'flex', alignItems: 'center', gap: 1.5,
+        p: 1.4, borderRadius: '10px', mb: 1,
+        bgcolor: rank === 1 ? `${accent}0D` : 'transparent',
+        border: `1px solid ${rank === 1 ? `${accent}28` : T.border}`,
+        animation: `fadeUp 0.4s ease-out ${delay}s both`,
+        transition: 'all 0.18s ease',
+        '&:hover': { bgcolor: `${accent}0D`, transform: 'translateX(3px)', borderColor: `${accent}44` },
+    }}>
+        <Avatar sx={{
+            width: 30, height: 30, fontSize: '0.73rem',
+            fontFamily: 'JetBrains Mono, monospace', fontWeight: 700,
+            borderRadius: '8px', flexShrink: 0,
+            bgcolor: rank === 1 ? accent : T.bg,
+            color: rank === 1 ? '#fff' : accent,
+            border: `1px solid ${rank === 1 ? accent : T.border}`,
+        }}>
+            {rank}
+        </Avatar>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {name}
+            </Typography>
+            <Typography className="mono" sx={{ fontSize: '0.65rem', color: T.muted }}>#{id}</Typography>
+        </Box>
+        <Chip label={count} size="small" sx={{
+            height: 22, fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, fontSize: '0.72rem',
+            bgcolor: `${accent}10`, color: accent, border: `1px solid ${accent}28`,
+        }} />
+    </Box>
+);
+
+const DashSkeleton = () => (
+    <Box sx={{ p: { xs: 2, md: 3.5 }, minHeight: '100vh', bgcolor: T.bg }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 4 }}>
+            <Skeleton variant="text" width={220} height={42} sx={{ bgcolor: T.border, borderRadius: 2 }} />
+            <Skeleton variant="rectangular" width={100} height={36} sx={{ bgcolor: T.border, borderRadius: '10px' }} />
+        </Box>
+        <Grid container spacing={2.5}>
+            {[0,1,2,3].map(i => (
+                <Grid item xs={12} sm={6} md={3} key={i}>
+                    <Skeleton variant="rectangular" height={120} sx={{ bgcolor: T.border, borderRadius: '14px' }} />
+                </Grid>
+            ))}
+            {[0,1].map(i => (
+                <Grid item xs={12} md={i === 0 ? 8 : 4} key={`b${i}`}>
+                    <Skeleton variant="rectangular" height={300} sx={{ bgcolor: T.border, borderRadius: '14px' }} />
+                </Grid>
+            ))}
+        </Grid>
+    </Box>
+);
+
+/* ─── Main Dashboard ─── */
 const Dashboard = () => {
     const [dashboardData, setDashboardData] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [loading, setLoading]             = useState(true);
+    const [error, setError]                 = useState(null);
 
-    useEffect(() => {
-        fetchDashboardData();
-    }, []);
+    useEffect(() => { fetchDashboardData(); }, []);
 
     const fetchDashboardData = async () => {
         try {
-            setLoading(true);
-            setError(null);
-
+            setLoading(true); setError(null);
             const response = await adminAPI.getDashboardData();
             console.log(response);
-
-            const data = response.data.data;
-            setDashboardData(data);
-
+            setDashboardData(response.data.data);
         } catch (err) {
             console.error('❌ Dashboard fetch error:', err);
-
-            const errorMessage = err.response?.data?.message ||
-                err.message ||
-                'Failed to load dashboard data';
-
-            setError(errorMessage);
+            setError(err.response?.data?.message || err.message || 'Failed to load dashboard data');
         } finally {
             setLoading(false);
         }
     };
 
-    if (loading) {
-        return (
-            <Box sx={{
-                p: 3,
-                background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-                minHeight: '100vh'
-            }}>
-                <Box
-                    display="flex"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    mb={3}
-                    sx={{ animation: 'fadeInUp 0.5s ease-out' }}
-                >
-                    <Skeleton
-                        variant="text"
-                        width={200}
-                        height={40}
-                        sx={{
-                            bgcolor: 'rgba(255,255,255,0.5)',
-                            borderRadius: 2,
-                            backdropFilter: 'blur(10px)'
-                        }}
-                    />
-                    <Skeleton
-                        variant="rectangular"
-                        width={100}
-                        height={36}
-                        sx={{
-                            borderRadius: 8,
-                            bgcolor: 'rgba(255,255,255,0.5)',
-                            backdropFilter: 'blur(10px)'
-                        }}
-                    />
-                </Box>
-                <Grid container spacing={3}>
-                    {[1,2,3,4].map(i => (
-                        <Grid item xs={12} sm={6} md={3} key={i}>
-                            <Box sx={{ position: 'relative' }}>
-                                <Skeleton
-                                    variant="rectangular"
-                                    height={120}
-                                    sx={{
-                                        borderRadius: 4,
-                                        bgcolor: 'rgba(255,255,255,0.7)',
-                                        backdropFilter: 'blur(10px)',
-                                        border: '1px solid rgba(255,255,255,0.2)',
-                                    }}
-                                />
-                                <Box
-                                    sx={{
-                                        position: 'absolute',
-                                        top: 0,
-                                        left: 0,
-                                        right: 0,
-                                        bottom: 0,
-                                        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
-                                        animation: 'shimmer 2s infinite',
-                                    }}
-                                />
-                            </Box>
-                        </Grid>
-                    ))}
-                </Grid>
+    if (loading) return <DashSkeleton />;
+
+    if (error) return (
+        <Box sx={{ minHeight: '100vh', bgcolor: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
+            <Box sx={{ maxWidth: 420, width: '100%', animation: 'fadeUp 0.4s ease-out' }}>
+                <Paper elevation={0} sx={{ p: 3.5, borderRadius: '14px', bgcolor: T.surface, border: `1px solid ${T.roseSoft}` }}>
+                    <Typography sx={{ fontWeight: 700, color: T.rose, mb: 0.8, fontSize: '0.95rem' }}>Unable to load dashboard</Typography>
+                    <Typography sx={{ color: T.muted, fontSize: '0.83rem', mb: 2.5 }}>{error}</Typography>
+                    <Button variant="contained" onClick={fetchDashboardData} startIcon={<RefreshIcon />} sx={{
+                        bgcolor: T.accent, borderRadius: '10px', textTransform: 'none',
+                        fontWeight: 600, fontFamily: 'Plus Jakarta Sans', boxShadow: 'none',
+                        '&:hover': { bgcolor: T.accentMid, boxShadow: `0 6px 18px ${T.accent}44` },
+                    }}>Retry</Button>
+                </Paper>
             </Box>
-        );
-    }
+        </Box>
+    );
 
-    if (error) {
-        return (
-            <Box sx={{
-                p: 3,
-                background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-                minHeight: '100vh',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center'
-            }}>
-                <Box sx={{
-                    maxWidth: 500,
-                    animation: 'fadeInUp 0.5s ease-out'
-                }}>
-                    <Alert
-                        severity="error"
-                        sx={{
-                            mb: 3,
-                            borderRadius: 3,
-                            backdropFilter: 'blur(10px)',
-                            border: '1px solid rgba(255,255,255,0.2)',
-                            '& .MuiAlert-icon': {
-                                animation: 'pulse 1s infinite'
-                            }
-                        }}
-                    >
-                        {error}
-                    </Alert>
-                    <Button
-                        variant="contained"
-                        onClick={fetchDashboardData}
-                        startIcon={<RefreshIcon />}
-                        sx={{
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                            borderRadius: 8,
-                            px: 3,
-                            py: 1,
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            boxShadow: '0 4px 14px 0 rgba(102, 126, 234, 0.3)',
-                            '&:hover': {
-                                transform: 'translateY(-2px)',
-                                boxShadow: '0 8px 20px 0 rgba(102, 126, 234, 0.4)',
-                            }
-                        }}
-                    >
-                        Try Again
-                    </Button>
-                </Box>
-            </Box>
-        );
-    }
+    if (!dashboardData) return (
+        <Box sx={{ minHeight: '100vh', bgcolor: T.bg, p: 3 }}>
+            <Alert severity="warning" sx={{ borderRadius: '10px' }}>No dashboard data available</Alert>
+        </Box>
+    );
 
-    if (!dashboardData) {
-        return (
-            <Box sx={{
-                p: 3,
-                background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-                minHeight: '100vh'
-            }}>
-                <Alert
-                    severity="warning"
-                    sx={{
-                        m: 3,
-                        borderRadius: 3,
-                        backdropFilter: 'blur(10px)',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        animation: 'fadeInUp 0.5s ease-out'
-                    }}
-                >
-                    No dashboard data available
-                </Alert>
-            </Box>
-        );
-    }
+    const { statistics, recent_registrations, activity_summary } = dashboardData;
 
-    // Destructure the data from your backend
-    const {
-        statistics,
-        recent_registrations,
-        activity_summary
-    } = dashboardData;
+    const clientStats = statistics?.client_users?.stats || [];
+    const verified    = clientStats.find(s => s.registration_status === 'Verified')?.count || 0;
+    const pending     = clientStats.find(s => s.registration_status === 'Pending')?.count  || 0;
+    const rejected    = clientStats.find(s => s.registration_status === 'Rejected')?.count || 0;
 
-    // Calculate derived stats
-    const getDerivedStats = () => {
-        if (!statistics) return null;
-
-        const clientStats = statistics.client_users?.stats || [];
-        const verifiedCount = clientStats.find(s => s.registration_status === 'Verified')?.count || 0;
-        const pendingCount = clientStats.find(s => s.registration_status === 'Pending')?.count || 0;
-        const rejectedCount = clientStats.find(s => s.registration_status === 'Rejected')?.count || 0;
-
-        return {
-            total_users: statistics.total_users || 0,
-            client_users: statistics.client_users?.total || 0,
-            operational_users: statistics.operational_users?.total || 0,
-            verified_users: verifiedCount,
-            pending_users: pendingCount,
-            rejected_users: rejectedCount,
-            active_contracts: activity_summary?.active_contracts || 0,
-        };
-    };
-
-    const derivedStats = getDerivedStats();
+    const stats = [
+        { label: 'Total Users',       value: statistics?.total_users              || 0, sub: 'All registered users',     icon: PeopleIcon,     palette: CARDS[0] },
+        { label: 'Client Users',      value: statistics?.client_users?.total      || 0, sub: 'Judicial system users',    icon: PersonIcon,     palette: CARDS[1] },
+        { label: 'Operational Users', value: statistics?.operational_users?.total || 0, sub: 'Admin & staff users',      icon: GroupIcon,      palette: CARDS[2] },
+        { label: 'Active Contracts',  value: activity_summary?.active_contracts   || 0, sub: 'Active service contracts', icon: AssignmentIcon, palette: CARDS[3] },
+    ];
 
     return (
-        <Box sx={{
-            flexGrow: 1,
-            p: 3,
-            background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-            minHeight: '100vh'
-        }}>
+        <Box sx={{ flexGrow: 1, p: { xs: 2, md: 3.5 }, minHeight: '100vh', bgcolor: T.bg }}>
+
             {/* Header */}
-            <Box
-                display="flex"
-                justifyContent="space-between"
-                alignItems="center"
-                mb={4}
-                sx={{
-                    animation: 'fadeInUp 0.5s ease-out',
-                    position: 'relative'
-                }}
-            >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3.5, animation: 'fadeUp 0.4s ease-out' }}>
                 <Box>
-                    <Typography
-                        variant="h3"
-                        sx={{
-                            fontWeight: 800,
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                            textShadow: '2px 2px 4px rgba(0,0,0,0.1)',
-                            mb: 0.5
-                        }}
-                    >
-                        Dashboard Overview
-                    </Typography>
-                    <Typography
-                        variant="subtitle1"
-                        sx={{
-                            color: 'text.secondary',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1
-                        }}
-                    >
-                        <TimelineIcon fontSize="small" />
-                        Real-time system insights and analytics
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.3 }}>
+                        <Typography sx={{ fontSize: { xs: '1.4rem', md: '1.7rem' }, fontWeight: 800, color: T.text, letterSpacing: '-0.3px' }}>
+                            Dashboard Overview
+                        </Typography>
+                        <LiveDot />
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+                        <TimelineIcon sx={{ fontSize: 14, color: T.muted }} />
+                        <Typography sx={{ fontSize: '0.78rem', color: T.muted }}>Real-time system insights and analytics</Typography>
+                    </Box>
                 </Box>
-                <Button
-                    variant="contained"
-                    onClick={fetchDashboardData}
-                    startIcon={<RefreshIcon />}
-                    size="medium"
-                    sx={{
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        borderRadius: 8,
-                        px: 3,
-                        py: 1,
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        boxShadow: '0 4px 14px 0 rgba(102, 126, 234, 0.3)',
-                        '&:hover': {
-                            transform: 'translateY(-2px)',
-                            boxShadow: '0 8px 20px 0 rgba(102, 126, 234, 0.4)',
-                        },
-                        animation: 'pulse 3s infinite'
-                    }}
-                >
-                    Refresh Data
+                <Button variant="outlined" onClick={fetchDashboardData} startIcon={<RefreshIcon sx={{ fontSize: '16px !important' }} />} sx={{
+                    borderRadius: '10px', textTransform: 'none', fontWeight: 600,
+                    fontFamily: 'Plus Jakarta Sans', fontSize: '0.81rem',
+                    color: T.accent, borderColor: T.border, bgcolor: T.surface, px: 2.5, py: 1,
+                    '&:hover': { bgcolor: T.accentSoft, borderColor: T.accent },
+                    transition: 'all 0.18s ease',
+                }}>
+                    Refresh
                 </Button>
             </Box>
 
-            {/* Stats Grid */}
-            <Grid container spacing={3}>
-                {/* Stats Cards with Modern Styling */}
-                <Grid item xs={12} sm={6} md={3}>
-                    <Box
-                        sx={{
-                            animation: 'fadeInUp 0.5s ease-out 0.1s both',
-                            opacity: 0,
-                            transform: 'translateY(20px)',
-                        }}
-                    >
-                        <Paper
-                            className="hover-lift"
-                            sx={{
-                                p: 3,
-                                height: '100%',
-                                borderRadius: 4,
-                                background: 'rgba(255, 255, 255, 0.9)',
-                                backdropFilter: 'blur(10px)',
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                position: 'relative',
-                                overflow: 'hidden',
-                                '&:before': {
-                                    content: '""',
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    height: 4,
-                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                },
-                                boxShadow: '0 8px 32px rgba(102, 126, 234, 0.1)',
-                            }}
-                        >
-                            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                                <Box>
-                                    <Typography
-                                        variant="body2"
-                                        sx={{
-                                            fontWeight: 600,
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '0.5px',
-                                            fontSize: '0.75rem',
-                                            color: '#667eea'
-                                        }}
-                                    >
-                                        Total Users
-                                    </Typography>
-                                    <Typography
-                                        variant="h2"
-                                        sx={{
-                                            fontWeight: 800,
-                                            mt: 1,
-                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                            WebkitBackgroundClip: 'text',
-                                            WebkitTextFillColor: 'transparent',
-                                        }}
-                                    >
-                                        {derivedStats?.total_users || 0}
-                                    </Typography>
-                                    <Typography
-                                        variant="caption"
-                                        sx={{
-                                            color: 'text.secondary',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 0.5,
-                                            mt: 0.5
-                                        }}
-                                    >
-                                        <TrendingUpIcon fontSize="small" />
-                                        All registered users in system
-                                    </Typography>
-                                </Box>
-                                <Box
-                                    sx={{
-                                        p: 1.5,
-                                        borderRadius: 3,
-                                        background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
-                                    }}
-                                >
-                                    <PeopleIcon sx={{ fontSize: 28, color: '#667eea' }} />
-                                </Box>
-                            </Box>
-                        </Paper>
-                    </Box>
-                </Grid>
+            <Grid container spacing={2.5}>
 
-                <Grid item xs={12} sm={6} md={3}>
-                    <Box
-                        sx={{
-                            animation: 'fadeInUp 0.5s ease-out 0.2s both',
-                            opacity: 0,
-                            transform: 'translateY(20px)',
-                        }}
-                    >
-                        <Paper
-                            className="hover-lift"
-                            sx={{
-                                p: 3,
-                                height: '100%',
-                                borderRadius: 4,
-                                background: 'rgba(255, 255, 255, 0.9)',
-                                backdropFilter: 'blur(10px)',
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                position: 'relative',
-                                overflow: 'hidden',
-                                '&:before': {
-                                    content: '""',
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    height: 4,
-                                    background: 'linear-gradient(135deg, #4ade80 0%, #22d3ee 100%)',
-                                },
-                                boxShadow: '0 8px 32px rgba(74, 222, 128, 0.1)',
-                            }}
-                        >
-                            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                                <Box>
-                                    <Typography
-                                        variant="body2"
-                                        sx={{
-                                            fontWeight: 600,
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '0.5px',
-                                            fontSize: '0.75rem',
-                                            color: '#4ade80'
-                                        }}
-                                    >
-                                        Client Users
-                                    </Typography>
-                                    <Typography
-                                        variant="h2"
-                                        sx={{
-                                            fontWeight: 800,
-                                            mt: 1,
-                                            background: 'linear-gradient(135deg, #4ade80 0%, #22d3ee 100%)',
-                                            WebkitBackgroundClip: 'text',
-                                            WebkitTextFillColor: 'transparent',
-                                        }}
-                                    >
-                                        {derivedStats?.client_users || 0}
-                                    </Typography>
-                                    <Typography
-                                        variant="caption"
-                                        sx={{
-                                            color: 'text.secondary',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 0.5,
-                                            mt: 0.5
-                                        }}
-                                    >
-                                        <TrendingUpIcon fontSize="small" />
-                                        Judicial system users
-                                    </Typography>
-                                </Box>
-                                <Box
-                                    sx={{
-                                        p: 1.5,
-                                        borderRadius: 3,
-                                        background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.1) 0%, rgba(34, 211, 238, 0.1) 100%)',
-                                    }}
-                                >
-                                    <PersonIcon sx={{ fontSize: 28, color: '#4ade80' }} />
-                                </Box>
-                            </Box>
-                        </Paper>
-                    </Box>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={3}>
-                    <Box
-                        sx={{
-                            animation: 'fadeInUp 0.5s ease-out 0.3s both',
-                            opacity: 0,
-                            transform: 'translateY(20px)',
-                        }}
-                    >
-                        <Paper
-                            className="hover-lift"
-                            sx={{
-                                p: 3,
-                                height: '100%',
-                                borderRadius: 4,
-                                background: 'rgba(255, 255, 255, 0.9)',
-                                backdropFilter: 'blur(10px)',
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                position: 'relative',
-                                overflow: 'hidden',
-                                '&:before': {
-                                    content: '""',
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    height: 4,
-                                    background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
-                                },
-                                boxShadow: '0 8px 32px rgba(245, 158, 11, 0.1)',
-                            }}
-                        >
-                            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                                <Box>
-                                    <Typography
-                                        variant="body2"
-                                        sx={{
-                                            fontWeight: 600,
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '0.5px',
-                                            fontSize: '0.75rem',
-                                            color: '#f59e0b'
-                                        }}
-                                    >
-                                        Operational Users
-                                    </Typography>
-                                    <Typography
-                                        variant="h2"
-                                        sx={{
-                                            fontWeight: 800,
-                                            mt: 1,
-                                            background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
-                                            WebkitBackgroundClip: 'text',
-                                            WebkitTextFillColor: 'transparent',
-                                        }}
-                                    >
-                                        {derivedStats?.operational_users || 0}
-                                    </Typography>
-                                    <Typography
-                                        variant="caption"
-                                        sx={{
-                                            color: 'text.secondary',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 0.5,
-                                            mt: 0.5
-                                        }}
-                                    >
-                                        <TrendingUpIcon fontSize="small" />
-                                        Admin & staff users
-                                    </Typography>
-                                </Box>
-                                <Box
-                                    sx={{
-                                        p: 1.5,
-                                        borderRadius: 3,
-                                        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(239, 68, 68, 0.1) 100%)',
-                                    }}
-                                >
-                                    <GroupIcon sx={{ fontSize: 28, color: '#f59e0b' }} />
-                                </Box>
-                            </Box>
-                        </Paper>
-                    </Box>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={3}>
-                    <Box
-                        sx={{
-                            animation: 'fadeInUp 0.5s ease-out 0.4s both',
-                            opacity: 0,
-                            transform: 'translateY(20px)',
-                        }}
-                    >
-                        <Paper
-                            className="hover-lift"
-                            sx={{
-                                p: 3,
-                                height: '100%',
-                                borderRadius: 4,
-                                background: 'rgba(255, 255, 255, 0.9)',
-                                backdropFilter: 'blur(10px)',
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                position: 'relative',
-                                overflow: 'hidden',
-                                '&:before': {
-                                    content: '""',
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    height: 4,
-                                    background: 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
-                                },
-                                boxShadow: '0 8px 32px rgba(139, 92, 246, 0.1)',
-                            }}
-                        >
-                            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                                <Box>
-                                    <Typography
-                                        variant="body2"
-                                        sx={{
-                                            fontWeight: 600,
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '0.5px',
-                                            fontSize: '0.75rem',
-                                            color: '#8b5cf6'
-                                        }}
-                                    >
-                                        Active Contracts
-                                    </Typography>
-                                    <Typography
-                                        variant="h2"
-                                        sx={{
-                                            fontWeight: 800,
-                                            mt: 1,
-                                            background: 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
-                                            WebkitBackgroundClip: 'text',
-                                            WebkitTextFillColor: 'transparent',
-                                        }}
-                                    >
-                                        {derivedStats?.active_contracts || 0}
-                                    </Typography>
-                                    <Typography
-                                        variant="caption"
-                                        sx={{
-                                            color: 'text.secondary',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 0.5,
-                                            mt: 0.5
-                                        }}
-                                    >
-                                        <TrendingUpIcon fontSize="small" />
-                                        Active service contracts
-                                    </Typography>
-                                </Box>
-                                <Box
-                                    sx={{
-                                        p: 1.5,
-                                        borderRadius: 3,
-                                        background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%)',
-                                    }}
-                                >
-                                    <AssignmentIcon sx={{ fontSize: 28, color: '#8b5cf6' }} />
-                                </Box>
-                            </Box>
-                        </Paper>
-                    </Box>
-                </Grid>
+                {/* Stat Cards */}
+                {stats.map((s, i) => (
+                    <Grid item xs={12} sm={6} md={3} key={s.label}>
+                        <StatCard {...s} delay={i * 0.07} />
+                    </Grid>
+                ))}
 
                 {/* Recent Registrations */}
                 <Grid item xs={12} md={8}>
-                    <Paper
-                        className="hover-lift"
-                        sx={{
-                            p: 3,
-                            height: '100%',
-                            borderRadius: 4,
-                            background: 'rgba(255, 255, 255, 0.9)',
-                            backdropFilter: 'blur(10px)',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            animation: 'fadeInUp 0.6s ease-out 0.5s both',
-                            opacity: 0,
-                            transform: 'translateY(20px)',
-                            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-                        }}
-                    >
-                        <Typography
-                            variant="h6"
-                            gutterBottom
-                            sx={{
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 2,
-                                mb: 3
-                            }}
-                        >
-                            <Box
-                                sx={{
-                                    width: 4,
-                                    height: 32,
-                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                    borderRadius: 2
-                                }}
-                            />
-                            <Box>
-                                Recent Registrations
-                                <Typography variant="caption" display="block" color="textSecondary">
-                                    Last 7 Days Activity
-                                </Typography>
-                            </Box>
-                        </Typography>
-                        <RecentRegistrations
-                            data={recent_registrations || []}
-                        />
-                    </Paper>
+                    <SectionCard title="Recent Registrations" subtitle="Last 7 days activity" accent={T.accent} delay={0.32}>
+                        <RecentRegistrations data={recent_registrations || []} />
+                    </SectionCard>
                 </Grid>
 
-                {/* Client User Status Distribution */}
+                {/* Client User Status */}
                 <Grid item xs={12} md={4}>
-                    <Paper
-                        className="hover-lift"
-                        sx={{
-                            p: 3,
-                            height: '100%',
-                            borderRadius: 4,
-                            background: 'rgba(255, 255, 255, 0.9)',
-                            backdropFilter: 'blur(10px)',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            animation: 'fadeInUp 0.6s ease-out 0.6s both',
-                            opacity: 0,
-                            transform: 'translateY(20px)',
-                            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-                        }}
-                    >
-                        <Typography
-                            variant="h6"
-                            gutterBottom
-                            sx={{
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 2,
-                                mb: 3
-                            }}
-                        >
-                            <Box
-                                sx={{
-                                    width: 4,
-                                    height: 32,
-                                    background: 'linear-gradient(135deg, #4ade80 0%, #22d3ee 100%)',
-                                    borderRadius: 2
-                                }}
-                            />
-                            <Box>
-                                Client User Status
-                                <Typography variant="caption" display="block" color="textSecondary">
-                                    Distribution Analysis
-                                </Typography>
-                            </Box>
-                        </Typography>
-
-                        {statistics?.client_users?.stats?.length > 0 ? (
-                            <Box sx={{ mb: 4 }}>
-                                {statistics.client_users.stats.map((stat, index) => (
-                                    <Box
-                                        key={stat.registration_status}
-                                        sx={{
-                                            mb: 2.5,
-                                            animation: `fadeInUp 0.5s ease-out ${0.7 + index * 0.1}s both`,
-                                            opacity: 0,
-                                            transform: 'translateY(20px)',
-                                        }}
-                                    >
-                                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
-                                            <Box display="flex" alignItems="center" gap={1.5}>
-                                                <Box
-                                                    sx={{
-                                                        p: 1,
-                                                        borderRadius: '50%',
-                                                        background: getStatusColor(stat.registration_status) + '15',
-                                                        border: `1px solid ${getStatusColor(stat.registration_status)}30`,
-                                                    }}
-                                                >
-                                                    {stat.registration_status === 'Verified' && (
-                                                        <VerifiedIcon
-                                                            sx={{
-                                                                fontSize: 18,
-                                                                color: getStatusColor(stat.registration_status)
-                                                            }}
-                                                        />
-                                                    )}
-                                                    {stat.registration_status === 'Pending' && (
-                                                        <PendingIcon
-                                                            sx={{
-                                                                fontSize: 18,
-                                                                color: getStatusColor(stat.registration_status)
-                                                            }}
-                                                        />
-                                                    )}
-                                                    {stat.registration_status === 'Rejected' && (
-                                                        <RejectedIcon
-                                                            sx={{
-                                                                fontSize: 18,
-                                                                color: getStatusColor(stat.registration_status)
-                                                            }}
-                                                        />
-                                                    )}
-                                                </Box>
-                                                <Box>
-                                                    <Typography variant="subtitle2" fontWeight={700}>
-                                                        {stat.registration_status}
-                                                    </Typography>
-                                                    <Typography variant="caption" color="textSecondary">
-                                                        {((stat.count / (statistics.client_users?.total || 1)) * 100).toFixed(1)}%
-                                                    </Typography>
-                                                </Box>
-                                            </Box>
-                                            <Typography variant="h6" fontWeight={800} color="text.primary">
-                                                {stat.count}
-                                            </Typography>
-                                        </Box>
-                                        <Box
-                                            sx={{
-                                                height: 10,
-                                                backgroundColor: 'rgba(0,0,0,0.05)',
-                                                borderRadius: 5,
-                                                overflow: 'hidden',
-                                                position: 'relative',
-                                            }}
-                                        >
-                                            <Box
-                                                sx={{
-                                                    width: `${(stat.count / (statistics.client_users?.total || 1)) * 100}%`,
-                                                    height: '100%',
-                                                    background: `linear-gradient(90deg, ${getStatusColor(stat.registration_status)}, ${getStatusColor(stat.registration_status)}aa)`,
-                                                    borderRadius: 5,
-                                                    position: 'relative',
-                                                    '&:after': {
-                                                        content: '""',
-                                                        position: 'absolute',
-                                                        top: 0,
-                                                        right: 0,
-                                                        bottom: 0,
-                                                        width: '20%',
-                                                        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3))',
-                                                    }
-                                                }}
-                                            />
-                                        </Box>
-                                    </Box>
-                                ))}
-                            </Box>
+                    <SectionCard title="Client User Status" subtitle="Distribution analysis" accent={T.green} delay={0.38}>
+                        {clientStats.length > 0 ? (
+                            <>
+                                <StatusRow label="Verified" count={verified} total={statistics?.client_users?.total} cfg={STATUS_CFG.Verified} delay={0.44} />
+                                <StatusRow label="Pending"  count={pending}  total={statistics?.client_users?.total} cfg={STATUS_CFG.Pending}  delay={0.50} />
+                                <StatusRow label="Rejected" count={rejected} total={statistics?.client_users?.total} cfg={STATUS_CFG.Rejected} delay={0.56} />
+                            </>
                         ) : (
-                            <Typography
-                                color="textSecondary"
-                                sx={{
-                                    textAlign: 'center',
-                                    py: 4,
-                                    fontStyle: 'italic'
-                                }}
-                            >
+                            <Typography sx={{ textAlign: 'center', py: 4, color: T.muted, fontStyle: 'italic', fontSize: '0.83rem' }}>
                                 No status data available
                             </Typography>
                         )}
 
-                        {/* Quick Activity Summary */}
                         {activity_summary && (
-                            <Box
-                                sx={{
-                                    mt: 3,
-                                    pt: 3,
-                                    borderTop: '2px dashed',
-                                    borderColor: 'divider',
-                                    animation: 'fadeInUp 0.5s ease-out 1s both',
-                                    opacity: 0,
-                                    transform: 'translateY(20px)',
-                                }}
-                            >
-                                <Typography
-                                    variant="subtitle2"
-                                    gutterBottom
-                                    sx={{
-                                        fontWeight: 700,
-                                        color: 'text.primary',
-                                        mb: 2,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 1
-                                    }}
-                                >
-                                    <TrophyIcon fontSize="small" />
-                                    System Highlights
+                            <>
+                                <Divider sx={{ borderColor: T.border, my: 2.5 }} />
+                                <Typography sx={{ fontSize: '0.67rem', fontWeight: 700, color: T.muted, letterSpacing: 1, textTransform: 'uppercase', mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.7 }}>
+                                    <TrophyIcon sx={{ fontSize: 13, color: T.amber }} /> System Highlights
                                 </Typography>
-                                <Box
-                                    display="flex"
-                                    justifyContent="space-between"
-                                    alignItems="center"
-                                    sx={{
-                                        mb: 2,
-                                        p: 2,
-                                        borderRadius: 3,
-                                        background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%)',
-                                        border: '1px solid rgba(102, 126, 234, 0.1)',
-                                    }}
-                                >
-                                    <Typography variant="body2" fontWeight={600}>Active Contracts</Typography>
-                                    <Typography variant="h4" fontWeight={800} color="primary">
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, borderRadius: '10px', bgcolor: T.purpleSoft, border: `1px solid ${T.purple}22`, mb: 2 }}>
+                                    <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: T.text }}>Active Contracts</Typography>
+                                    <Typography className="mono" sx={{ fontSize: '1.4rem', fontWeight: 600, color: T.purple }}>
                                         {activity_summary.active_contracts || 0}
                                     </Typography>
                                 </Box>
                                 {activity_summary.top_applicants?.[0] && (
-                                    <Box
-                                        mt={2}
-                                        p={2}
-                                        sx={{
-                                            borderRadius: 3,
-                                            background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.05) 0%, rgba(34, 211, 238, 0.05) 100%)',
-                                            border: '1px solid rgba(74, 222, 128, 0.1)',
-                                        }}
-                                    >
-                                        <Typography
-                                            variant="caption"
-                                            sx={{
-                                                fontWeight: 700,
-                                                textTransform: 'uppercase',
-                                                letterSpacing: '0.5px',
-                                                color: '#4ade80',
-                                                display: 'block',
-                                                mb: 0.5
-                                            }}
-                                        >
+                                    <Box sx={{ p: 2, borderRadius: '10px', bgcolor: T.greenSoft, border: `1px solid ${T.green}22` }}>
+                                        <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: T.green, letterSpacing: 1, textTransform: 'uppercase', mb: 0.8 }}>
                                             🏆 Top Applicant
                                         </Typography>
-                                        <Typography variant="body1" fontWeight={700} sx={{ mb: 0.5 }}>
+                                        <Typography sx={{ fontWeight: 700, fontSize: '0.87rem', color: T.text }}>
                                             {activity_summary.top_applicants[0].first_name} {activity_summary.top_applicants[0].last_name}
                                         </Typography>
-                                        <Typography variant="caption" color="textSecondary">
-                                            ID: {activity_summary.top_applicants[0].client_user_id}
+                                        <Typography className="mono" sx={{ fontSize: '0.67rem', color: T.muted }}>
+                                            #{activity_summary.top_applicants[0].client_user_id}
                                         </Typography>
                                     </Box>
                                 )}
-                            </Box>
+                            </>
                         )}
-                    </Paper>
+                    </SectionCard>
                 </Grid>
 
-                {/* Activity Summary - Detailed View */}
+                {/* Rankings */}
                 {activity_summary && (
                     <>
                         <Grid item xs={12} md={6}>
-                            <Paper
-                                className="hover-lift"
-                                sx={{
-                                    p: 3,
-                                    borderRadius: 4,
-                                    background: 'rgba(255, 255, 255, 0.9)',
-                                    backdropFilter: 'blur(10px)',
-                                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                                    animation: 'fadeInUp 0.6s ease-out 0.7s both',
-                                    opacity: 0,
-                                    transform: 'translateY(20px)',
-                                    boxShadow: '0 8px 32px rgba(102, 126, 234, 0.1)',
-                                }}
-                            >
-                                <Typography
-                                    variant="h6"
-                                    gutterBottom
-                                    sx={{
-                                        fontWeight: 700,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 2,
-                                        mb: 3
-                                    }}
-                                >
-                                    <Box
-                                        sx={{
-                                            width: 4,
-                                            height: 32,
-                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                            borderRadius: 2
-                                        }}
-                                    />
-                                    <Box>
-                                        Top Applicants
-                                        <Typography variant="caption" display="block" color="textSecondary">
-                                            By Application Count
-                                        </Typography>
-                                    </Box>
-                                </Typography>
-                                {activity_summary.top_applicants?.length > 0 ? (
-                                    activity_summary.top_applicants.slice(0, 5).map((applicant, index) => (
-                                        <Box
-                                            key={applicant.client_user_id || index}
-                                            sx={{
-                                                mb: 2,
-                                                p: 2,
-                                                borderRadius: 3,
-                                                backgroundColor: index === 0
-                                                    ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)'
-                                                    : 'rgba(0,0,0,0.02)',
-                                                border: `1px solid ${index === 0 ? 'rgba(102, 126, 234, 0.2)' : 'rgba(0,0,0,0.05)'}`,
-                                                transition: 'all 0.3s ease',
-                                                '&:hover': {
-                                                    transform: 'translateX(4px)',
-                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                                    backgroundColor: index === 0
-                                                        ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%)'
-                                                        : 'rgba(0,0,0,0.04)',
-                                                }
-                                            }}
-                                        >
-                                            <Box display="flex" alignItems="center">
-                                                <Typography
-                                                    variant="h6"
-                                                    sx={{
-                                                        mr: 2,
-                                                        width: 40,
-                                                        height: 40,
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        background: index === 0
-                                                            ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                                                            : 'linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%)',
-                                                        color: 'white',
-                                                        borderRadius: '50%',
-                                                        fontSize: '1rem',
-                                                        fontWeight: 800,
-                                                        boxShadow: index === 0 ? '0 4px 12px rgba(102, 126, 234, 0.3)' : 'none',
-                                                    }}
-                                                >
-                                                    {index + 1}
-                                                </Typography>
-                                                <Box flex={1}>
-                                                    <Typography variant="subtitle1" fontWeight={700}>
-                                                        {applicant.first_name} {applicant.last_name}
-                                                    </Typography>
-                                                    <Typography variant="body2" color="textSecondary">
-                                                        ID: {applicant.client_user_id}
-                                                    </Typography>
-                                                </Box>
-                                                <Box
-                                                    sx={{
-                                                        px: 2,
-                                                        py: 0.5,
-                                                        borderRadius: 4,
-                                                        background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
-                                                        border: '1px solid rgba(102, 126, 234, 0.2)',
-                                                    }}
-                                                >
-                                                    <Typography variant="h6" fontWeight={800} color="primary">
-                                                        {applicant.application_count}
-                                                    </Typography>
-                                                </Box>
-                                            </Box>
-                                        </Box>
+                            <SectionCard title="Top Applicants" subtitle="By application count" accent={T.accent} delay={0.44}>
+                                {activity_summary.top_applicants?.length > 0
+                                    ? activity_summary.top_applicants.slice(0, 5).map((a, i) => (
+                                        <RankRow key={a.client_user_id || i} rank={i + 1}
+                                                 name={`${a.first_name} ${a.last_name}`}
+                                                 id={a.client_user_id} count={a.application_count}
+                                                 accent={T.accent} delay={0.48 + i * 0.06} />
                                     ))
-                                ) : (
-                                    <Typography
-                                        color="textSecondary"
-                                        sx={{
-                                            textAlign: 'center',
-                                            py: 4,
-                                            fontStyle: 'italic'
-                                        }}
-                                    >
-                                        No application data available
-                                    </Typography>
-                                )}
-                            </Paper>
+                                    : <Typography sx={{ textAlign: 'center', py: 4, color: T.muted, fontStyle: 'italic', fontSize: '0.83rem' }}>No application data</Typography>
+                                }
+                            </SectionCard>
                         </Grid>
 
                         <Grid item xs={12} md={6}>
-                            <Paper
-                                className="hover-lift"
-                                sx={{
-                                    p: 3,
-                                    borderRadius: 4,
-                                    background: 'rgba(255, 255, 255, 0.9)',
-                                    backdropFilter: 'blur(10px)',
-                                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                                    animation: 'fadeInUp 0.6s ease-out 0.8s both',
-                                    opacity: 0,
-                                    transform: 'translateY(20px)',
-                                    boxShadow: '0 8px 32px rgba(74, 222, 128, 0.1)',
-                                }}
-                            >
-                                <Typography
-                                    variant="h6"
-                                    gutterBottom
-                                    sx={{
-                                        fontWeight: 700,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 2,
-                                        mb: 3
-                                    }}
-                                >
-                                    <Box
-                                        sx={{
-                                            width: 4,
-                                            height: 32,
-                                            background: 'linear-gradient(135deg, #4ade80 0%, #22d3ee 100%)',
-                                            borderRadius: 2
-                                        }}
-                                    />
-                                    <Box>
-                                        Top Ordered Users
-                                        <Typography variant="caption" display="block" color="textSecondary">
-                                            By Order Frequency
-                                        </Typography>
-                                    </Box>
-                                </Typography>
-                                {activity_summary.top_ordered_users?.length > 0 ? (
-                                    activity_summary.top_ordered_users.slice(0, 5).map((user, index) => (
-                                        <Box
-                                            key={user.client_user_id || index}
-                                            sx={{
-                                                mb: 2,
-                                                p: 2,
-                                                borderRadius: 3,
-                                                backgroundColor: index === 0
-                                                    ? 'linear-gradient(135deg, rgba(74, 222, 128, 0.15) 0%, rgba(34, 211, 238, 0.15) 100%)'
-                                                    : 'rgba(0,0,0,0.02)',
-                                                border: `1px solid ${index === 0 ? 'rgba(74, 222, 128, 0.2)' : 'rgba(0,0,0,0.05)'}`,
-                                                transition: 'all 0.3s ease',
-                                                '&:hover': {
-                                                    transform: 'translateX(4px)',
-                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                                    backgroundColor: index === 0
-                                                        ? 'linear-gradient(135deg, rgba(74, 222, 128, 0.2) 0%, rgba(34, 211, 238, 0.2) 100%)'
-                                                        : 'rgba(0,0,0,0.04)',
-                                                }
-                                            }}
-                                        >
-                                            <Box display="flex" alignItems="center">
-                                                <Typography
-                                                    variant="h6"
-                                                    sx={{
-                                                        mr: 2,
-                                                        width: 40,
-                                                        height: 40,
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        background: index === 0
-                                                            ? 'linear-gradient(135deg, #4ade80 0%, #22d3ee 100%)'
-                                                            : 'linear-gradient(135deg, rgba(74, 222, 128, 0.2) 0%, rgba(34, 211, 238, 0.2) 100%)',
-                                                        color: 'white',
-                                                        borderRadius: '50%',
-                                                        fontSize: '1rem',
-                                                        fontWeight: 800,
-                                                        boxShadow: index === 0 ? '0 4px 12px rgba(74, 222, 128, 0.3)' : 'none',
-                                                    }}
-                                                >
-                                                    {index + 1}
-                                                </Typography>
-                                                <Box flex={1}>
-                                                    <Typography variant="subtitle1" fontWeight={700}>
-                                                        {user.first_name} {user.last_name}
-                                                    </Typography>
-                                                    <Typography variant="body2" color="textSecondary">
-                                                        ID: {user.client_user_id}
-                                                    </Typography>
-                                                </Box>
-                                                <Box
-                                                    sx={{
-                                                        px: 2,
-                                                        py: 0.5,
-                                                        borderRadius: 4,
-                                                        background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.1) 0%, rgba(34, 211, 238, 0.1) 100%)',
-                                                        border: '1px solid rgba(74, 222, 128, 0.2)',
-                                                    }}
-                                                >
-                                                    <Typography variant="h6" fontWeight={800} color="#4ade80">
-                                                        {user.order_count}
-                                                    </Typography>
-                                                </Box>
-                                            </Box>
-                                        </Box>
+                            <SectionCard title="Top Ordered Users" subtitle="By order frequency" accent={T.green} delay={0.50}>
+                                {activity_summary.top_ordered_users?.length > 0
+                                    ? activity_summary.top_ordered_users.slice(0, 5).map((u, i) => (
+                                        <RankRow key={u.client_user_id || i} rank={i + 1}
+                                                 name={`${u.first_name} ${u.last_name}`}
+                                                 id={u.client_user_id} count={u.order_count}
+                                                 accent={T.green} delay={0.54 + i * 0.06} />
                                     ))
-                                ) : (
-                                    <Typography
-                                        color="textSecondary"
-                                        sx={{
-                                            textAlign: 'center',
-                                            py: 4,
-                                            fontStyle: 'italic'
-                                        }}
-                                    >
-                                        No order data available
-                                    </Typography>
-                                )}
-                            </Paper>
+                                    : <Typography sx={{ textAlign: 'center', py: 4, color: T.muted, fontStyle: 'italic', fontSize: '0.83rem' }}>No order data</Typography>
+                                }
+                            </SectionCard>
                         </Grid>
                     </>
                 )}
             </Grid>
         </Box>
     );
-};
-
-// Enhanced Helper function with gradients
-const getStatusColor = (status) => {
-    switch (status) {
-        case 'Verified':
-            return '#4ade80';
-        case 'Pending':
-            return '#f59e0b';
-        case 'Rejected':
-            return '#ef4444';
-        default:
-            return '#9ca3af';
-    }
 };
 
 export default Dashboard;
