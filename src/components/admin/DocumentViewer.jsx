@@ -7,7 +7,7 @@
 // Images → rendered in an <img>
 // Other  → shows a download prompt
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { useState, useEffect, useCallback } from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
     Dialog, DialogTitle, DialogContent,
     Box, Typography, IconButton, Button, CircularProgress,
@@ -23,7 +23,7 @@ import {
     Pending as PendingIcon,
     Block as RejectedIcon,
 } from '@mui/icons-material';
-import { adminAPI } from '../../services/api';
+import {adminAPI} from '../../services/api';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const T = {
@@ -37,24 +37,24 @@ const T = {
 };
 
 const STATUS_META = {
-    Verified: { color: T.green, soft: T.greenSoft, Icon: VerifiedIcon, label: 'Verified'  },
-    Pending:  { color: T.amber, soft: T.amberSoft, Icon: PendingIcon,  label: 'Pending'   },
-    Rejected: { color: T.rose,  soft: T.roseSoft,  Icon: RejectedIcon, label: 'Rejected'  },
+    Verified: {color: T.green, soft: T.greenSoft, Icon: VerifiedIcon, label: 'Verified'},
+    Pending: {color: T.amber, soft: T.amberSoft, Icon: PendingIcon, label: 'Pending'},
+    Rejected: {color: T.rose, soft: T.roseSoft, Icon: RejectedIcon, label: 'Rejected'},
 };
 
 const DOC_LABELS = {
-    ID:                 'Identity Document',
-    Payslip:            'Payslip',
+    ID: 'Identity Document',
+    Payslip: 'Payslip',
     Proof_of_Residence: 'Proof of Residence',
-    Invoice:            'Invoice',
+    Invoice: 'Invoice',
 };
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 function getFileType(fileName) {
     if (!fileName) return 'other';
     const ext = fileName.split('.').pop().toLowerCase();
-    if (ext === 'pdf')                    return 'pdf';
-    if (['jpg','jpeg','png','gif','webp'].includes(ext)) return 'image';
+    if (ext === 'pdf') return 'pdf';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image';
     return 'other';
 }
 
@@ -67,13 +67,13 @@ const DocumentViewer = ({
                             documentType,
                             documentStatus,
                         }) => {
-    const [blobUrl,   setBlobUrl]   = useState(null);
-    const [loading,   setLoading]   = useState(false);
-    const [error,     setError]     = useState(null);
+    const [blobUrl, setBlobUrl] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
     const [downloading, setDownloading] = useState(false);
 
-    const fileType  = getFileType(fileName);
-    const statusMeta = STATUS_META[documentStatus] || { color: T.muted, soft: '#F1F5F9', label: documentStatus };
+    const fileType = getFileType(fileName);
+    const statusMeta = STATUS_META[documentStatus] || {color: T.muted, soft: '#F1F5F9', label: documentStatus};
 
     // Fetch the document blob when the dialog opens
     const fetchDocument = useCallback(async () => {
@@ -82,35 +82,28 @@ const DocumentViewer = ({
         setError(null);
         setBlobUrl(null);
         try {
+            // Get signed URL from backend
             const response = await adminAPI.viewDocument(documentId);
-            const contentType = response.headers['content-type'] || 'application/octet-stream';
 
-            // If server returned an error but responseType was blob, data is a Blob — read it as text
-            if (contentType.includes('application/json')) {
-                const text = await response.data.text?.();
-                const json = JSON.parse(text || '{}');
-                throw new Error(json.message || 'Failed to load document');
+            if (!response.data.success || !response.data.url) {
+                throw new Error('Failed to get document URL');
             }
 
-          //  setMimeType(contentType);
-            // response.data is already a Blob — extract its bytes and re-type with correct MIME
-            // Wrapping a Blob inside new Blob([blob]) corrupts it; must go through arrayBuffer
-            const arrayBuffer = await response.data.arrayBuffer();
-            const typedBlob = new Blob([arrayBuffer], { type: contentType });
-            const url = URL.createObjectURL(typedBlob);
+            // Fetch the actual file from the signed URL
+            const fileResponse = await fetch(response.data.url);
+
+            if (!fileResponse.ok) {
+                throw new Error(`Failed to fetch document: ${fileResponse.statusText}`);
+            }
+
+            const blob = await fileResponse.blob();
+            const url = URL.createObjectURL(blob);
             setBlobUrl(url);
+
+            console.log('✅ Document loaded:', response.data.fileName, response.data.mimeType);
         } catch (err) {
             console.error('❌ fetchDocument error:', err);
-            // When responseType=blob, error response body is also a Blob — try to read it
-            let msg = err?.message || 'Failed to load document';
-            if (err?.response?.data instanceof Blob) {
-                try {
-                    const text = await err.response.data.text();
-                    const json = JSON.parse(text);
-                    msg = json.message || msg;
-                } catch {}
-            }
-            setError(msg);
+            setError(err?.message || 'Failed to load document');
         } finally {
             setLoading(false);
         }
@@ -123,7 +116,12 @@ const DocumentViewer = ({
         return () => {
             // Revoke blob URL on close/unmount to free memory
             setBlobUrl(prev => {
-                if (prev) { try { URL.revokeObjectURL(prev); } catch {} }
+                if (prev) {
+                    try {
+                        URL.revokeObjectURL(prev);
+                    } catch {
+                    }
+                }
                 return null;
             });
         };
@@ -132,25 +130,31 @@ const DocumentViewer = ({
     const handleDownload = async () => {
         try {
             setDownloading(true);
+
+            // Get signed URL from backend
             const response = await adminAPI.downloadDocument(documentId);
-            const dlContentType = response.headers['content-type'] || 'application/octet-stream';
-            const dlArrayBuffer = await response.data.arrayBuffer();
-            const blob = new Blob([dlArrayBuffer], { type: dlContentType });
-            const url  = URL.createObjectURL(blob);
+
+            if (!response.data.success || !response.data.url) {
+                throw new Error('Failed to get download URL');
+            }
+
+            // Use the signed URL directly
             const link = document.createElement('a');
-            link.href     = url;
-            link.download = fileName || `document_${documentId}`;
+            link.href = response.data.url;
+            link.setAttribute('download', response.data.fileName || `document_${documentId}`);
             document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            link.remove();
+
+            console.log('✅ Download initiated');
         } catch (err) {
             console.error('❌ Download failed:', err);
+            setError('Failed to download document');
         } finally {
             setDownloading(false);
         }
     };
-
+    
     const handleClose = () => {
         if (blobUrl) URL.revokeObjectURL(blobUrl);
         setBlobUrl(null);
@@ -179,12 +183,12 @@ const DocumentViewer = ({
             }}
         >
             {/* Header */}
-            <DialogTitle sx={{ p: 0 }}>
+            <DialogTitle sx={{p: 0}}>
                 <Box sx={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     px: 3, py: 2, bgcolor: T.surface, borderBottom: `1px solid ${T.border}`,
                 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1.5}}>
                         {/* Doc type icon */}
                         <Box sx={{
                             width: 36, height: 36, borderRadius: '10px',
@@ -192,16 +196,16 @@ const DocumentViewer = ({
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             border: `1px solid ${T.border}`,
                         }}>
-                            {fileType === 'pdf'   && <PdfIcon   sx={{ fontSize: 18, color: T.rose   }} />}
-                            {fileType === 'image' && <ImageIcon sx={{ fontSize: 18, color: T.accent }} />}
-                            {fileType === 'other' && <DocIcon   sx={{ fontSize: 18, color: T.muted  }} />}
+                            {fileType === 'pdf' && <PdfIcon sx={{fontSize: 18, color: T.rose}}/>}
+                            {fileType === 'image' && <ImageIcon sx={{fontSize: 18, color: T.accent}}/>}
+                            {fileType === 'other' && <DocIcon sx={{fontSize: 18, color: T.muted}}/>}
                         </Box>
 
                         <Box>
-                            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: T.text }}>
+                            <Typography sx={{fontWeight: 700, fontSize: '0.95rem', color: T.text}}>
                                 {docLabel}
                             </Typography>
-                            <Typography sx={{ fontSize: '0.72rem', color: T.muted }}>
+                            <Typography sx={{fontSize: '0.72rem', color: T.muted}}>
                                 {fileName}
                             </Typography>
                         </Box>
@@ -219,10 +223,10 @@ const DocumentViewer = ({
                     </Box>
 
                     {/* Actions */}
-                    <Box sx={{ display: 'flex', gap: 0.8 }}>
+                    <Box sx={{display: 'flex', gap: 0.8}}>
                         <Button
                             size="small"
-                            startIcon={downloading ? <CircularProgress size={12} /> : <DownloadIcon />}
+                            startIcon={downloading ? <CircularProgress size={12}/> : <DownloadIcon/>}
                             onClick={handleDownload}
                             disabled={downloading || loading || !!error}
                             sx={{
@@ -231,8 +235,8 @@ const DocumentViewer = ({
                                 fontFamily: 'Plus Jakarta Sans, sans-serif',
                                 bgcolor: T.greenSoft, color: T.green,
                                 border: `1px solid ${T.green}28`,
-                                '&:hover': { bgcolor: T.green, color: '#fff' },
-                                '&.Mui-disabled': { opacity: 0.5 },
+                                '&:hover': {bgcolor: T.green, color: '#fff'},
+                                '&.Mui-disabled': {opacity: 0.5},
                             }}
                         >
                             Download
@@ -242,33 +246,41 @@ const DocumentViewer = ({
                             onClick={handleClose}
                             sx={{
                                 borderRadius: '8px', color: T.muted,
-                                '&:hover': { bgcolor: T.bg, color: T.rose },
+                                '&:hover': {bgcolor: T.bg, color: T.rose},
                             }}
                         >
-                            <CloseIcon sx={{ fontSize: 18 }} />
+                            <CloseIcon sx={{fontSize: 18}}/>
                         </IconButton>
                     </Box>
                 </Box>
             </DialogTitle>
 
             {/* Content */}
-            <DialogContent sx={{ p: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <DialogContent sx={{p: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column'}}>
                 {loading && (
-                    <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 2 }}>
-                        <CircularProgress sx={{ color: T.accent }} />
-                        <Typography sx={{ fontSize: '0.82rem', color: T.muted }}>
+                    <Box sx={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexDirection: 'column',
+                        gap: 2
+                    }}>
+                        <CircularProgress sx={{color: T.accent}}/>
+                        <Typography sx={{fontSize: '0.82rem', color: T.muted}}>
                             Loading document…
                         </Typography>
                     </Box>
                 )}
 
                 {error && !loading && (
-                    <Box sx={{ p: 3 }}>
+                    <Box sx={{p: 3}}>
                         <Alert
                             severity="error"
-                            sx={{ borderRadius: '10px', fontSize: '0.83rem' }}
+                            sx={{borderRadius: '10px', fontSize: '0.83rem'}}
                             action={
-                                <Button size="small" onClick={fetchDocument} sx={{ textTransform: 'none', fontWeight: 600 }}>
+                                <Button size="small" onClick={fetchDocument}
+                                        sx={{textTransform: 'none', fontWeight: 600}}>
                                     Retry
                                 </Button>
                             }
@@ -292,17 +304,27 @@ const DocumentViewer = ({
                                     bgcolor: 'rgba(220,38,38,0.15)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 }}>
-                                    <PdfIcon sx={{ fontSize: 34, color: '#ef4444' }} />
+                                    <PdfIcon sx={{fontSize: 34, color: '#ef4444'}}/>
                                 </Box>
-                                <Box sx={{ textAlign: 'center' }}>
-                                    <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: '#fff', mb: 0.5, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                <Box sx={{textAlign: 'center'}}>
+                                    <Typography sx={{
+                                        fontWeight: 700,
+                                        fontSize: '1rem',
+                                        color: '#fff',
+                                        mb: 0.5,
+                                        fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                    }}>
                                         {fileName}
                                     </Typography>
-                                    <Typography sx={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                    <Typography sx={{
+                                        fontSize: '0.8rem',
+                                        color: 'rgba(255,255,255,0.5)',
+                                        fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                    }}>
                                         PDF document ready — open in a new tab to view
                                     </Typography>
                                 </Box>
-                                <Box sx={{ display: 'flex', gap: 1.5 }}>
+                                <Box sx={{display: 'flex', gap: 1.5}}>
                                     <button
                                         onClick={() => window.open(blobUrl, '_blank')}
                                         style={{
@@ -350,24 +372,24 @@ const DocumentViewer = ({
                                     bgcolor: T.accentSoft, display: 'flex',
                                     alignItems: 'center', justifyContent: 'center',
                                 }}>
-                                    <DocIcon sx={{ fontSize: 30, color: T.accent }} />
+                                    <DocIcon sx={{fontSize: 30, color: T.accent}}/>
                                 </Box>
-                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: T.text }}>
+                                <Typography sx={{fontWeight: 700, fontSize: '0.95rem', color: T.text}}>
                                     Preview not available
                                 </Typography>
-                                <Typography sx={{ fontSize: '0.82rem', color: T.muted, textAlign: 'center' }}>
+                                <Typography sx={{fontSize: '0.82rem', color: T.muted, textAlign: 'center'}}>
                                     This file type cannot be previewed in the browser.
                                     Click Download to open it locally.
                                 </Typography>
                                 <Button
                                     variant="contained"
-                                    startIcon={<DownloadIcon />}
+                                    startIcon={<DownloadIcon/>}
                                     onClick={handleDownload}
                                     sx={{
                                         borderRadius: '10px', textTransform: 'none',
                                         fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif',
                                         bgcolor: T.accent, boxShadow: 'none',
-                                        '&:hover': { bgcolor: '#1641B8' },
+                                        '&:hover': {bgcolor: '#1641B8'},
                                     }}
                                 >
                                     Download {fileName}
