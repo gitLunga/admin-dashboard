@@ -14,7 +14,6 @@ import {
 } from '@mui/material';
 import {
     Dashboard as DashboardIcon,
-    People as PeopleIcon,
     Person as PersonIcon,
     Group as GroupIcon,
     BarChart as ChartIcon,
