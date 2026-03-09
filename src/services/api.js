@@ -4,7 +4,6 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api
 //const API_BASE_URL = 'http://localhost:5000/api';
 
 
-
 const api = axios.create({
     baseURL: `${API_BASE_URL}/admin`,
     headers: {
@@ -63,13 +62,9 @@ export const adminAPI = {
     //notifications
 
     //invoices
-    downloadInvoice: (userId) => api.get(`/client-users/${userId}/invoice`, {
-        responseType: 'blob', // Important for file downloads
-    }),
+    downloadInvoice: (userId) => api.get(`/client-users/${userId}/invoice`, {}),
 
-    viewInvoice: (userId) => api.get(`/client-users/${userId}/invoice/view`, {
-        responseType: 'blob',
-    }),
+    viewInvoice: (userId) => api.get(`/client-users/${userId}/invoice/view`, {}),
 
     getInvoiceInfo: (userId) => api.get(`/client-users/${userId}/invoice/info`),
 
@@ -93,7 +88,7 @@ export const adminAPI = {
 
 // Update document status
     updateDocumentStatus: (documentId, status, notes) =>
-        api.patch(`/documents/${documentId}/status`, { status, notes }),
+        api.patch(`/documents/${documentId}/status`, {status, notes}),
 };
 
 export const notificationsAPI = {
@@ -104,13 +99,13 @@ export const notificationsAPI = {
     // CORRECT: Your backend has '/api/notifications/user'
     getUserNotifications: (userId, userType) =>
         notificationsApi.get('/notifications/user', {
-            params: { user_id: userId, user_type: userType }
+            params: {user_id: userId, user_type: userType}
         }),
 
     // CORRECT: Your backend has '/api/notifications/unread-count'
     getUnreadCount: (userId, userType) => {
         return notificationsApi.get('/notifications/unread-count', {
-            params: { user_id: userId, user_type: userType }
+            params: {user_id: userId, user_type: userType}
         });
     },
 
@@ -165,8 +160,8 @@ export const deviceAPI = {
 };
 
 export const authAPI = {
-  login: (loginData) => authApi.post('/login', loginData),
+    login: (loginData) => authApi.post('/login', loginData),
     registerOperational: (userData) => authApi.post('/register-operational', userData),
 
-  testConnection: () => authApi.get('/test'),
+    testConnection: () => authApi.get('/test'),
 };

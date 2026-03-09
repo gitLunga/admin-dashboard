@@ -82,28 +82,37 @@ const DocumentViewer = ({
         setError(null);
         setBlobUrl(null);
         try {
-            // Get signed URL from backend
+            // ✅ API now returns JSON with signed URL, not blob
             const response = await adminAPI.viewDocument(documentId);
+
+            console.log('📄 Document response:', response.data);
 
             if (!response.data.success || !response.data.url) {
                 throw new Error('Failed to get document URL');
             }
 
-            // Fetch the actual file from the signed URL
-            const fileResponse = await fetch(response.data.url);
+            // ✅ Fetch the actual file from the signed URL
+            const signedUrl = response.data.url;
+            console.log('🔗 Signed URL:', signedUrl);
+
+            const fileResponse = await fetch(signedUrl);
 
             if (!fileResponse.ok) {
                 throw new Error(`Failed to fetch document: ${fileResponse.statusText}`);
             }
 
+            // ✅ Get the file as a blob
             const blob = await fileResponse.blob();
+            console.log('✅ Blob loaded:', blob.size, 'bytes, type:', blob.type);
+
+            // ✅ Create object URL from the blob
             const url = URL.createObjectURL(blob);
             setBlobUrl(url);
 
-            console.log('✅ Document loaded:', response.data.fileName, response.data.mimeType);
         } catch (err) {
             console.error('❌ fetchDocument error:', err);
-            setError(err?.message || 'Failed to load document');
+            let msg = err?.message || 'Failed to load document';
+            setError(msg);
         } finally {
             setLoading(false);
         }
@@ -131,14 +140,16 @@ const DocumentViewer = ({
         try {
             setDownloading(true);
 
-            // Get signed URL from backend
+            // ✅ Get signed URL from backend (JSON response)
             const response = await adminAPI.downloadDocument(documentId);
+
+            console.log('📥 Download response:', response.data);
 
             if (!response.data.success || !response.data.url) {
                 throw new Error('Failed to get download URL');
             }
 
-            // Use the signed URL directly
+            // ✅ Use the signed URL directly
             const link = document.createElement('a');
             link.href = response.data.url;
             link.setAttribute('download', response.data.fileName || `document_${documentId}`);
@@ -154,7 +165,8 @@ const DocumentViewer = ({
             setDownloading(false);
         }
     };
-    
+
+
     const handleClose = () => {
         if (blobUrl) URL.revokeObjectURL(blobUrl);
         setBlobUrl(null);
