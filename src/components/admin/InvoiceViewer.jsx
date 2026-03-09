@@ -67,6 +67,7 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
     const [error, setError] = useState(null);
     const [fetchAttempted, setFetchAttempted] = useState(false);
     const urlRef = useRef(null);
+    const [signedUrl, setSignedUrl] = useState(null);
 
     // Fetches the actual file blob from the backend (which reads from Supabase)
     const fetchInvoice = useCallback(async () => {
@@ -74,79 +75,36 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
         try {
             setLoading(true);
             setError(null);
-            setFetchAttempted(false);
+            setSignedUrl(null);  // ✅ Clear signed URL
+            setBlobUrl(null);
+
             console.log('Fetching invoice for user:', userId);
 
-            // ✅ viewInvoice now returns JSON with signed URL
             const response = await adminAPI.viewInvoice(userId);
-
             console.log('📄 Invoice response:', response.data);
 
-            // Check if it's an error blob response
-            if (response.data instanceof Blob) {
-                const text = await response.data.text();
-                const json = JSON.parse(text);
-                throw new Error(json.message || 'Failed to load invoice');
+            if (!response.data.success || !response.data.url) {
+                throw new Error('Failed to get invoice URL');
             }
 
-            // ✅ If still getting blob response (old endpoint), handle it
-            if (response.headers['content-type']?.includes('application/json')) {
-                // This is JSON - it's the new signed URL response
-                const signedUrl = response.data.url;
-                if (!signedUrl) {
-                    throw new Error('No signed URL received');
-                }
+            // ✅ Store the signed URL
+            setSignedUrl(response.data.url);
 
-                // Fetch the actual file from signed URL
-                const fileResponse = await fetch(signedUrl);
-                if (!fileResponse.ok) {
-                    throw new Error(`Failed to fetch invoice: ${fileResponse.statusText}`);
-                }
-
+            // Optionally: Fetch for preview inside dialog
+            const fileResponse = await fetch(response.data.url);
+            if (fileResponse.ok) {
                 const blob = await fileResponse.blob();
-                const mimeType = blob.type || 'application/pdf';
                 const url = URL.createObjectURL(blob);
-
-                if (urlRef.current) {
-                    try {
-                        URL.revokeObjectURL(urlRef.current);
-                    } catch {}
-                }
-                urlRef.current = url;
-                setBlobUrl(url);
-
-                setInvoiceInfo({
-                    file_name: response.data.fileName || `invoice_${userId}`,
-                    mime_type: mimeType,
-                    file_size: blob.size,
-                });
-                console.log('✅ Invoice loaded:', response.data.fileName, mimeType);
-            } else {
-                // Old blob response - handle it the old way
-                const mimeType = response.headers['content-type'] || 'application/octet-stream';
-                const arrayBuffer = await response.data.arrayBuffer();
-                const blob = new Blob([arrayBuffer], { type: mimeType });
-                const url = URL.createObjectURL(blob);
-
-                if (urlRef.current) {
-                    try {
-                        URL.revokeObjectURL(urlRef.current);
-                    } catch {}
-                }
-                urlRef.current = url;
-                setBlobUrl(url);
-
-                const cd = response.headers['content-disposition'] || '';
-                const nameMatch = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-                const fileName = nameMatch ? nameMatch[1].replace(/['"]/g, '') : `invoice_${userId}`;
-
-                setInvoiceInfo({
-                    file_name: fileName,
-                    mime_type: mimeType,
-                    file_size: blob.size,
-                });
-                console.log('✅ Invoice loaded:', fileName, mimeType);
+                setBlobUrl(url);  // For preview in dialog only
             }
+
+            setInvoiceInfo({
+                file_name: response.data.fileName || `invoice_${userId}`,
+                mime_type: response.data.mimeType,
+                file_size: null,
+            });
+            console.log('✅ Invoice loaded:', response.data.fileName);
+
         } catch (err) {
             console.error('Invoice fetch error:', err);
             setError(err.message || 'Invoice not found or not uploaded yet');
@@ -155,6 +113,7 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
             setFetchAttempted(true);
         }
     }, [userId, open]);
+
 
 
     useEffect(() => {
@@ -180,30 +139,16 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
         try {
             setLoading(true);
 
-            // ✅ Try to get signed URL first (new approach)
-            const response = await adminAPI.downloadInvoice(userId);
-
-            console.log('Invoice download response:', response.data);
-
-            // If it's JSON with signed URL
-            if (typeof response.data === 'object' && response.data.url) {
+            if (signedUrl) {
+                // ✅ Use the signed URL directly
                 const link = document.createElement('a');
-                link.href = response.data.url;
-                link.setAttribute('download', response.data.fileName || `invoice_${userId}`);
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-            }
-            // Old blob response
-            else if (response.data instanceof Blob && blobUrl) {
-                const link = document.createElement('a');
-                link.href = blobUrl;
+                link.href = signedUrl;
                 link.setAttribute('download', invoiceInfo?.file_name || `invoice_${userId}`);
                 document.body.appendChild(link);
                 link.click();
                 link.remove();
             } else {
-                throw new Error('Invalid response');
+                throw new Error('No invoice URL available');
             }
         } catch (err) {
             console.error('Download error:', err);
@@ -211,12 +156,17 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
         } finally {
             setLoading(false);
         }
-    }, [userId, blobUrl, invoiceInfo]);
+    }, [signedUrl, invoiceInfo, userId]);
+
 
     const handleView = useCallback(() => {
-        if (blobUrl) window.open(blobUrl, '_blank');
-        else setError('Invoice not ready for viewing');
-    }, [blobUrl]);
+        if (signedUrl) {
+            // ✅ Open the signed URL directly - works in new tab!
+            window.open(signedUrl, '_blank');
+        } else {
+            setError('Invoice not ready for viewing');
+        }
+    }, [signedUrl]);
 
     const {icon: FileTypeIcon, color: fileColor, soft: fileSoft} = getFileConfig(invoiceInfo?.mime_type);
 
