@@ -5,7 +5,6 @@ import {
 } from '@mui/material';
 import {
     Download as DownloadIcon,
-    Visibility as ViewIcon,
     Close as CloseIcon,
     PictureAsPdf as PdfIcon,
     Description as DocIcon,

@@ -2,7 +2,7 @@
 import React from 'react';
 import {
     Dialog, DialogTitle, DialogContent, IconButton, Typography,
-    Box, Grid, Chip, Divider,
+    Box, Grid, Chip,
 } from '@mui/material';
 import {
     Close as CloseIcon, Person as PersonIcon, PhoneAndroid as DeviceIcon,

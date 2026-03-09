@@ -14,7 +14,6 @@ import {
 } from '@mui/material';
 import {
     Dashboard as DashboardIcon,
-    People as PeopleIcon,
     Person as PersonIcon,
     Group as GroupIcon,
     BarChart as ChartIcon,
@@ -81,7 +80,7 @@ const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const navigate  = useNavigate();
     const location  = useLocation();
-    const [hovered, setHovered] = useState(null);
+    // const [hovered, setHovered] = useState(null);
 
     const drawerContent = (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', bgcolor: T.surface }}>

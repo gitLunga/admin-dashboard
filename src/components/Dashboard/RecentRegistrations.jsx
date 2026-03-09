@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import {
-    Person as PersonIcon,
     Email as EmailIcon,
     Phone as PhoneIcon,
     Visibility as ViewIcon,

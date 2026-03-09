@@ -9,7 +9,6 @@ import {
     Search as SearchIcon,
     Edit as EditIcon,
     Visibility as ViewIcon,
-    FilterList as FilterListIcon,
     Clear as ClearIcon,
     People as PeopleIcon,
 } from '@mui/icons-material';

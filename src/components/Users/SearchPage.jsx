@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Box, Paper, Typography, IconButton, Chip, Alert, CircularProgress,
-    Grid, Button, Divider, Avatar, useMediaQuery, useTheme,
+    Grid, Button, Divider, Avatar, useTheme,
 } from '@mui/material';
 import {
     Search as SearchIcon, Email as EmailIcon, Phone as PhoneIcon,
@@ -43,7 +43,7 @@ const FILTER_GROUPS = [
 
 const SearchPage = () => {
     const location = useLocation();
-    const theme    = useTheme();
+    // const theme    = useTheme();
 
     const [searchTerm, setSearchTerm] = useState('');
     const [users,      setUsers]      = useState([]);

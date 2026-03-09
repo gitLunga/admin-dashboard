@@ -129,7 +129,7 @@ const ProgressRow = ({ name, value, total, color }) => {
 /* ═══ Main Component ═══ */
 const Statistics = () => {
     const theme    = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    // const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
     const [basicStats,      setBasicStats]      = useState(null);
     const [enhancedStats,   setEnhancedStats]   = useState(null);

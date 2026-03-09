@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Box, Paper, Typography, TextField, IconButton, Chip, Alert,
+    Box, Paper, Typography,  IconButton, Chip, Alert,
     CircularProgress, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, TablePagination, Avatar, Tooltip,
     FormControl, Select, MenuItem, Button, Grid,
-    Menu, ListItemIcon, ListItemText, Divider, Stack, useTheme, useMediaQuery,
+    Menu, Divider, useTheme, useMediaQuery,
 } from '@mui/material';
 import {
     Search as SearchIcon, FilterList as FilterIcon, Refresh as RefreshIcon,
@@ -87,7 +87,7 @@ const AdminApplications = () => {
 
     const [applications, setApplications] = useState([]);
     const [loading, setLoading]           = useState(true);
-    const [statsLoading, setStatsLoading] = useState(false);
+    // const [statsLoading, setStatsLoading] = useState(false);
     const [error, setError]               = useState(null);
     const [searchTerm, setSearchTerm]     = useState('');
     const [page, setPage]                 = useState(0);

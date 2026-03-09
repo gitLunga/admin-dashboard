@@ -9,7 +9,7 @@ import {
     CheckCircle as CheckIcon,
     Gavel as GavelIcon,
 } from '@mui/icons-material';
-import logoImage from '../assets/logo.png';
+// import logoImage from '../assets/logo.png';
 import Navbar from '../components/Navigation/Navbar';
 
 /* ── Design tokens ── */
@@ -49,7 +49,7 @@ const BULLETS = [
 
 /* ══════════════════════════════════════════════════════════ */
 const WelcomePage = () => {
-    const navigate = useNavigate();
+    // const navigate = useNavigate();
 
     return (
         <Box sx={{ minHeight: '100vh', bgcolor: T.bg, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
