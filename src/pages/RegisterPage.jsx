@@ -6,9 +6,9 @@ import {
     Person as PersonIcon, Email as EmailIcon, Lock as LockIcon,
     Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon,
     AdminPanelSettings as AdminIcon, Build as StaffIcon,
-    HowToReg as ApproverIcon, Gavel as GavelIcon, Check as CheckIcon,
+    HowToReg as ApproverIcon, Check as CheckIcon,
 } from '@mui/icons-material';
-import Navbar from './Navbar';
+import Navbar from '../components/Navigation/Navbar';
 
 const T = {
     bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
@@ -88,6 +88,12 @@ const FieldError = ({msg}) =>
 /* Text / email input — value & onChange come from props, no closure over parent */
 const ModernInput = ({label, placeholder, value, onChange, onBlur, type = 'text', error, disabled, icon: Icon}) => {
     const [focused, setFocused] = useState(false);
+
+    const handleBlur = (e) => {
+        setFocused(false);
+        onBlur?.(e);
+    };
+
     return (
         <Box sx={{mb: 2}}>
             <FieldLabel text={label} required/>
@@ -100,13 +106,13 @@ const ModernInput = ({label, placeholder, value, onChange, onBlur, type = 'text'
             }}>
                 {Icon && <Icon sx={{fontSize: 16, color: focused ? T.accent : T.muted, flexShrink: 0}}/>}
                 <input
-                    type={type} placeholder={placeholder} value={value} disabled={disabled}
-                    onChange={onChange} onBlur={onBlur}
+                    type={type}
+                    placeholder={placeholder}
+                    value={value}
+                    disabled={disabled}
+                    onChange={onChange}
+                    onBlur={handleBlur}
                     onFocus={() => setFocused(true)}
-                    onBlur={(e) => {
-                        setFocused(false);
-                        onBlur?.(e);
-                    }}
                     autoCapitalize={type === 'email' ? 'off' : 'words'}
                     autoCorrect={type === 'email' ? 'off' : 'on'}
                     spellCheck={type === 'email' ? 'false' : 'true'}

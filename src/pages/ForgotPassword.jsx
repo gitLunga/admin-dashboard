@@ -5,7 +5,7 @@ import {
     Lock as LockIcon, MarkEmailRead as MarkEmailReadIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import Navbar from '../components/Navigation/Navbar.css';
+import Navbar from '../components/Navigation/Navbar';
 
 const T = {
     bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',

@@ -4,7 +4,7 @@ import {Lock as LockIcon, Visibility, VisibilityOff, Email as EmailIcon} from '@
 import {useNavigate} from 'react-router-dom';
 import {authAPI} from '../services/api';
 import {useToast} from '../hooks/useToast';
-import Navbar from './Navbar';
+import Navbar from '../components/Navigation/Navbar';
 
 const T = {
     bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
