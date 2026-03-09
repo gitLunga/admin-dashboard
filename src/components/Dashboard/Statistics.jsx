@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Box, Paper, Typography, Grid, FormControl, Select, MenuItem,
-    CircularProgress, Alert, Button, useMediaQuery, useTheme,
+    CircularProgress, Alert, Button, useTheme,
 } from '@mui/material';
 import {
     BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,

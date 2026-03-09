@@ -87,7 +87,7 @@ const AdminApplications = () => {
 
     const [applications, setApplications] = useState([]);
     const [loading, setLoading]           = useState(true);
-    // const [statsLoading, setStatsLoading] = useState(false);
+    const [statsLoading, setStatsLoading] = useState(false);
     const [error, setError]               = useState(null);
     const [searchTerm, setSearchTerm]     = useState('');
     const [page, setPage]                 = useState(0);

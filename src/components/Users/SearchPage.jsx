@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Box, Paper, Typography, IconButton, Chip, Alert, CircularProgress,
-    Grid, Button, Divider, Avatar, useTheme,
+    Grid, Button, Divider, Avatar,
 } from '@mui/material';
 import {
     Search as SearchIcon, Email as EmailIcon, Phone as PhoneIcon,
