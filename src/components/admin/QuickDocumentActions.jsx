@@ -1,14 +1,5 @@
 import React, { useState } from 'react';
-import {
-    IconButton,
-    Menu,
-    MenuItem,
-    ListItemIcon,
-    ListItemText,
-    CircularProgress,
-    Snackbar,
-    Alert,
-} from '@mui/material';
+import { Box, Typography, CircularProgress } from '@mui/material';
 import {
     MoreVert as MoreVertIcon,
     Download as DownloadIcon,
@@ -17,67 +8,87 @@ import {
 import { adminAPI } from '../../services/api';
 import DocumentViewer from './DocumentViewer';
 
+/* ── Design tokens ── */
+const T = {
+    bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
+    text: '#0F1F3D', muted: '#6B7A99',
+    accent: '#1E4FD8', accentSoft: '#EBF0FF',
+    green: '#059669', greenSoft: '#D1FAE5',
+    rose: '#DC2626', roseSoft: '#FEE2E2',
+};
+
+/* ── Toast-style snackbar ── */
+const Toast = ({ msg, type, onClose }) => {
+    const colors = { success: { bg: T.greenSoft, color: T.green }, error: { bg: T.roseSoft, color: T.rose }, info: { bg: T.accentSoft, color: T.accent } };
+    const { bg, color } = colors[type] || colors.info;
+    return (
+        <Box sx={{
+            position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
+            p: 1.8, borderRadius: '12px', bgcolor: bg, border: `1px solid ${color}28`,
+            boxShadow: '0 8px 24px rgba(15,31,61,0.12)',
+            display: 'flex', alignItems: 'center', gap: 1.5,
+            animation: 'fadeUp 0.25s ease-out',
+            minWidth: 240,
+        }}>
+            <Typography sx={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                {msg}
+            </Typography>
+            <Box component="button" type="button" onClick={onClose}
+                 sx={{ border: 'none', bgcolor: 'transparent', cursor: 'pointer', color, fontSize: '0.8rem', p: 0, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                ✕
+            </Box>
+        </Box>
+    );
+};
+
+/* ═══════════════════════════════ COMPONENT ═══════════════════════════════ */
 const QuickDocumentActions = ({ documentId, fileName, documentType, documentStatus, isInvoice }) => {
-    const [anchorEl, setAnchorEl] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [viewerOpen, setViewerOpen] = useState(false);
-    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
-    const handleMenuOpen = (event) => {
-        setAnchorEl(event.currentTarget);
+    const [menuOpen,    setMenuOpen]    = useState(false);
+    const [menuAnchor,  setMenuAnchor]  = useState(null);
+    const [loading,     setLoading]     = useState(false);
+    const [viewerOpen,  setViewerOpen]  = useState(false);
+    const [toast,       setToast]       = useState(null);
+
+    const showToast = (message, type = 'info') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 3000);
     };
 
-    const handleMenuClose = () => {
-        setAnchorEl(null);
+    const handleMenuOpen = (e) => {
+        setMenuAnchor(e.currentTarget);
+        setMenuOpen(true);
     };
+    const handleMenuClose = () => setMenuOpen(false);
 
+    /* ── handleDownload — API call unchanged ── */
     const handleDownload = async () => {
         try {
             setLoading(true);
             handleMenuClose();
-
             console.log('📥 Downloading document:', documentId);
 
-            const response = await adminAPI.downloadDocument(documentId, {
-                responseType: 'blob'
-            });
+            const response = await adminAPI.downloadDocument(documentId, { responseType: 'blob' });
 
-            // Get filename from Content-Disposition header or use provided fileName
             const contentDisposition = response.headers['content-disposition'];
             let filename = fileName;
-
             if (contentDisposition) {
                 const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-                if (match && match[1]) {
-                    filename = match[1].replace(/['"]/g, '');
-                }
+                if (match && match[1]) filename = match[1].replace(/['"]/g, '');
             }
 
-            // Create download link
-            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const url  = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
-            link.href = url;
+            link.href  = url;
             link.setAttribute('download', filename || `document-${documentId}.pdf`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
+            document.body.appendChild(link); link.click(); link.remove();
             window.URL.revokeObjectURL(url);
 
-            setSnackbar({
-                open: true,
-                message: `${isInvoice ? 'Invoice' : 'Document'} downloaded successfully`,
-                severity: 'success'
-            });
+            showToast(`${isInvoice ? 'Invoice' : 'Document'} downloaded successfully`, 'success');
         } catch (error) {
             console.error('Download error:', error);
-            setSnackbar({
-                open: true,
-                message: error.response?.data?.message || `Failed to download ${isInvoice ? 'invoice' : 'document'}`,
-                severity: 'error'
-            });
-        } finally {
-            setLoading(false);
-        }
+            showToast(error.response?.data?.message || `Failed to download ${isInvoice ? 'invoice' : 'document'}`, 'error');
+        } finally { setLoading(false); }
     };
 
     const handleView = () => {
@@ -87,39 +98,70 @@ const QuickDocumentActions = ({ documentId, fileName, documentType, documentStat
 
     return (
         <>
-            <IconButton
-                size="small"
+            <style>{`@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }`}</style>
+
+            {/* ── Trigger button ── */}
+            <Box
+                component="button" type="button"
                 onClick={handleMenuOpen}
                 disabled={loading}
-                color={isInvoice ? 'primary' : 'default'}
+                sx={{
+                    width: 30, height: 30, border: `1px solid ${T.border}`,
+                    borderRadius: '8px', bgcolor: T.bg,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    color: isInvoice ? T.accent : T.muted,
+                    transition: 'all 0.15s ease',
+                    '&:hover': { bgcolor: T.accentSoft, color: T.accent, borderColor: T.accent },
+                }}
             >
-                {loading ? <CircularProgress size={20} /> : <MoreVertIcon />}
-            </IconButton>
+                {loading
+                    ? <CircularProgress size={13} sx={{ color: T.accent }} />
+                    : <MoreVertIcon sx={{ fontSize: 16 }} />
+                }
+            </Box>
 
-            <Menu
-                anchorEl={anchorEl}
-                open={Boolean(anchorEl)}
-                onClose={handleMenuClose}
-            >
-                <MenuItem onClick={handleView}>
-                    <ListItemIcon>
-                        <ViewIcon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>
-                        View {isInvoice ? 'Invoice' : 'Document'}
-                    </ListItemText>
-                </MenuItem>
+            {/* ── Dropdown menu ── */}
+            {menuOpen && menuAnchor && (
+                <>
+                    <Box onClick={handleMenuClose} sx={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+                    <Box sx={{
+                        position: 'fixed',
+                        top: menuAnchor.getBoundingClientRect().bottom + 6,
+                        left: menuAnchor.getBoundingClientRect().left,
+                        zIndex: 999,
+                        bgcolor: T.surface, border: `1px solid ${T.border}`,
+                        borderRadius: '12px', overflow: 'hidden',
+                        boxShadow: '0 12px 32px rgba(15,31,61,0.12)',
+                        minWidth: 180,
+                        animation: 'fadeUp 0.18s ease-out',
+                    }}>
+                        {[
+                            { icon: ViewIcon,     label: `View ${isInvoice ? 'Invoice' : 'Document'}`,     onClick: handleView     },
+                            { icon: DownloadIcon, label: `Download ${isInvoice ? 'Invoice' : 'Document'}`, onClick: handleDownload },
+                        ].map(({ icon: Icon, label, onClick }) => (
+                            <Box
+                                key={label}
+                                component="button" type="button"
+                                onClick={onClick}
+                                sx={{
+                                    width: '100%', display: 'flex', alignItems: 'center', gap: 1.2,
+                                    px: 1.8, py: 1.1, border: 'none', bgcolor: 'transparent',
+                                    cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                    fontSize: '0.83rem', fontWeight: 600, color: T.text,
+                                    '&:hover': { bgcolor: T.bg },
+                                    transition: 'background-color 0.1s',
+                                }}
+                            >
+                                <Icon sx={{ fontSize: 15, color: T.muted }} />
+                                {label}
+                            </Box>
+                        ))}
+                    </Box>
+                </>
+            )}
 
-                <MenuItem onClick={handleDownload}>
-                    <ListItemIcon>
-                        <DownloadIcon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>
-                        Download {isInvoice ? 'Invoice' : 'Document'}
-                    </ListItemText>
-                </MenuItem>
-            </Menu>
-
+            {/* ── DocumentViewer — props unchanged ── */}
             <DocumentViewer
                 open={viewerOpen}
                 documentId={documentId}
@@ -129,18 +171,8 @@ const QuickDocumentActions = ({ documentId, fileName, documentType, documentStat
                 onClose={() => setViewerOpen(false)}
             />
 
-            <Snackbar
-                open={snackbar.open}
-                autoHideDuration={3000}
-                onClose={() => setSnackbar({ ...snackbar, open: false })}
-            >
-                <Alert
-                    severity={snackbar.severity}
-                    onClose={() => setSnackbar({ ...snackbar, open: false })}
-                >
-                    {snackbar.message}
-                </Alert>
-            </Snackbar>
+            {/* ── Toast ── */}
+            {toast && <Toast msg={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </>
     );
 };

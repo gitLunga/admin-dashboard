@@ -1,203 +1,294 @@
-import React, { useState } from 'react';
-import '../styles/RegisterPage.css';
-import { Link, useNavigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
-import logoImage from '../assets/logo.png'; // Adjust path
+import React, {useState} from 'react';
+import {Link, useNavigate} from 'react-router-dom';
+import {authAPI} from '../services/api';
+import {Box, Container, Typography, CircularProgress} from '@mui/material';
 import {
-    Box,
-    Container,
-    Typography,
-    Link as MuiLink,
-} from '@mui/material';
+    Person as PersonIcon, Email as EmailIcon, Lock as LockIcon,
+    Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon,
+    AdminPanelSettings as AdminIcon, Build as StaffIcon,
+    HowToReg as ApproverIcon, Gavel as GavelIcon, Check as CheckIcon,
+} from '@mui/icons-material';
+import Navbar from './Navbar';
 
-// --- CONSTANTS ---
+const T = {
+    bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
+    text: '#0F1F3D', muted: '#6B7A99',
+    accent: '#1E4FD8', accentSoft: '#EBF0FF',
+    green: '#059669', greenSoft: '#D1FAE5',
+    amber: '#D97706', amberSoft: '#FEF3C7',
+    rose: '#DC2626', roseSoft: '#FEE2E2',
+    purple: '#7C3AED', purpleSoft: '#EDE9FE',
+};
+
 const TITLES = [
-    { value: 'Mr', label: 'Mr' },
-    { value: 'Mrs', label: 'Mrs' },
-    { value: 'Miss', label: 'Miss' },
-    { value: 'Ms', label: 'Ms' },
-    { value: 'Dr', label: 'Dr' },
-    { value: 'Prof', label: 'Professor' },
+    {value: 'Mr', label: 'Mr'},
+    {value: 'Mrs', label: 'Mrs'},
+    {value: 'Miss', label: 'Miss'},
+    {value: 'Ms', label: 'Ms'},
+    {value: 'Dr', label: 'Dr'},
+    {value: 'Prof', label: 'Professor'},
 ];
 
-// --- DESIGN SYSTEM ---
-const COLORS = {
-    primary: '#1e3a8a',
-    primaryLight: '#3b82f6',
-    textPrimary: '#1f2937',
-    textSecondary: '#6b7280',
-    surface: '#ffffff',
-    background: '#f9fafb',
-    border: '#e5e7eb',
-    error: '#ef4444',
-    success: '#10b981',
-    disabled: '#9ca3af',
-};
+const USER_ROLES = [
+    {
+        value: 'Admin',
+        label: 'Administrator',
+        description: 'Full system access and management',
+        Icon: AdminIcon,
+        color: T.rose,
+        soft: T.roseSoft
+    },
+    {
+        value: 'MTN_Staff',
+        label: 'MTN Staff',
+        description: 'Device and order management',
+        Icon: StaffIcon,
+        color: T.amber,
+        soft: T.amberSoft
+    },
+    {
+        value: 'Approver',
+        label: 'Approver',
+        description: 'Application process approver',
+        Icon: ApproverIcon,
+        color: T.accent,
+        soft: T.accentSoft
+    },
+];
 
-// --- COMPONENTS ---
-const SelectInput = ({ label, value, placeholder, onSelect, editable, options, error }) => {
-    const [isOpen, setIsOpen] = useState(false);
+/* ─────────────────────────────────────────────────────────────
+   All sub-components defined OUTSIDE RegisterPage.
+   Defining them inside would cause unmount/remount on every
+   keystroke, breaking focus.
+───────────────────────────────────────────────────────────── */
 
-    const selectedLabel = options.find(opt => opt.value === value)?.label || '';
+const FieldLabel = ({text, required}) => (
+    <Typography sx={{
+        fontSize: '0.7rem',
+        fontWeight: 700,
+        color: T.muted,
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
+        mb: 0.8,
+        fontFamily: 'Plus Jakarta Sans, sans-serif'
+    }}>
+        {text}{required && <span style={{color: T.rose}}> *</span>}
+    </Typography>
+);
 
-    const handleSelect = (selectedValue) => {
-        onSelect(selectedValue);
-        setIsOpen(false);
-    };
+const FieldError = ({msg}) =>
+    msg ? <Typography sx={{
+        fontSize: '0.7rem',
+        color: T.rose,
+        mt: 0.5,
+        ml: 0.2,
+        fontFamily: 'Plus Jakarta Sans, sans-serif'
+    }}>{msg}</Typography> : null;
 
+/* Text / email input — value & onChange come from props, no closure over parent */
+const ModernInput = ({label, placeholder, value, onChange, onBlur, type = 'text', error, disabled, icon: Icon}) => {
+    const [focused, setFocused] = useState(false);
     return (
-        <div className="input-group">
-            <label className="label">{label}</label>
-            <div className="select-wrapper">
-                <button
-                    type="button"
-                    className={`select-button ${error ? 'error' : ''} ${!editable ? 'disabled' : ''}`}
-                    onClick={() => editable && setIsOpen(!isOpen)}
-                    disabled={!editable}
-                >
-                    <span className={`select-button-text ${!value ? 'placeholder' : ''}`}>
-                        {selectedLabel || placeholder}
-                    </span>
-                    <span className="select-arrow">▼</span>
-                </button>
-
-                {isOpen && (
-                    <>
-                        <div className="dropdown-overlay" onClick={() => setIsOpen(false)} />
-                        <div className="dropdown-menu">
-                            {options.map((option) => (
-                                <button
-                                    key={option.value}
-                                    type="button"
-                                    className={`dropdown-item ${value === option.value ? 'selected' : ''}`}
-                                    onClick={() => handleSelect(option.value)}
-                                >
-                                    <span className="dropdown-item-text">{option.label}</span>
-                                    {value === option.value && (
-                                        <span className="dropdown-check">✓</span>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-                    </>
-                )}
-
-                {error && <span className="error-text">{error}</span>}
-            </div>
-        </div>
-    );
-};
-
-const PasswordInput = ({
-                           label,
-                           value,
-                           onChangeText,
-                           error,
-                           showPassword,
-                           onToggleVisibility,
-                           onBlur,
-                           editable = true
-                       }) => {
-    const [isFocused, setIsFocused] = useState(false);
-
-    return (
-        <div className="input-group">
-            <label className="label">{label}</label>
-            <div className={`password-wrapper ${isFocused ? 'focused' : ''} ${error ? 'error' : ''}`}>
+        <Box sx={{mb: 2}}>
+            <FieldLabel text={label} required/>
+            <Box sx={{
+                display: 'flex', alignItems: 'center', gap: 1, bgcolor: T.surface,
+                border: `1.5px solid ${error ? T.rose : focused ? T.accent : T.border}`,
+                borderRadius: '10px', px: 1.4, py: 0.85,
+                boxShadow: focused ? `0 0 0 3px ${error ? T.roseSoft : T.accentSoft}` : 'none',
+                transition: 'all 0.2s ease',
+            }}>
+                {Icon && <Icon sx={{fontSize: 16, color: focused ? T.accent : T.muted, flexShrink: 0}}/>}
                 <input
-                    type={showPassword ? 'text' : 'password'}
-                    className="password-input"
-                    placeholder="Enter password"
-                    value={value}
-                    onChange={(e) => onChangeText(e.target.value)}
-                    disabled={!editable}
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => {
-                        setIsFocused(false);
-                        onBlur?.();
+                    type={type} placeholder={placeholder} value={value} disabled={disabled}
+                    onChange={onChange} onBlur={onBlur}
+                    onFocus={() => setFocused(true)}
+                    onBlur={(e) => {
+                        setFocused(false);
+                        onBlur?.(e);
                     }}
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                    spellCheck="false"
+                    autoCapitalize={type === 'email' ? 'off' : 'words'}
+                    autoCorrect={type === 'email' ? 'off' : 'on'}
+                    spellCheck={type === 'email' ? 'false' : 'true'}
+                    style={{
+                        border: 'none',
+                        outline: 'none',
+                        background: 'transparent',
+                        width: '100%',
+                        fontFamily: 'Plus Jakarta Sans, sans-serif',
+                        fontSize: '0.87rem',
+                        color: T.text
+                    }}
                 />
-                <button
-                    type="button"
-                    className="eye-button"
-                    onClick={onToggleVisibility}
-                    disabled={!editable}
-                >
-                    {showPassword ? '👁️' : '👁️‍🗨️'}
-                </button>
-            </div>
-            {error && <span className="error-text">{error}</span>}
-            {label === 'Password *' && !error && value && (
-                <div className="hint-text">Must be at least 8 characters long</div>
-            )}
-        </div>
+            </Box>
+            <FieldError msg={error}/>
+        </Box>
     );
 };
 
-const ModernInput = ({
-                         label,
-                         placeholder,
-                         value,
-                         onChangeText,
-                         editable,
-                         type = 'text',
-                         error,
-                         onBlur
-                     }) => {
-    const [isFocused, setIsFocused] = useState(false);
-
-    const handleChange = (e) => {
-        onChangeText(e.target.value);
-    };
-
+/* Password input */
+const PasswordInput = ({label, value, onChange, onBlur, error, showPassword, onToggleVisibility, disabled}) => {
+    const [focused, setFocused] = useState(false);
     return (
-        <div className="input-group">
-            <label className="label">{label}</label>
-            <input
-                type={type}
-                className={`modern-input ${isFocused ? 'focused' : ''} ${error ? 'error' : ''}`}
-                placeholder={placeholder}
-                value={value}
-                onChange={handleChange}
-                disabled={!editable}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => {
-                    setIsFocused(false);
-                    onBlur?.();
-                }}
-                autoCapitalize={type === 'email' ? 'off' : 'words'}
-                autoCorrect={type === 'email' ? 'off' : 'on'}
-                spellCheck={type === 'email' ? 'false' : 'true'}
-            />
-            {error && <span className="error-text">{error}</span>}
-        </div>
+        <Box sx={{mb: 2}}>
+            <FieldLabel text={label} required/>
+            <Box sx={{
+                display: 'flex', alignItems: 'center', gap: 1, bgcolor: T.surface,
+                border: `1.5px solid ${error ? T.rose : focused ? T.accent : T.border}`,
+                borderRadius: '10px', px: 1.4, py: 0.85,
+                boxShadow: focused ? `0 0 0 3px ${error ? T.roseSoft : T.accentSoft}` : 'none',
+                transition: 'all 0.2s ease',
+            }}>
+                <LockIcon sx={{fontSize: 16, color: focused ? T.accent : T.muted, flexShrink: 0}}/>
+                <input
+                    type={showPassword ? 'text' : 'password'} placeholder="Enter password"
+                    value={value} disabled={disabled} onChange={onChange}
+                    onFocus={() => setFocused(true)}
+                    onBlur={(e) => {
+                        setFocused(false);
+                        onBlur?.(e);
+                    }}
+                    autoCapitalize="off" autoCorrect="off" spellCheck="false"
+                    style={{
+                        border: 'none',
+                        outline: 'none',
+                        background: 'transparent',
+                        flex: 1,
+                        fontFamily: 'Plus Jakarta Sans, sans-serif',
+                        fontSize: '0.87rem',
+                        color: T.text
+                    }}
+                />
+                <Box component="button" type="button" onClick={onToggleVisibility} disabled={disabled}
+                     sx={{
+                         border: 'none',
+                         background: 'transparent',
+                         cursor: 'pointer',
+                         display: 'flex',
+                         p: 0.3,
+                         borderRadius: '6px',
+                         color: T.muted,
+                         '&:hover': {color: T.accent, bgcolor: T.accentSoft},
+                         transition: 'all 0.15s'
+                     }}>
+                    {showPassword ? <VisibilityOffIcon sx={{fontSize: 16}}/> : <VisibilityIcon sx={{fontSize: 16}}/>}
+                </Box>
+            </Box>
+            {error && <FieldError msg={error}/>}
+            {!error && label === 'Password' && value && (
+                <Typography sx={{
+                    fontSize: '0.7rem',
+                    color: T.muted,
+                    mt: 0.5,
+                    ml: 0.2,
+                    fontFamily: 'Plus Jakarta Sans, sans-serif'
+                }}>
+                    Must be at least 8 characters
+                </Typography>
+            )}
+        </Box>
     );
 };
 
+/* Custom select */
+const SelectInput = ({label, value, placeholder, onSelect, disabled, options, error}) => {
+    const [open, setOpen] = useState(false);
+    const selectedLabel = options.find(o => o.value === value)?.label || '';
+    return (
+        <Box sx={{mb: 2, position: 'relative'}}>
+            <FieldLabel text={label} required/>
+            <Box component="button" type="button" onClick={() => !disabled && setOpen(!open)} disabled={disabled}
+                 sx={{
+                     width: '100%',
+                     display: 'flex',
+                     justifyContent: 'space-between',
+                     alignItems: 'center',
+                     bgcolor: T.surface,
+                     border: `1.5px solid ${error ? T.rose : open ? T.accent : T.border}`,
+                     borderRadius: '10px',
+                     px: 1.6,
+                     py: 1.05,
+                     cursor: disabled ? 'not-allowed' : 'pointer',
+                     boxShadow: open ? `0 0 0 3px ${T.accentSoft}` : 'none',
+                     transition: 'all 0.2s ease',
+                     fontFamily: 'Plus Jakarta Sans, sans-serif'
+                 }}>
+                <Typography sx={{fontSize: '0.87rem', color: value ? T.text : T.muted}}>
+                    {selectedLabel || placeholder}
+                </Typography>
+                <Typography sx={{
+                    fontSize: '0.7rem',
+                    color: T.muted,
+                    transition: 'transform 0.2s',
+                    transform: open ? 'rotate(180deg)' : 'none'
+                }}>▼</Typography>
+            </Box>
+            {open && (
+                <>
+                    <Box onClick={() => setOpen(false)} sx={{position: 'fixed', inset: 0, zIndex: 998}}/>
+                    <Box sx={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        mt: 0.5,
+                        bgcolor: T.surface,
+                        border: `1px solid ${T.border}`,
+                        borderRadius: '12px',
+                        boxShadow: '0 12px 32px rgba(15,31,61,0.12)',
+                        zIndex: 999,
+                        overflow: 'hidden'
+                    }}>
+                        {options.map(opt => (
+                            <Box key={opt.value} component="button" type="button"
+                                 onClick={() => {
+                                     onSelect(opt.value);
+                                     setOpen(false);
+                                 }}
+                                 sx={{
+                                     width: '100%',
+                                     display: 'flex',
+                                     justifyContent: 'space-between',
+                                     alignItems: 'center',
+                                     px: 2,
+                                     py: 1.1,
+                                     border: 'none',
+                                     bgcolor: value === opt.value ? T.accentSoft : 'transparent',
+                                     cursor: 'pointer',
+                                     fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                     '&:hover': {bgcolor: T.bg},
+                                     transition: 'background-color 0.1s'
+                                 }}>
+                                <Typography sx={{
+                                    fontSize: '0.85rem',
+                                    fontWeight: value === opt.value ? 700 : 500,
+                                    color: value === opt.value ? T.accent : T.text
+                                }}>
+                                    {opt.label}
+                                </Typography>
+                                {value === opt.value && <CheckIcon sx={{fontSize: 14, color: T.accent}}/>}
+                            </Box>
+                        ))}
+                    </Box>
+                </>
+            )}
+            <FieldError msg={error}/>
+        </Box>
+    );
+};
+
+/* ═══════════════════════════ MAIN PAGE ═══════════════════════════ */
 const RegisterPage = () => {
     const navigate = useNavigate();
+
     const [formData, setFormData] = useState({
-        title: '',
-        firstName: '',
-        lastName: '',
-        email: '',
-        userRole: 'Admin',
-        password: '',
-        confirmPassword: '',
+        title: '', firstName: '', lastName: '', email: '',
+        userRole: 'Admin', password: '', confirmPassword: '',
     });
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-    const userRoles = [
-        { value: 'Admin', label: 'Administrator', description: 'Full system access' },
-        { value: 'MTN_Staff', label: 'MTN Staff', description: 'Device and order management' },
-        { value: 'Approver', label: 'Approver', description: 'Application process approver' },
-    ];
 
     const validateField = (field, value) => {
         switch (field) {
@@ -205,340 +296,307 @@ const RegisterPage = () => {
                 if (!value) return 'Email is required';
                 if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Please enter a valid email address';
                 return '';
-
             case 'password':
                 if (!value) return 'Password is required';
                 if (value.length < 8) return 'Password must be at least 8 characters';
                 return '';
-
             case 'confirmPassword':
                 if (!value) return 'Please confirm your password';
                 if (value !== formData.password) return 'Passwords do not match';
                 return '';
-
             case 'title':
             case 'firstName':
             case 'lastName':
                 if (!value) return 'This field is required';
                 return '';
-
             default:
                 return '';
         }
     };
 
-    const handleBlur = (field) => {
-        const error = validateField(field, formData[field]);
-        setErrors(prev => ({ ...prev, [field]: error }));
+    const handleBlur = (field) => (e) => {
+        setErrors(prev => ({...prev, [field]: validateField(field, e?.target?.value ?? formData[field])}));
+    };
+
+    const handleFieldChange = (field) => (e) => {
+        setFormData(prev => ({...prev, [field]: e.target.value}));
+        setErrors(prev => ({...prev, [field]: ''}));
     };
 
     const handleRegister = async (e) => {
         e?.preventDefault();
-
         const newErrors = {};
-        const fieldsToValidate = Object.keys(formData);
-
-        fieldsToValidate.forEach(key => {
-            const value = formData[key];
-            const error = validateField(key, value);
-            if (error) newErrors[key] = error;
+        Object.keys(formData).forEach(k => {
+            const err = validateField(k, formData[k]);
+            if (err) newErrors[k] = err;
         });
-
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
-            alert('Validation Error\nPlease fix the errors in the form');
             return;
         }
 
         setLoading(true);
-
         try {
-            console.log('🔄 Registering operational user...');
-
-            const registrationData = {
-                title: formData.title,
-                first_name: formData.firstName,
-                last_name: formData.lastName,
-                email: formData.email,
-                user_role: formData.userRole,
-                password: formData.password,
-            };
-
-            console.log('📤 Operational registration data:', registrationData);
-
-            const response = await authAPI.registerOperational(registrationData);
-
-            console.log('✅ Operational Registration API Response:', response.data);
-
+            const response = await authAPI.registerOperational({
+                title: formData.title, first_name: formData.firstName, last_name: formData.lastName,
+                email: formData.email, user_role: formData.userRole, password: formData.password,
+            });
             if (response.data.success) {
-                alert('Success\n' + (response.data.message || 'Registration successful!'));
                 navigate('/login');
             } else {
                 throw new Error(response.data.message || 'Registration failed');
             }
-
         } catch (error) {
-            console.log('❌ Operational Registration API Error:', error);
-            if (error.response) {
-                alert('Registration Failed\n' + (error.response.data.message || error.response.statusText));
-            } else if (error.request) {
-                alert('Registration Failed\nNo response from server. Please check your connection.');
-            } else {
-                alert('Registration Failed\n' + error.message);
-            }
+            const msg = error.response?.data?.message || error.response?.statusText || error.message || 'Registration failed';
+            setErrors(prev => ({...prev, _form: msg}));
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <>
-            {/* Navigation Bar */}
-            <Box
-                component="nav"
-                sx={{
-                    backgroundColor: 'primary.main',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    boxShadow: 3,
-                    py: 1.5,
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 1000,
-                }}
-            >
-                <Container maxWidth="lg">
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                        }}
-                    >
-                        {/* Logo Section */}
-                        <Box
-                            sx={{
+        <Box sx={{minHeight: '100vh', bgcolor: T.bg, fontFamily: 'Plus Jakarta Sans, sans-serif'}}>
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
+                @keyframes fadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+            `}</style>
+
+            <Navbar/>
+
+            <Container maxWidth="sm" sx={{py: {xs: 4, md: 6}}}>
+                <Box sx={{
+                    bgcolor: T.surface,
+                    borderRadius: '16px',
+                    border: `1px solid ${T.border}`,
+                    overflow: 'hidden',
+                    boxShadow: '0 8px 32px rgba(15,31,61,0.08)',
+                    animation: 'fadeUp 0.45s ease-out'
+                }}>
+                    <Box sx={{height: 4, bgcolor: T.accent}}/>
+
+                    <Box sx={{p: {xs: 3, md: 4}}}>
+                        {/* Header */}
+                        <Box sx={{mb: 3.5, textAlign: 'center'}}>
+                            <Box sx={{
+                                width: 50,
+                                height: 50,
+                                borderRadius: '14px',
+                                bgcolor: T.accentSoft,
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: 2,
-                                textDecoration: 'none',
-                                cursor: 'pointer',
-                            }}
-                            onClick={() => navigate('/')}
-                        >
-                            <Box
-                                component="img"
-                                src={logoImage}
-                                alt="System Logo"
-                                sx={{
-                                    height: 40,
-                                    width: 'auto',
-                                    borderRadius: 1,
-                                    boxShadow: 2,
-                                }}
-                            />
+                                justifyContent: 'center',
+                                mx: 'auto',
+                                mb: 1.5
+                            }}>
+                                <PersonIcon sx={{fontSize: 24, color: T.accent}}/>
+                            </Box>
+                            <Typography sx={{
+                                fontWeight: 800,
+                                fontSize: '1.35rem',
+                                color: T.text,
+                                letterSpacing: '-0.3px',
+                                mb: 0.5,
+                                fontFamily: 'Plus Jakarta Sans, sans-serif'
+                            }}>
+                                Operational Registration
+                            </Typography>
                             <Typography
-                                variant="h6"
-                                sx={{
-                                    color: 'white',
-                                    fontWeight: 'bold',
-                                    textShadow: '1px 1px 3px rgba(0,0,0,0.3)',
-                                }}
-                            >
-                                Judicial Admin System
+                                sx={{fontSize: '0.83rem', color: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}}>
+                                Create your staff account to access the system
                             </Typography>
                         </Box>
 
-                        {/* Navigation Links */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <MuiLink
-                                component="button"
-                                onClick={() => navigate('/')}
-                                sx={{
-                                    color: 'white',
+                        {/* Form-level error */}
+                        {errors._form && (
+                            <Box sx={{
+                                mb: 2.5,
+                                p: 1.8,
+                                borderRadius: '10px',
+                                bgcolor: T.roseSoft,
+                                border: `1px solid ${T.rose}22`
+                            }}>
+                                <Typography sx={{
+                                    fontSize: '0.8rem',
+                                    color: T.rose,
                                     fontWeight: 600,
-                                    fontSize: '0.9rem',
-                                    textDecoration: 'none',
-                                    '&:hover': { opacity: 0.9 },
+                                    fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                }}>{errors._form}</Typography>
+                            </Box>
+                        )}
+
+                        <Box component="form" onSubmit={handleRegister} noValidate>
+                            {/* Title */}
+                            <SelectInput
+                                label="Title" value={formData.title} placeholder="Select your title"
+                                onSelect={v => {
+                                    setFormData(prev => ({...prev, title: v}));
+                                    setErrors(prev => ({...prev, title: ''}));
                                 }}
-                            >
-                                Home
-                            </MuiLink>
-                            <MuiLink
-                                component="button"
-                                onClick={() => navigate('/login')}
-                                sx={{
-                                    color: 'white',
-                                    fontWeight: 600,
-                                    fontSize: '0.9rem',
-                                    textDecoration: 'none',
-                                    '&:hover': { opacity: 0.9 },
-                                }}
-                            >
-                                Login
-                            </MuiLink>
-                            <MuiLink
-                                component="button"
-                                onClick={() => navigate('/register')}
-                                sx={{
-                                    backgroundColor: 'white',
-                                    color: 'primary.main',
-                                    px: 2,
-                                    py: 0.5,
-                                    borderRadius: 20,
-                                    fontWeight: 600,
-                                    fontSize: '0.9rem',
-                                    textDecoration: 'none',
-                                    '&:hover': {
-                                        backgroundColor: 'rgba(255,255,255,0.9)',
-                                        transform: 'translateY(-1px)',
-                                        boxShadow: 2,
-                                    },
-                                    transition: 'all 0.3s ease',
-                                }}
-                            >
-                                Register
-                            </MuiLink>
+                                disabled={loading} options={TITLES} error={errors.title}
+                            />
+
+                            {/* First + Last name */}
+                            <Box sx={{display: 'flex', gap: 1.5, flexWrap: {xs: 'wrap', sm: 'nowrap'}}}>
+                                <Box sx={{flex: 1}}>
+                                    <ModernInput label="First Name" placeholder="First name" value={formData.firstName}
+                                                 icon={PersonIcon}
+                                                 onChange={handleFieldChange('firstName')}
+                                                 onBlur={handleBlur('firstName')}
+                                                 disabled={loading} error={errors.firstName}/>
+                                </Box>
+                                <Box sx={{flex: 1}}>
+                                    <ModernInput label="Last Name" placeholder="Last name" value={formData.lastName}
+                                                 icon={PersonIcon}
+                                                 onChange={handleFieldChange('lastName')}
+                                                 onBlur={handleBlur('lastName')}
+                                                 disabled={loading} error={errors.lastName}/>
+                                </Box>
+                            </Box>
+
+                            {/* Email */}
+                            <ModernInput label="Email Address" placeholder="Enter your work email" type="email"
+                                         value={formData.email} icon={EmailIcon}
+                                         onChange={handleFieldChange('email')} onBlur={handleBlur('email')}
+                                         disabled={loading} error={errors.email}/>
+
+                            {/* Role cards */}
+                            <Box sx={{mb: 2.5}}>
+                                <FieldLabel text="User Role" required/>
+                                <Box sx={{display: 'flex', flexDirection: 'column', gap: 1}}>
+                                    {USER_ROLES.map(role => {
+                                        const selected = formData.userRole === role.value;
+                                        return (
+                                            <Box key={role.value} component="button" type="button"
+                                                 onClick={() => !loading && setFormData(prev => ({
+                                                     ...prev,
+                                                     userRole: role.value
+                                                 }))}
+                                                 disabled={loading}
+                                                 sx={{
+                                                     display: 'flex',
+                                                     alignItems: 'center',
+                                                     gap: 1.5,
+                                                     width: '100%',
+                                                     textAlign: 'left',
+                                                     p: 1.6,
+                                                     borderRadius: '12px',
+                                                     cursor: loading ? 'not-allowed' : 'pointer',
+                                                     border: `2px solid ${selected ? role.color : T.border}`,
+                                                     bgcolor: selected ? role.soft : T.bg,
+                                                     transition: 'all 0.16s ease',
+                                                     '&:hover': {borderColor: role.color, bgcolor: role.soft}
+                                                 }}>
+                                                <Box sx={{
+                                                    width: 36,
+                                                    height: 36,
+                                                    borderRadius: '10px',
+                                                    bgcolor: selected ? role.color : T.border,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    flexShrink: 0,
+                                                    transition: 'background-color 0.16s'
+                                                }}>
+                                                    <role.Icon sx={{fontSize: 18, color: selected ? '#fff' : T.muted}}/>
+                                                </Box>
+                                                <Box sx={{flex: 1}}>
+                                                    <Typography sx={{
+                                                        fontWeight: 700,
+                                                        fontSize: '0.85rem',
+                                                        color: selected ? role.color : T.text,
+                                                        lineHeight: 1.3,
+                                                        fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                                    }}>{role.label}</Typography>
+                                                    <Typography sx={{
+                                                        fontSize: '0.72rem',
+                                                        color: T.muted,
+                                                        lineHeight: 1.4,
+                                                        fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                                    }}>{role.description}</Typography>
+                                                </Box>
+                                                <Box sx={{
+                                                    width: 18,
+                                                    height: 18,
+                                                    borderRadius: '50%',
+                                                    border: `2px solid ${selected ? role.color : T.border}`,
+                                                    bgcolor: selected ? role.color : 'transparent',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    flexShrink: 0,
+                                                    transition: 'all 0.15s'
+                                                }}>
+                                                    {selected && <CheckIcon sx={{fontSize: 11, color: '#fff'}}/>}
+                                                </Box>
+                                            </Box>
+                                        );
+                                    })}
+                                </Box>
+                            </Box>
+
+                            {/* Passwords */}
+                            <PasswordInput label="Password" value={formData.password}
+                                           onChange={handleFieldChange('password')} onBlur={handleBlur('password')}
+                                           error={errors.password} showPassword={showPassword}
+                                           onToggleVisibility={() => setShowPassword(!showPassword)}
+                                           disabled={loading}/>
+
+                            <PasswordInput label="Confirm Password" value={formData.confirmPassword}
+                                           onChange={handleFieldChange('confirmPassword')}
+                                           onBlur={handleBlur('confirmPassword')}
+                                           error={errors.confirmPassword} showPassword={showConfirmPassword}
+                                           onToggleVisibility={() => setShowConfirmPassword(!showConfirmPassword)}
+                                           disabled={loading}/>
+
+                            {/* Submit */}
+                            <Box component="button" type="submit" disabled={loading}
+                                 sx={{
+                                     width: '100%',
+                                     mt: 1,
+                                     py: 1.4,
+                                     border: 'none',
+                                     borderRadius: '12px',
+                                     cursor: loading ? 'not-allowed' : 'pointer',
+                                     fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                     fontWeight: 700,
+                                     fontSize: '0.9rem',
+                                     bgcolor: loading ? T.border : T.accent,
+                                     color: loading ? T.muted : '#fff',
+                                     display: 'flex',
+                                     alignItems: 'center',
+                                     justifyContent: 'center',
+                                     gap: 1,
+                                     boxShadow: loading ? 'none' : `0 4px 14px ${T.accent}44`,
+                                     transition: 'all 0.2s ease',
+                                     '&:hover': {bgcolor: loading ? T.border : '#1641B8'}
+                                 }}>
+                                {loading ? <><CircularProgress size={16} sx={{color: T.muted}}/> Creating
+                                    Account…</> : 'Create Staff Account'}
+                            </Box>
+
+                            <Typography sx={{
+                                textAlign: 'center',
+                                mt: 2.5,
+                                fontSize: '0.82rem',
+                                color: T.muted,
+                                fontFamily: 'Plus Jakarta Sans, sans-serif'
+                            }}>
+                                Already have an account?{' '}
+                                <Box component={Link} to="/login"
+                                     sx={{
+                                         color: T.accent,
+                                         fontWeight: 700,
+                                         textDecoration: 'none',
+                                         '&:hover': {textDecoration: 'underline'}
+                                     }}>
+                                    Sign In
+                                </Box>
+                            </Typography>
                         </Box>
                     </Box>
-                </Container>
-            </Box>
-
-            {/* Main Register Content */}
-            <div className="register-container" style={{ backgroundColor: COLORS.background }}>
-                <div className="register-form-wrapper" style={{ backgroundColor: COLORS.surface }}>
-                    <div className="register-header">
-                        <h1 style={{ color: COLORS.textPrimary }}>Operational Registration</h1>
-                        <p style={{ color: COLORS.textSecondary }}>Create your staff account</p>
-                    </div>
-
-                    <form onSubmit={handleRegister} className="register-form">
-                        <SelectInput
-                            label="Title *"
-                            value={formData.title}
-                            placeholder="Select your title"
-                            onSelect={(value) => {
-                                setFormData({ ...formData, title: value });
-                                setErrors(prev => ({ ...prev, title: '' }));
-                            }}
-                            editable={!loading}
-                            options={TITLES}
-                            error={errors.title}
-                        />
-
-                        <ModernInput
-                            label="First Name *"
-                            placeholder="Enter your first name"
-                            value={formData.firstName}
-                            onChangeText={(text) => setFormData({ ...formData, firstName: text })}
-                            editable={!loading}
-                            onBlur={() => handleBlur('firstName')}
-                            error={errors.firstName}
-                        />
-
-                        <ModernInput
-                            label="Last Name *"
-                            placeholder="Enter your last name"
-                            value={formData.lastName}
-                            onChangeText={(text) => setFormData({ ...formData, lastName: text })}
-                            editable={!loading}
-                            onBlur={() => handleBlur('lastName')}
-                            error={errors.lastName}
-                        />
-
-                        <ModernInput
-                            label="Email Address *"
-                            placeholder="Enter your work email"
-                            type="email"
-                            value={formData.email}
-                            onChangeText={(text) => setFormData({ ...formData, email: text })}
-                            editable={!loading}
-                            onBlur={() => handleBlur('email')}
-                            error={errors.email}
-                        />
-
-                        <div className="input-group">
-                            <label className="label">User Role *</label>
-                            <div className="roles-container">
-                                {userRoles.map((role) => (
-                                    <button
-                                        type="button"
-                                        key={role.value}
-                                        className={`role-card ${formData.userRole === role.value ? 'selected' : ''} ${loading ? 'disabled' : ''}`}
-                                        onClick={() => setFormData({ ...formData, userRole: role.value })}
-                                        disabled={loading}
-                                    >
-                                        <div className="role-header">
-                                            <div className={`role-radio ${formData.userRole === role.value ? 'selected' : ''}`}>
-                                                {formData.userRole === role.value && (
-                                                    <div className="radio-inner" />
-                                                )}
-                                            </div>
-                                            <span className={`role-title ${formData.userRole === role.value ? 'selected' : ''}`}>
-                                                {role.label}
-                                            </span>
-                                        </div>
-                                        <span className={`role-description ${formData.userRole === role.value ? 'selected' : ''}`}>
-                                            {role.description}
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <PasswordInput
-                            label="Password *"
-                            value={formData.password}
-                            onChangeText={(text) => setFormData({ ...formData, password: text })}
-                            error={errors.password}
-                            showPassword={showPassword}
-                            onToggleVisibility={() => setShowPassword(!showPassword)}
-                            onBlur={() => handleBlur('password')}
-                            editable={!loading}
-                        />
-
-                        <PasswordInput
-                            label="Confirm Password *"
-                            value={formData.confirmPassword}
-                            onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
-                            error={errors.confirmPassword}
-                            showPassword={showConfirmPassword}
-                            onToggleVisibility={() => setShowConfirmPassword(!showConfirmPassword)}
-                            onBlur={() => handleBlur('confirmPassword')}
-                            editable={!loading}
-                        />
-
-                        <button
-                            type="submit"
-                            className={`submit-button ${loading ? 'loading' : ''}`}
-                            disabled={loading}
-                            style={{ backgroundColor: loading ? COLORS.disabled : COLORS.primary }}
-                        >
-                            {loading ? (
-                                <span className="button-content">
-                                    <span className="spinner"></span>
-                                    Creating Account...
-                                </span>
-                            ) : (
-                                'Create Staff Account'
-                            )}
-                        </button>
-
-                        <div className="login-link">
-                            <p style={{ color: COLORS.textSecondary }}>
-                                Already have an account?{' '}
-                                <Link
-                                    to="/login"
-                                    className="login-link-text"
-                                    style={{ color: COLORS.primary }}
-                                >
-                                    Sign In
-                                </Link>
-                            </p>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </>
+                </Box>
+            </Container>
+        </Box>
     );
 };
 

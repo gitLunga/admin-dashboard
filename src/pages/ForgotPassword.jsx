@@ -1,329 +1,178 @@
 import React, { useState } from 'react';
+import { Box, Container, Typography, CircularProgress } from '@mui/material';
 import {
-    Box,
-    Paper,
-    Typography,
-    TextField,
-    Button,
-    Alert,
-    CircularProgress,
-    Container,
-    Avatar,
-    Link,
-    InputAdornment,
-} from '@mui/material';
-import {
-    Email as EmailIcon,
-    ArrowBack as ArrowBackIcon,
-    CheckCircle as CheckCircleIcon,
+    Email as EmailIcon, ArrowBack as ArrowBackIcon,
+    Lock as LockIcon, MarkEmailRead as MarkEmailReadIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import logoImage from '../assets/logo.png'; // Adjust path
+import Navbar from './Navbar';
 
+const T = {
+    bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
+    text: '#0F1F3D', muted: '#6B7A99',
+    accent: '#1E4FD8', accentSoft: '#EBF0FF',
+    green: '#059669', greenSoft: '#D1FAE5',
+    rose: '#DC2626', roseSoft: '#FEE2E2',
+    amber: '#D97706', amberSoft: '#FEF3C7',
+};
+
+/* ─────────────────────────────────────────────────────────────
+   EmailInput defined OUTSIDE — prevents focus loss on re-render
+───────────────────────────────────────────────────────────── */
+const EmailInput = ({ value, onChange, disabled, hasError }) => {
+    const [focused, setFocused] = useState(false);
+    return (
+        <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 1, bgcolor: T.surface,
+            border: `1.5px solid ${hasError ? T.rose : focused ? T.accent : T.border}`,
+            borderRadius: '10px', px: 1.4, py: 0.9,
+            boxShadow: focused ? `0 0 0 3px ${hasError ? T.roseSoft : T.accentSoft}` : 'none',
+            transition: 'all 0.2s ease',
+        }}>
+            <EmailIcon sx={{ fontSize: 16, color: focused ? T.accent : T.muted, flexShrink: 0 }} />
+            <input
+                type="email" placeholder="Enter your admin email"
+                value={value} disabled={disabled} onChange={onChange}
+                onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+                style={{ border: 'none', outline: 'none', background: 'transparent', flex: 1, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.87rem', color: T.text }}
+            />
+        </Box>
+    );
+};
+
+/* ═══════════════════════════ MAIN PAGE ═══════════════════════════ */
 const ForgotPasswordPage = () => {
     const navigate = useNavigate();
-    const [email, setEmail] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState(false);
+    const [email,          setEmail]          = useState('');
+    const [loading,        setLoading]        = useState(false);
+    const [error,          setError]          = useState('');
+    const [success,        setSuccess]        = useState(false);
     const [submittedEmail, setSubmittedEmail] = useState('');
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!email.trim()) { setError('Please enter your email address'); return; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError('Please enter a valid email address'); return; }
 
-        if (!email.trim()) {
-            setError('Please enter your email address');
-            return;
-        }
-
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            setError('Please enter a valid email address');
-            return;
-        }
-
-        setLoading(true);
-        setError('');
-
+        setLoading(true); setError('');
         try {
-            // Simulate API call
             await new Promise(resolve => setTimeout(resolve, 1500));
-
-            setSuccess(true);
-            setSubmittedEmail(email);
-            setEmail('');
-        } catch (err) {
+            setSuccess(true); setSubmittedEmail(email); setEmail('');
+        } catch {
             setError('Failed to send reset email. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleBackToLogin = () => {
-        navigate('/login');
+        } finally { setLoading(false); }
     };
 
     return (
-        <>
-            {/* Navigation Bar */}
-            <Box
-                component="nav"
-                sx={{
-                    backgroundColor: 'primary.main',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    boxShadow: 3,
-                    py: 1.5,
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 1000,
-                }}
-            >
-                <Container maxWidth="lg">
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                        }}
-                    >
-                        {/* Logo Section */}
-                        <Box
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 2,
-                                textDecoration: 'none',
-                                cursor: 'pointer',
-                            }}
-                            onClick={() => navigate('/')}
-                        >
-                            <Box
-                                component="img"
-                                src={logoImage}
-                                alt="System Logo"
-                                sx={{
-                                    height: 40,
-                                    width: 'auto',
-                                    borderRadius: 1,
-                                    boxShadow: 2,
-                                }}
-                            />
-                            <Typography
-                                variant="h6"
-                                sx={{
-                                    color: 'white',
-                                    fontWeight: 'bold',
-                                    textShadow: '1px 1px 3px rgba(0,0,0,0.3)',
-                                }}
-                            >
-                                Judicial Admin System
-                            </Typography>
-                        </Box>
+        <Box sx={{ minHeight: '100vh', bgcolor: T.bg, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
+                @keyframes fadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+            `}</style>
 
-                        {/* Navigation Links */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <Link
-                                component="button"
-                                onClick={() => navigate('/')}
-                                sx={{
-                                    color: 'white',
-                                    fontWeight: 600,
-                                    fontSize: '0.9rem',
-                                    textDecoration: 'none',
-                                    '&:hover': { opacity: 0.9 },
-                                }}
-                            >
-                                Home
-                            </Link>
-                            <Link
-                                component="button"
-                                onClick={() => navigate('/login')}
-                                sx={{
-                                    color: 'white',
-                                    fontWeight: 600,
-                                    fontSize: '0.9rem',
-                                    textDecoration: 'none',
-                                    '&:hover': { opacity: 0.9 },
-                                }}
-                            >
-                                Login
-                            </Link>
-                            <Link
-                                component="button"
-                                onClick={() => navigate('/register')}
-                                sx={{
-                                    backgroundColor: 'white',
-                                    color: 'primary.main',
-                                    px: 2,
-                                    py: 0.5,
-                                    borderRadius: 20,
-                                    fontWeight: 600,
-                                    fontSize: '0.9rem',
-                                    textDecoration: 'none',
-                                    '&:hover': {
-                                        backgroundColor: 'rgba(255,255,255,0.9)',
-                                        transform: 'translateY(-1px)',
-                                        boxShadow: 2,
-                                    },
-                                    transition: 'all 0.3s ease',
-                                }}
-                            >
-                                Register
-                            </Link>
-                        </Box>
-                    </Box>
-                </Container>
-            </Box>
+            <Navbar />
 
-            {/* Main Forgot Password Content */}
-            <Container component="main" maxWidth="sm">
-                <Box
-                    sx={{
-                        marginTop: 8,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                    }}
-                >
-                    <Paper
-                        elevation={3}
-                        sx={{
-                            p: 4,
-                            width: '100%',
-                            borderRadius: 2,
-                        }}
-                    >
-                        {/* Back to Login */}
-                        <Button
-                            startIcon={<ArrowBackIcon />}
-                            onClick={handleBackToLogin}
-                            sx={{ mb: 3 }}
-                        >
+            <Container maxWidth="xs" sx={{ py: { xs: 5, md: 8 } }}>
+                <Box sx={{ bgcolor: T.surface, borderRadius: '16px', border: `1px solid ${T.border}`, overflow: 'hidden', boxShadow: '0 8px 32px rgba(15,31,61,0.08)', animation: 'fadeUp 0.45s ease-out' }}>
+                    <Box sx={{ height: 4, bgcolor: success ? T.green : T.accent }} />
+
+                    <Box sx={{ p: { xs: 3, md: 4 } }}>
+                        {/* Back button */}
+                        <Box component="button" type="button" onClick={() => navigate('/login')}
+                             sx={{ border: 'none', bgcolor: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 0.7, mb: 3, p: 0, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.8rem', fontWeight: 600, color: T.muted, '&:hover': { color: T.accent }, transition: 'color 0.15s' }}>
+                            <ArrowBackIcon sx={{ fontSize: 14 }} />
                             Back to Login
-                        </Button>
-
-                        {/* Header */}
-                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
-                            <Avatar sx={{ m: 1, bgcolor: 'primary.main', width: 56, height: 56 }}>
-                                <EmailIcon fontSize="large" />
-                            </Avatar>
-                            <Typography component="h1" variant="h4" sx={{ mt: 1, fontWeight: 'bold' }}>
-                                {success ? 'Check Your Email' : 'Forgot Password'}
-                            </Typography>
-                            <Typography variant="body2" color="textSecondary" sx={{ mt: 1, textAlign: 'center' }}>
-                                {success
-                                    ? `We've sent password reset instructions to:`
-                                    : 'Enter your email address and we\'ll send you instructions to reset your password.'}
-                            </Typography>
                         </Box>
 
                         {success ? (
-                            <>
-                                <Box sx={{ textAlign: 'center', mb: 4 }}>
-                                    <CheckCircleIcon color="success" sx={{ fontSize: 64, mb: 2 }} />
-                                    <Typography variant="h6" gutterBottom>
-                                        Reset Email Sent!
-                                    </Typography>
-                                    <Typography variant="body1" color="textSecondary" paragraph>
-                                        We've sent password reset instructions to:
-                                    </Typography>
-                                    <Typography variant="body1" sx={{ fontWeight: 'bold', mb: 3 }}>
+                            /* ── Success state ── */
+                            <Box sx={{ textAlign: 'center' }}>
+                                <Box sx={{ width: 58, height: 58, borderRadius: '16px', bgcolor: T.greenSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 2 }}>
+                                    <MarkEmailReadIcon sx={{ fontSize: 30, color: T.green }} />
+                                </Box>
+                                <Typography sx={{ fontWeight: 800, fontSize: '1.3rem', color: T.text, letterSpacing: '-0.3px', mb: 0.6, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                    Check Your Email
+                                </Typography>
+                                <Typography sx={{ fontSize: '0.82rem', color: T.muted, mb: 2.5, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                    We've sent password reset instructions to:
+                                </Typography>
+                                <Box sx={{ p: 1.8, borderRadius: '10px', bgcolor: T.accentSoft, border: `1px solid ${T.accent}22`, mb: 3 }}>
+                                    <Typography sx={{ fontWeight: 700, fontSize: '0.87rem', color: T.accent, fontFamily: 'JetBrains Mono, monospace' }}>
                                         {submittedEmail}
                                     </Typography>
-                                    <Typography variant="body2" color="textSecondary">
-                                        Please check your inbox and follow the instructions to reset your password.
+                                </Box>
+                                <Typography sx={{ fontSize: '0.79rem', color: T.muted, mb: 3.5, lineHeight: 1.6, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                    Check your inbox and follow the instructions. The reset link expires in 1 hour.
+                                </Typography>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>
+                                    <Box component="button" type="button" onClick={() => navigate('/login')}
+                                         sx={{ width: '100%', py: 1.3, border: 'none', borderRadius: '11px', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: '0.87rem', bgcolor: T.accent, color: '#fff', boxShadow: `0 4px 14px ${T.accent}44`, '&:hover': { bgcolor: '#1641B8' }, transition: 'background-color 0.15s' }}>
+                                        Return to Login
+                                    </Box>
+                                    <Box component="button" type="button" onClick={() => { setSuccess(false); setEmail(submittedEmail); }}
+                                         sx={{ width: '100%', py: 1.3, border: `1.5px solid ${T.border}`, borderRadius: '11px', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, fontSize: '0.87rem', bgcolor: T.bg, color: T.muted, '&:hover': { bgcolor: T.border }, transition: 'background-color 0.15s' }}>
+                                        Resend Email
+                                    </Box>
+                                </Box>
+                            </Box>
+                        ) : (
+                            /* ── Request form ── */
+                            <>
+                                <Box sx={{ textAlign: 'center', mb: 3.5 }}>
+                                    <Box sx={{ width: 52, height: 52, borderRadius: '14px', bgcolor: T.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 1.5 }}>
+                                        <LockIcon sx={{ fontSize: 24, color: T.accent }} />
+                                    </Box>
+                                    <Typography sx={{ fontWeight: 800, fontSize: '1.35rem', color: T.text, letterSpacing: '-0.3px', mb: 0.4, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                        Forgot Password?
+                                    </Typography>
+                                    <Typography sx={{ fontSize: '0.82rem', color: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                        Enter your email and we'll send reset instructions
                                     </Typography>
                                 </Box>
 
-                                <Box sx={{ mt: 3, textAlign: 'center' }}>
-                                    <Typography variant="body2" color="textSecondary" paragraph>
-                                        Didn't receive the email?
-                                    </Typography>
-                                    <Button
-                                        variant="outlined"
-                                        onClick={() => {
-                                            setSuccess(false);
-                                            setEmail(submittedEmail);
-                                        }}
-                                        sx={{ mr: 2 }}
-                                    >
-                                        Resend Email
-                                    </Button>
-                                    <Button
-                                        variant="contained"
-                                        onClick={handleBackToLogin}
-                                    >
-                                        Return to Login
-                                    </Button>
-                                </Box>
-                            </>
-                        ) : (
-                            <>
-                                {/* Error Message */}
                                 {error && (
-                                    <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
-                                        {error}
-                                    </Alert>
+                                    <Box sx={{ mb: 2.5, p: 1.8, borderRadius: '10px', bgcolor: T.roseSoft, border: `1px solid ${T.rose}22` }}>
+                                        <Typography sx={{ fontSize: '0.8rem', color: T.rose, fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{error}</Typography>
+                                    </Box>
                                 )}
 
-                                {/* Reset Form */}
-                                <Box component="form" onSubmit={handleSubmit}>
-                                    <TextField
-                                        margin="normal"
-                                        required
-                                        fullWidth
-                                        id="email"
-                                        label="Email Address"
-                                        name="email"
-                                        autoComplete="email"
-                                        autoFocus
+                                <Box component="form" onSubmit={handleSubmit} noValidate>
+                                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.75, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                        Email Address
+                                    </Typography>
+
+                                    <EmailInput
                                         value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
+                                        onChange={e => { setEmail(e.target.value); setError(''); }}
                                         disabled={loading}
-                                        InputProps={{
-                                            startAdornment: (
-                                                <InputAdornment position="start">
-                                                    <EmailIcon color="action" />
-                                                </InputAdornment>
-                                            ),
-                                        }}
-                                        helperText="Enter the email address associated with your admin account"
+                                        hasError={!!error}
                                     />
 
-                                    <Button
-                                        type="submit"
-                                        fullWidth
-                                        variant="contained"
-                                        sx={{ mt: 3, mb: 2, py: 1.5 }}
-                                        disabled={loading}
-                                    >
-                                        {loading ? (
-                                            <CircularProgress size={24} color="inherit" />
-                                        ) : (
-                                            'Send Reset Instructions'
-                                        )}
-                                    </Button>
-                                </Box>
-
-                                {/* Additional Info */}
-                                <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-                                    <Typography variant="body2" color="textSecondary">
-                                        <strong>Note:</strong> The reset link will expire in 1 hour for security reasons.
+                                    <Typography sx={{ fontSize: '0.71rem', color: T.muted, mt: 0.8, mb: 2.5, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                        Enter the email address associated with your admin account
                                     </Typography>
+
+                                    <Box component="button" type="submit" disabled={loading || !email.trim()}
+                                         sx={{ width: '100%', py: 1.4, border: 'none', borderRadius: '12px', cursor: loading || !email.trim() ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: '0.9rem', bgcolor: loading || !email.trim() ? T.border : T.accent, color: loading || !email.trim() ? T.muted : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, boxShadow: loading || !email.trim() ? 'none' : `0 4px 14px ${T.accent}44`, transition: 'all 0.2s ease', '&:hover': { bgcolor: loading || !email.trim() ? T.border : '#1641B8' } }}>
+                                        {loading ? <><CircularProgress size={16} sx={{ color: T.muted }} /> Sending…</> : 'Send Reset Instructions'}
+                                    </Box>
+
+                                    <Box sx={{ mt: 2.5, p: 1.7, borderRadius: '10px', bgcolor: T.amberSoft, border: `1px solid ${T.amber}22` }}>
+                                        <Typography sx={{ fontSize: '0.74rem', color: T.amber, fontWeight: 600, lineHeight: 1.55, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                            The reset link will expire in 1 hour for security purposes.
+                                        </Typography>
+                                    </Box>
                                 </Box>
                             </>
                         )}
-                    </Paper>
-
-                    {/* Footer */}
-                    <Box sx={{ mt: 4, textAlign: 'center' }}>
-                        <Typography variant="body2" color="textSecondary">
-                            Need help? Contact your system administrator.
-                        </Typography>
                     </Box>
                 </Box>
+
+                <Typography sx={{ textAlign: 'center', mt: 3, fontSize: '0.77rem', color: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                    Need help? Contact your system administrator.
+                </Typography>
             </Container>
-        </>
+        </Box>
     );
 };
 
