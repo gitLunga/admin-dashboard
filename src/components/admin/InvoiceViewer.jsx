@@ -4,13 +4,13 @@ import {
     Box, Grid, Typography, CircularProgress, IconButton,
 } from '@mui/material';
 import {
-    Download as DownloadIcon,
     Close as CloseIcon,
     PictureAsPdf as PdfIcon,
     Image as ImageIcon,
     Description as DocIcon,
     Receipt as ReceiptIcon,
     OpenInNew as OpenInNewIcon,
+    Download as DownloadIcon,  // ✅ Add this
 } from '@mui/icons-material';
 import {adminAPI} from '../../services/api';
 
@@ -177,25 +177,25 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
 
     const {icon: FileTypeIcon, color: fileColor, soft: fileSoft} = getFileConfig(invoiceInfo?.mime_type);
 
-    const ActionBtn = ({onClick, icon: Icon, label, primary, disabled}) => (
-        <Box component="button" type="button" onClick={onClick} disabled={disabled}
-             sx={{
-                 display: 'flex', alignItems: 'center', gap: 0.7,
-                 px: 1.8, py: 0.9, border: `1.5px solid ${primary ? T.accent : T.border}`,
-                 borderRadius: '10px', cursor: disabled ? 'not-allowed' : 'pointer',
-                 bgcolor: primary ? T.accent : T.surface, color: primary ? '#fff' : T.text,
-                 fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, fontSize: '0.82rem',
-                 boxShadow: primary ? `0 3px 10px ${T.accent}33` : 'none', transition: 'all 0.15s ease',
-                 '&:hover': {
-                     bgcolor: disabled ? undefined : primary ? '#1641B8' : T.bg,
-                     borderColor: disabled ? undefined : primary ? '#1641B8' : T.accent
-                 },
-             }}>
-            {disabled && primary ? <CircularProgress size={13} sx={{color: 'rgba(255,255,255,0.6)'}}/> :
-                <Icon sx={{fontSize: 14}}/>}
-            {disabled && primary ? 'Processing…' : label}
-        </Box>
-    );
+    // const ActionBtn = ({onClick, icon: Icon, label, primary, disabled}) => (
+    //     <Box component="button" type="button" onClick={onClick} disabled={disabled}
+    //          sx={{
+    //              display: 'flex', alignItems: 'center', gap: 0.7,
+    //              px: 1.8, py: 0.9, border: `1.5px solid ${primary ? T.accent : T.border}`,
+    //              borderRadius: '10px', cursor: disabled ? 'not-allowed' : 'pointer',
+    //              bgcolor: primary ? T.accent : T.surface, color: primary ? '#fff' : T.text,
+    //              fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, fontSize: '0.82rem',
+    //              boxShadow: primary ? `0 3px 10px ${T.accent}33` : 'none', transition: 'all 0.15s ease',
+    //              '&:hover': {
+    //                  bgcolor: disabled ? undefined : primary ? '#1641B8' : T.bg,
+    //                  borderColor: disabled ? undefined : primary ? '#1641B8' : T.accent
+    //              },
+    //          }}>
+    //         {disabled && primary ? <CircularProgress size={13} sx={{color: 'rgba(255,255,255,0.6)'}}/> :
+    //             <Icon sx={{fontSize: 14}}/>}
+    //         {disabled && primary ? 'Processing…' : label}
+    //     </Box>
+    // );
 
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth
@@ -425,7 +425,7 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                                          fontSize: '0.83rem',
                                          boxShadow: `0 4px 14px ${T.accent}44`
                                      }}>
-                                    <OpenInNewIcon sx={{fontSize: 15}}/>
+                                    <OpenInNewIcon sx={{fontSize: 14}}/>
                                     Open in new tab
                                 </Box>
                             </Box>
@@ -480,11 +480,63 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                      }}>
                     Close
                 </Box>
-                {invoiceInfo && blobUrl && (
+
+                {/* ✅ Open in Tab Button */}
+                {invoiceInfo && signedUrl && (
                     <>
-                        <ActionBtn onClick={handleView} icon={OpenInNewIcon} label="Open in tab" disabled={loading}/>
-                        <ActionBtn onClick={handleDownload} icon={DownloadIcon} label="Download" primary
-                                   disabled={loading}/>
+                        <Box component="button" type="button" onClick={handleView}
+                             disabled={loading}
+                             sx={{
+                                 display: 'flex',
+                                 alignItems: 'center',
+                                 gap: 0.7,
+                                 px: 1.8,
+                                 py: 0.9,
+                                 border: `1.5px solid ${T.border}`,
+                                 borderRadius: '10px',
+                                 cursor: loading ? 'not-allowed' : 'pointer',
+                                 bgcolor: T.surface,
+                                 color: T.text,
+                                 fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                 fontWeight: 600,
+                                 fontSize: '0.82rem',
+                                 '&:hover': {
+                                     bgcolor: T.bg,
+                                     borderColor: T.accent
+                                 },
+                                 transition: 'all 0.15s ease',
+                             }}>
+                            <OpenInNewIcon sx={{fontSize: 14}} />
+                            Open in tab
+                        </Box>
+
+                        {/* ✅ Download Button */}
+                        <Box component="button" type="button" onClick={handleDownload}
+                             disabled={loading}
+                             sx={{
+                                 display: 'flex',
+                                 alignItems: 'center',
+                                 gap: 0.7,
+                                 px: 1.8,
+                                 py: 0.9,
+                                 border: `1.5px solid ${T.accent}`,
+                                 borderRadius: '10px',
+                                 cursor: loading ? 'not-allowed' : 'pointer',
+                                 bgcolor: T.accent,
+                                 color: '#fff',
+                                 fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                 fontWeight: 600,
+                                 fontSize: '0.82rem',
+                                 boxShadow: `0 3px 10px ${T.accent}33`,
+                                 '&:hover': {
+                                     bgcolor: '#1641B8',
+                                     borderColor: '#1641B8'
+                                 },
+                                 transition: 'all 0.15s ease',
+                             }}>
+                            {loading ? <CircularProgress size={12} sx={{color: '#fff'}} /> : <DownloadIcon sx={{fontSize: 14}} />}
+                            Download
+                        </Box>
                     </>
                 )}
             </DialogActions>
