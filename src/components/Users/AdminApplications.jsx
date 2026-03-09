@@ -106,7 +106,7 @@ const AdminApplications = () => {
             const params = Object.keys(all).filter(k => all[k] && all[k] !== 'all').map(k => `${k}=${encodeURIComponent(all[k])}`);
             const q = params.length ? '?' + params.join('&') : '';
             const response = await deviceAPI.getAllApplications(q);
-            setApplications(response.data?.data || []);
+            setApplications(response.data?.data.applications || []);
             setError(null);
         } catch (err) {
             setError(err.message || 'Failed to fetch applications');

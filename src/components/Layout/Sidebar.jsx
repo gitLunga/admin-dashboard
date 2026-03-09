@@ -48,7 +48,7 @@ export const T = {
 
 const menuItems = [
     { text: 'Dashboard',          icon: <DashboardIcon />,    path: '/dashboard' },
-    { text: 'All Users',          icon: <PeopleIcon />,       path: '/users' },
+    // { text: 'All Users',          icon: <PeopleIcon />,       path: '/users' },
     { text: 'Applications',       icon: <PhoneAndroidIcon />, path: '/admin/applications' },
     { text: 'Client Users',       icon: <PersonIcon />,       path: '/client-users' },
     { text: 'Operational Users',  icon: <GroupIcon />,        path: '/operational-users' },
