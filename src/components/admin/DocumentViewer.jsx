@@ -82,41 +82,28 @@ const DocumentViewer = ({
         setError(null);
         setBlobUrl(null);
         try {
-            // ✅ API now returns JSON with signed URL, not blob
             const response = await adminAPI.viewDocument(documentId);
-
             console.log('📄 Document response:', response.data);
 
             if (!response.data.success || !response.data.url) {
                 throw new Error('Failed to get document URL');
             }
 
-            // ✅ Fetch the actual file from the signed URL
             const signedUrl = response.data.url;
             console.log('🔗 Signed URL:', signedUrl);
 
-            const fileResponse = await fetch(signedUrl);
-
-            if (!fileResponse.ok) {
-                throw new Error(`Failed to fetch document: ${fileResponse.statusText}`);
-            }
-
-            // ✅ Get the file as a blob
-            const blob = await fileResponse.blob();
-            console.log('✅ Blob loaded:', blob.size, 'bytes, type:', blob.type);
-
-            // ✅ Create object URL from the blob
-            const url = URL.createObjectURL(blob);
-            setBlobUrl(url);
+            // ✅ For PDFs and images, use the signed URL directly
+            // Don't fetch it - let the browser handle it
+            setBlobUrl(signedUrl);
 
         } catch (err) {
             console.error('❌ fetchDocument error:', err);
-            let msg = err?.message || 'Failed to load document';
-            setError(msg);
+            setError(err?.message || 'Failed to load document');
         } finally {
             setLoading(false);
         }
     }, [open, documentId]);
+
 
     useEffect(() => {
         if (open && documentId != null) {

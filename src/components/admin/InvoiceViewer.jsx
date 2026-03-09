@@ -75,45 +75,52 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
         try {
             setLoading(true);
             setError(null);
-            setSignedUrl(null);  // ✅ Clear signed URL
+            setSignedUrl(null);
             setBlobUrl(null);
 
-            console.log('Fetching invoice for user:', userId);
-
             const response = await adminAPI.viewInvoice(userId);
-            console.log('📄 Invoice response:', response.data);
 
             if (!response.data.success || !response.data.url) {
                 throw new Error('Failed to get invoice URL');
             }
 
-            // ✅ Store the signed URL
+            // ✅ Just store the signed URL
             setSignedUrl(response.data.url);
 
-            // Optionally: Fetch for preview inside dialog
-            const fileResponse = await fetch(response.data.url);
-            if (fileResponse.ok) {
-                const blob = await fileResponse.blob();
-                const url = URL.createObjectURL(blob);
-                setBlobUrl(url);  // For preview in dialog only
+            // Optional: For preview image, fetch it
+            if (response.data.mimeType?.includes('image')) {
+                try {
+                    const fileResponse = await fetch(response.data.url);
+                    if (fileResponse.ok) {
+                        const blob = await fileResponse.blob();
+                        const url = URL.createObjectURL(blob);
+                        setBlobUrl(url);
+                    }
+                } catch (err) {
+                    console.warn('Could not create preview:', err);
+                }
             }
 
             setInvoiceInfo({
-                file_name: response.data.fileName || `invoice_${userId}`,
+                file_name: response.data.fileName,
                 mime_type: response.data.mimeType,
                 file_size: null,
             });
-            console.log('✅ Invoice loaded:', response.data.fileName);
 
         } catch (err) {
             console.error('Invoice fetch error:', err);
-            setError(err.message || 'Invoice not found or not uploaded yet');
+            setError(err.message || 'Invoice not found');
         } finally {
             setLoading(false);
             setFetchAttempted(true);
         }
     }, [userId, open]);
 
+    const handleView = useCallback(() => {
+        if (signedUrl) {
+            window.open(signedUrl, '_blank');  // ✅ Open signed URL directly
+        }
+    }, [signedUrl]);
 
 
     useEffect(() => {
@@ -159,14 +166,14 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
     }, [signedUrl, invoiceInfo, userId]);
 
 
-    const handleView = useCallback(() => {
-        if (signedUrl) {
-            // ✅ Open the signed URL directly - works in new tab!
-            window.open(signedUrl, '_blank');
-        } else {
-            setError('Invoice not ready for viewing');
-        }
-    }, [signedUrl]);
+    // const handleView = useCallback(() => {
+    //     if (signedUrl) {
+    //         // ✅ Open the signed URL directly - works in new tab!
+    //         window.open(signedUrl, '_blank');
+    //     } else {
+    //         setError('Invoice not ready for viewing');
+    //     }
+    // }, [signedUrl]);
 
     const {icon: FileTypeIcon, color: fileColor, soft: fileSoft} = getFileConfig(invoiceInfo?.mime_type);
 
