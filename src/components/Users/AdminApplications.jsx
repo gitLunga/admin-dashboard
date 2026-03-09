@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Box, Paper, Typography,  IconButton, Chip, Alert,
+    Box, Paper, Typography, IconButton, Chip, Alert,
     CircularProgress, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, TablePagination, Avatar, Tooltip,
     FormControl, Select, MenuItem, Button, Grid,
-    Menu, Divider, useTheme, useMediaQuery,
+    Menu,   Divider, useTheme, useMediaQuery,
 } from '@mui/material';
 import {
     Search as SearchIcon, FilterList as FilterIcon, Refresh as RefreshIcon,
@@ -87,7 +87,7 @@ const AdminApplications = () => {
 
     const [applications, setApplications] = useState([]);
     const [loading, setLoading]           = useState(true);
-    const [statsLoading, setStatsLoading] = useState(false);
+
     const [error, setError]               = useState(null);
     const [searchTerm, setSearchTerm]     = useState('');
     const [page, setPage]                 = useState(0);
@@ -106,7 +106,7 @@ const AdminApplications = () => {
             const params = Object.keys(all).filter(k => all[k] && all[k] !== 'all').map(k => `${k}=${encodeURIComponent(all[k])}`);
             const q = params.length ? '?' + params.join('&') : '';
             const response = await deviceAPI.getAllApplications(q);
-            setApplications(response.data?.data.applications || []);
+            setApplications(response.data?.data || []);
             setError(null);
         } catch (err) {
             setError(err.message || 'Failed to fetch applications');
@@ -117,11 +117,9 @@ const AdminApplications = () => {
 
     const fetchStatistics = useCallback(async () => {
         try {
-            setStatsLoading(true);
             const response = await deviceAPI.getApplicationStatistics();
             setStats(response.data?.data || null);
         } catch { setStats(null); }
-        finally { setStatsLoading(false); }
     }, []);
 
     useEffect(() => { fetchApplications(); fetchStatistics(); }, [fetchApplications, fetchStatistics]);

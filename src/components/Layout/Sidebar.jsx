@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
     Drawer,
     List,
@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import {
     Dashboard as DashboardIcon,
+    People as PeopleIcon,
     Person as PersonIcon,
     Group as GroupIcon,
     BarChart as ChartIcon,
@@ -47,7 +48,7 @@ export const T = {
 
 const menuItems = [
     { text: 'Dashboard',          icon: <DashboardIcon />,    path: '/dashboard' },
-    // { text: 'All Users',          icon: <PeopleIcon />,       path: '/users' },
+    { text: 'All Users',          icon: <PeopleIcon />,       path: '/users' },
     { text: 'Applications',       icon: <PhoneAndroidIcon />, path: '/admin/applications' },
     { text: 'Client Users',       icon: <PersonIcon />,       path: '/client-users' },
     { text: 'Operational Users',  icon: <GroupIcon />,        path: '/operational-users' },
@@ -80,7 +81,7 @@ const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const navigate  = useNavigate();
     const location  = useLocation();
-    const [hovered, setHovered] = useState(null);
+
 
     const drawerContent = (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', bgcolor: T.surface }}>
@@ -133,8 +134,7 @@ const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
                                 button
                                 key={item.text}
                                 selected={active}
-                                onMouseEnter={() => setHovered(i)}
-                                onMouseLeave={() => setHovered(null)}
+
                                 onClick={() => { navigate(item.path); if (isMobile) onDrawerToggle(); }}
                                 sx={{
                                     borderRadius: '10px', mb: 0.5, px: 1.5, py: 1,
