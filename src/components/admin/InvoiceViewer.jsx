@@ -77,50 +77,85 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
             setFetchAttempted(false);
             console.log('Fetching invoice for user:', userId);
 
+            // ✅ viewInvoice now returns JSON with signed URL
             const response = await adminAPI.viewInvoice(userId);
 
-            const mimeType = response.headers['content-type'] || 'application/octet-stream';
-            // response.data is already a Blob — go through arrayBuffer to re-type correctly
-            // Wrapping Blob in new Blob([blob]) without arrayBuffer() corrupts the binary
-            const arrayBuffer = await response.data.arrayBuffer();
-            const blob = new Blob([arrayBuffer], {type: mimeType});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.target = '_blank';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-// Don't revoke immediately; the browser needs time
-            setTimeout(() => URL.revokeObjectURL(url), 100);
+            console.log('📄 Invoice response:', response.data);
 
-            if (urlRef.current) {
-                try {
-                    URL.revokeObjectURL(urlRef.current);
-                } catch {
-                }
+            // Check if it's an error blob response
+            if (response.data instanceof Blob) {
+                const text = await response.data.text();
+                const json = JSON.parse(text);
+                throw new Error(json.message || 'Failed to load invoice');
             }
-            urlRef.current = url;
-            setBlobUrl(url);
 
-            const cd = response.headers['content-disposition'] || '';
-            const nameMatch = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-            const fileName = nameMatch ? nameMatch[1].replace(/['"]/g, '') : `invoice_${userId}`;
+            // ✅ If still getting blob response (old endpoint), handle it
+            if (response.headers['content-type']?.includes('application/json')) {
+                // This is JSON - it's the new signed URL response
+                const signedUrl = response.data.url;
+                if (!signedUrl) {
+                    throw new Error('No signed URL received');
+                }
 
-            setInvoiceInfo({
-                file_name: fileName,
-                mime_type: mimeType,
-                file_size: parseInt(response.headers['content-length'] || blob.size, 10),
-            });
-            console.log('Invoice loaded:', fileName, mimeType);
+                // Fetch the actual file from signed URL
+                const fileResponse = await fetch(signedUrl);
+                if (!fileResponse.ok) {
+                    throw new Error(`Failed to fetch invoice: ${fileResponse.statusText}`);
+                }
+
+                const blob = await fileResponse.blob();
+                const mimeType = blob.type || 'application/pdf';
+                const url = URL.createObjectURL(blob);
+
+                if (urlRef.current) {
+                    try {
+                        URL.revokeObjectURL(urlRef.current);
+                    } catch {}
+                }
+                urlRef.current = url;
+                setBlobUrl(url);
+
+                setInvoiceInfo({
+                    file_name: response.data.fileName || `invoice_${userId}`,
+                    mime_type: mimeType,
+                    file_size: blob.size,
+                });
+                console.log('✅ Invoice loaded:', response.data.fileName, mimeType);
+            } else {
+                // Old blob response - handle it the old way
+                const mimeType = response.headers['content-type'] || 'application/octet-stream';
+                const arrayBuffer = await response.data.arrayBuffer();
+                const blob = new Blob([arrayBuffer], { type: mimeType });
+                const url = URL.createObjectURL(blob);
+
+                if (urlRef.current) {
+                    try {
+                        URL.revokeObjectURL(urlRef.current);
+                    } catch {}
+                }
+                urlRef.current = url;
+                setBlobUrl(url);
+
+                const cd = response.headers['content-disposition'] || '';
+                const nameMatch = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                const fileName = nameMatch ? nameMatch[1].replace(/['"]/g, '') : `invoice_${userId}`;
+
+                setInvoiceInfo({
+                    file_name: fileName,
+                    mime_type: mimeType,
+                    file_size: blob.size,
+                });
+                console.log('✅ Invoice loaded:', fileName, mimeType);
+            }
         } catch (err) {
             console.error('Invoice fetch error:', err);
-            setError(err.response?.data?.message || err.message || 'Invoice not found or not uploaded yet');
+            setError(err.message || 'Invoice not found or not uploaded yet');
         } finally {
             setLoading(false);
             setFetchAttempted(true);
         }
     }, [userId, open]);
+
 
     useEffect(() => {
         if (open && userId) {
@@ -144,26 +179,34 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
     const handleDownload = useCallback(async () => {
         try {
             setLoading(true);
-            if (blobUrl && invoiceInfo) {
+
+            // ✅ Try to get signed URL first (new approach)
+            const response = await adminAPI.downloadInvoice(userId);
+
+            console.log('Invoice download response:', response.data);
+
+            // If it's JSON with signed URL
+            if (typeof response.data === 'object' && response.data.url) {
+                const link = document.createElement('a');
+                link.href = response.data.url;
+                link.setAttribute('download', response.data.fileName || `invoice_${userId}`);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+            }
+            // Old blob response
+            else if (response.data instanceof Blob && blobUrl) {
                 const link = document.createElement('a');
                 link.href = blobUrl;
-                link.setAttribute('download', invoiceInfo.file_name || `invoice_${userId}`);
+                link.setAttribute('download', invoiceInfo?.file_name || `invoice_${userId}`);
                 document.body.appendChild(link);
                 link.click();
                 link.remove();
             } else {
-                const response = await adminAPI.downloadInvoice(userId);
-                const dlArrayBuffer = await response.data.arrayBuffer();
-                const url = window.URL.createObjectURL(new Blob([dlArrayBuffer]));
-                const link = document.createElement('a');
-                link.href = url;
-                link.setAttribute('download', `invoice_${userId}`);
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-                window.URL.revokeObjectURL(url);
+                throw new Error('Invalid response');
             }
         } catch (err) {
+            console.error('Download error:', err);
             setError('Failed to download invoice');
         } finally {
             setLoading(false);

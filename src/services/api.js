@@ -78,12 +78,10 @@ export const adminAPI = {
 
 // Download any document by document ID
     downloadDocument: (documentId) => api.get(`/documents/${documentId}/download`, {
-        responseType: 'blob',
     }),
 
 // View any document inline
     viewDocument: (documentId) => api.get(`/documents/${documentId}/view`, {
-        responseType: 'blob',
     }),
 
 // Update document status

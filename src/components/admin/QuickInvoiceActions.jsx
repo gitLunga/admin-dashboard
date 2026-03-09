@@ -61,34 +61,48 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
         try {
             setLoading(true);
             handleMenuClose();
+
+            // ✅ Get signed URL from backend
             const response = await adminAPI.downloadInvoice(userId);
-            const url  = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href  = url;
-            link.setAttribute('download', fileName || 'invoice.pdf');
-            document.body.appendChild(link); link.click(); link.remove();
-            window.URL.revokeObjectURL(url);
-            showToast('Invoice downloaded successfully', 'success');
+
+            if (response.data.success && response.data.url) {
+                // ✅ Use the signed URL directly
+                const link = document.createElement('a');
+                link.href = response.data.url;
+                link.setAttribute('download', response.data.fileName || 'invoice.pdf');
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+
+                showToast('Invoice downloaded successfully', 'success');
+            }
         } catch (error) {
             console.error('Download error:', error);
             showToast('Failed to download invoice', 'error');
-        } finally { setLoading(false); }
+        } finally {
+            setLoading(false);
+        }
     };
 
-    /* ── handleView — API call unchanged ── */
     const handleView = async () => {
         try {
             setLoading(true);
             handleMenuClose();
+
+            // ✅ Get signed URL from backend
             const response = await adminAPI.viewInvoice(userId);
-            const blob = new Blob([response.data], { type: response.headers['content-type'] });
-            const url  = window.URL.createObjectURL(blob);
-            window.open(url, '_blank');
-            showToast('Invoice opened in new tab', 'info');
+
+            if (response.data.success && response.data.url) {
+                // ✅ Open the signed URL directly
+                window.open(response.data.url, '_blank');
+                showToast('Invoice opened in new tab', 'info');
+            }
         } catch (error) {
             console.error('View error:', error);
             showToast('Failed to view invoice', 'error');
-        } finally { setLoading(false); }
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
