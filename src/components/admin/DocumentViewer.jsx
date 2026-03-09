@@ -1,358 +1,382 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+// components/admin/DocumentViewer.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+// Full-screen-ish MUI Dialog that fetches a document from the backend
+// (which proxies it from Supabase Storage) and renders it inline.
+//
+// PDFs  → rendered in an <iframe>
+// Images → rendered in an <img>
+// Other  → shows a download prompt
+// ─────────────────────────────────────────────────────────────────────────────
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Dialog, DialogContent, DialogActions,
-    Box, Grid, Typography, CircularProgress, IconButton,
+    Dialog, DialogTitle, DialogContent,
+    Box, Typography, IconButton, Button, CircularProgress,
+    Chip, Alert,
 } from '@mui/material';
 import {
-    Download as DownloadIcon,
     Close as CloseIcon,
+    Download as DownloadIcon,
     PictureAsPdf as PdfIcon,
-    Description as DocIcon,
     Image as ImageIcon,
-    Description,
-    OpenInNew as OpenInNewIcon,
-    InsertDriveFile as FileIcon,
+    Description as DocIcon,
+    CheckCircle as VerifiedIcon,
+    Pending as PendingIcon,
+    Block as RejectedIcon,
 } from '@mui/icons-material';
 import { adminAPI } from '../../services/api';
 
-/* ── Design tokens ── */
+// ── Design tokens ─────────────────────────────────────────────────────────────
 const T = {
     bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
     text: '#0F1F3D', muted: '#6B7A99',
+    navy: '#0F1F3D',
     accent: '#1E4FD8', accentSoft: '#EBF0FF',
     green: '#059669', greenSoft: '#D1FAE5',
     amber: '#D97706', amberSoft: '#FEF3C7',
     rose: '#DC2626', roseSoft: '#FEE2E2',
-    purple: '#7C3AED', purpleSoft: '#EDE9FE',
 };
 
-/* ── Status badge ── */
-const StatusBadge = ({ status }) => {
-    const map = {
-        Verified: { color: T.green, soft: T.greenSoft },
-        Rejected: { color: T.rose,  soft: T.roseSoft  },
-        Pending:  { color: T.amber, soft: T.amberSoft  },
-    };
-    const { color, soft } = map[status] || { color: T.muted, soft: T.bg };
-    return (
-        <Box sx={{
-            display: 'inline-flex', alignItems: 'center', gap: 0.6,
-            px: 1.1, py: 0.35, borderRadius: '20px',
-            bgcolor: soft, border: `1px solid ${color}28`,
-        }}>
-            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: color }} />
-            <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                {status || 'Unknown'}
-            </Typography>
-        </Box>
-    );
+const STATUS_META = {
+    Verified: { color: T.green, soft: T.greenSoft, Icon: VerifiedIcon, label: 'Verified'  },
+    Pending:  { color: T.amber, soft: T.amberSoft, Icon: PendingIcon,  label: 'Pending'   },
+    Rejected: { color: T.rose,  soft: T.roseSoft,  Icon: RejectedIcon, label: 'Rejected'  },
 };
 
-/* ── Info row ── */
-const InfoItem = ({ label, value }) => (
-    <Box>
-        <Typography sx={{
-            fontSize: '0.67rem', fontWeight: 700, color: T.muted,
-            textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.4,
-            fontFamily: 'Plus Jakarta Sans, sans-serif',
-        }}>
-            {label}
-        </Typography>
-        <Typography sx={{
-            fontSize: '0.87rem', fontWeight: 600, color: T.text,
-            fontFamily: value && /^\d/.test(String(value)) ? 'JetBrains Mono, monospace' : 'Plus Jakarta Sans, sans-serif',
-        }}>
-            {value || '—'}
-        </Typography>
-    </Box>
-);
-
-/* ── File type config ── */
-const getFileConfig = (fileName) => {
-    if (!fileName) return { icon: FileIcon, color: T.muted, soft: T.bg, label: 'File' };
-    const ext = fileName.split('.').pop()?.toLowerCase();
-    if (ext === 'pdf')                                   return { icon: PdfIcon,   color: T.rose,   soft: T.roseSoft,   label: 'PDF'   };
-    if (['jpg','jpeg','png','gif','bmp','webp'].includes(ext)) return { icon: ImageIcon, color: T.accent, soft: T.accentSoft, label: 'Image' };
-    if (['doc','docx'].includes(ext))                    return { icon: DocIcon,   color: T.purple, soft: T.purpleSoft, label: 'Word'  };
-    return { icon: Description, color: T.muted, soft: T.bg, label: 'File' };
+const DOC_LABELS = {
+    ID:                 'Identity Document',
+    Payslip:            'Payslip',
+    Proof_of_Residence: 'Proof of Residence',
+    Invoice:            'Invoice',
 };
 
-/* ── Helpers ── */
-const formatFileSize = (bytes) => {
-    if (!bytes) return 'Unknown';
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024, sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
-const formatDocumentType = (type) => {
-    if (!type) return 'Document';
-    return type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-};
+// ── Helper ────────────────────────────────────────────────────────────────────
+function getFileType(fileName) {
+    if (!fileName) return 'other';
+    const ext = fileName.split('.').pop().toLowerCase();
+    if (ext === 'pdf')                    return 'pdf';
+    if (['jpg','jpeg','png','gif','webp'].includes(ext)) return 'image';
+    return 'other';
+}
 
-/* ═══════════════════════════════ COMPONENT ═══════════════════════════════ */
-const DocumentViewer = ({ open, documentId, fileName, documentType, documentStatus, onClose }) => {
+// ── Main component ────────────────────────────────────────────────────────────
+const DocumentViewer = ({
+                            open,
+                            onClose,
+                            documentId,
+                            fileName,
+                            documentType,
+                            documentStatus,
+                        }) => {
+    const [blobUrl,   setBlobUrl]   = useState(null);
+    const [loading,   setLoading]   = useState(false);
+    const [error,     setError]     = useState(null);
+    const [downloading, setDownloading] = useState(false);
 
-    /* ── All state & refs unchanged ── */
-    const [loading,        setLoading]        = useState(false);
-    const [documentInfo,   setDocumentInfo]   = useState(null);
-    const [error,          setError]          = useState(null);
-    const [blobUrl,        setBlobUrl]        = useState(null);
-    const [fetchAttempted, setFetchAttempted] = useState(false);
-    const urlRef = useRef(null);
+    const fileType  = getFileType(fileName);
+    const statusMeta = STATUS_META[documentStatus] || { color: T.muted, soft: '#F1F5F9', label: documentStatus };
 
-    /* ── fetchDocument — API call unchanged ── */
+    // Fetch the document blob when the dialog opens
     const fetchDocument = useCallback(async () => {
-        if (!documentId || !open) return null;
+        if (!open || documentId == null) return;
+        setLoading(true);
+        setError(null);
+        setBlobUrl(null);
         try {
-            setLoading(true); setError(null); setFetchAttempted(false);
-            console.log('📄 Fetching document:', documentId);
+            const response = await adminAPI.viewDocument(documentId);
+            const contentType = response.headers['content-type'] || 'application/octet-stream';
 
-            const response = await adminAPI.viewDocument(documentId, { responseType: 'blob' });
+            // If server returned an error but responseType was blob, data is a Blob — read it as text
+            if (contentType.includes('application/json')) {
+                const text = await response.data.text?.();
+                const json = JSON.parse(text || '{}');
+                throw new Error(json.message || 'Failed to load document');
+            }
 
-            const blob = new Blob([response.data], {
-                type: response.headers['content-type'] || 'application/octet-stream',
-            });
-            const url = URL.createObjectURL(blob);
-            if (urlRef.current) { try { URL.revokeObjectURL(urlRef.current); } catch {} }
-            urlRef.current = url;
+          //  setMimeType(contentType);
+            // response.data is already a Blob — extract its bytes and re-type with correct MIME
+            // Wrapping a Blob inside new Blob([blob]) corrupts it; must go through arrayBuffer
+            const arrayBuffer = await response.data.arrayBuffer();
+            const typedBlob = new Blob([arrayBuffer], { type: contentType });
+            const url = URL.createObjectURL(typedBlob);
             setBlobUrl(url);
-            setDocumentInfo({
-                file_name:       fileName || 'document.pdf',
-                document_type:   documentType,
-                document_status: documentStatus,
-                mime_type:       response.headers['content-type'] || 'application/octet-stream',
-                file_size:       response.headers['content-length'] || blob.size,
-            });
-            console.log('✅ Document loaded successfully');
-            return url;
         } catch (err) {
-            console.error('❌ Error fetching document:', err);
-            setError(err.message || 'Failed to load document');
-            return null;
-        } finally { setLoading(false); setFetchAttempted(true); }
-    }, [documentId, open, fileName, documentType, documentStatus]);
+            console.error('❌ fetchDocument error:', err);
+            // When responseType=blob, error response body is also a Blob — try to read it
+            let msg = err?.message || 'Failed to load document';
+            if (err?.response?.data instanceof Blob) {
+                try {
+                    const text = await err.response.data.text();
+                    const json = JSON.parse(text);
+                    msg = json.message || msg;
+                } catch {}
+            }
+            setError(msg);
+        } finally {
+            setLoading(false);
+        }
+    }, [open, documentId]);
 
     useEffect(() => {
-        if (open && documentId) { fetchDocument(); }
+        if (open && documentId != null) {
+            fetchDocument();
+        }
         return () => {
-            if (urlRef.current) { try { URL.revokeObjectURL(urlRef.current); } catch {} urlRef.current = null; }
-            setBlobUrl(null); setDocumentInfo(null); setError(null); setFetchAttempted(false);
+            // Revoke blob URL on close/unmount to free memory
+            setBlobUrl(prev => {
+                if (prev) { try { URL.revokeObjectURL(prev); } catch {} }
+                return null;
+            });
         };
     }, [open, documentId, fetchDocument]);
 
-    /* ── handleDownload — API call unchanged ── */
     const handleDownload = async () => {
         try {
-            setLoading(true);
-            if (blobUrl) {
-                const link = document.createElement('a');
-                link.href = blobUrl;
-                link.setAttribute('download', fileName || 'document.pdf');
-                document.body.appendChild(link); link.click(); link.remove();
-            } else {
-                const response = await adminAPI.downloadDocument(documentId, { responseType: 'blob' });
-                const url  = window.URL.createObjectURL(new Blob([response.data]));
-                const link = document.createElement('a');
-                link.href  = url;
-                link.setAttribute('download', fileName || 'document.pdf');
-                document.body.appendChild(link); link.click(); link.remove();
-                window.URL.revokeObjectURL(url);
-            }
+            setDownloading(true);
+            const response = await adminAPI.downloadDocument(documentId);
+            const dlContentType = response.headers['content-type'] || 'application/octet-stream';
+            const dlArrayBuffer = await response.data.arrayBuffer();
+            const blob = new Blob([dlArrayBuffer], { type: dlContentType });
+            const url  = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href     = url;
+            link.download = fileName || `document_${documentId}`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
         } catch (err) {
-            console.error('Download error:', err);
-            setError('Failed to download document');
-        } finally { setLoading(false); }
+            console.error('❌ Download failed:', err);
+        } finally {
+            setDownloading(false);
+        }
     };
 
-    const handleView = () => {
-        if (blobUrl) { window.open(blobUrl, '_blank'); }
-        else         { setError('Document not ready for viewing'); }
+    const handleClose = () => {
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+        setBlobUrl(null);
+        setError(null);
+        onClose();
     };
 
-    /* ─── Render ─── */
-    const { icon: FileTypeIcon, color: fileColor, soft: fileSoft } = getFileConfig(fileName);
-
-    const ActionBtn = ({ onClick, icon: Icon, label, primary, disabled }) => (
-        <Box
-            component="button" type="button"
-            onClick={onClick} disabled={disabled}
-            sx={{
-                display: 'flex', alignItems: 'center', gap: 0.7,
-                px: 1.8, py: 0.9, border: `1.5px solid ${primary ? T.accent : T.border}`,
-                borderRadius: '10px', cursor: disabled ? 'not-allowed' : 'pointer',
-                bgcolor: primary ? T.accent : T.surface,
-                color:   primary ? '#fff'    : T.text,
-                fontFamily: 'Plus Jakarta Sans, sans-serif',
-                fontWeight: 600, fontSize: '0.82rem',
-                boxShadow: primary ? `0 3px 10px ${T.accent}33` : 'none',
-                transition: 'all 0.15s ease',
-                '&:hover': {
-                    bgcolor: disabled ? undefined : primary ? '#1641B8' : T.bg,
-                    borderColor: disabled ? undefined : primary ? '#1641B8' : T.accent,
-                },
-            }}
-        >
-            {disabled && primary
-                ? <CircularProgress size={13} sx={{ color: 'rgba(255,255,255,0.6)' }} />
-                : <Icon sx={{ fontSize: 14 }} />
-            }
-            {disabled && primary ? 'Processing…' : label}
-        </Box>
-    );
+    const docLabel = DOC_LABELS[documentType] || documentType || 'Document';
 
     return (
         <Dialog
-            open={open} onClose={onClose} maxWidth="md" fullWidth
+            open={open}
+            onClose={handleClose}
+            maxWidth="md"
+            fullWidth
             PaperProps={{
                 sx: {
-                    borderRadius: '16px', bgcolor: T.bg,
+                    borderRadius: '16px',
                     border: `1px solid ${T.border}`,
-                    boxShadow: '0 20px 60px rgba(15,31,61,0.15)',
-                    overflow: 'hidden',
+                    boxShadow: '0 24px 60px rgba(15,31,61,0.16)',
+                    bgcolor: T.bg,
+                    height: '90vh',
+                    display: 'flex',
+                    flexDirection: 'column',
                 },
             }}
         >
-            {/* ── Custom title bar ── */}
-            <Box sx={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                px: 3, py: 2, bgcolor: T.surface, borderBottom: `1px solid ${T.border}`,
-            }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    <Box sx={{ width: 38, height: 38, borderRadius: '10px', bgcolor: fileSoft, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <FileTypeIcon sx={{ fontSize: 20, color: fileColor }} />
-                    </Box>
-                    <Box>
-                        <Typography sx={{ fontWeight: 700, fontSize: '0.97rem', color: T.text, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                            {formatDocumentType(documentType)}
-                        </Typography>
-                        {fileName && (
-                            <Typography sx={{ fontSize: '0.72rem', color: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+            {/* Header */}
+            <DialogTitle sx={{ p: 0 }}>
+                <Box sx={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    px: 3, py: 2, bgcolor: T.surface, borderBottom: `1px solid ${T.border}`,
+                }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        {/* Doc type icon */}
+                        <Box sx={{
+                            width: 36, height: 36, borderRadius: '10px',
+                            bgcolor: fileType === 'pdf' ? T.roseSoft : fileType === 'image' ? T.accentSoft : T.bg,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            border: `1px solid ${T.border}`,
+                        }}>
+                            {fileType === 'pdf'   && <PdfIcon   sx={{ fontSize: 18, color: T.rose   }} />}
+                            {fileType === 'image' && <ImageIcon sx={{ fontSize: 18, color: T.accent }} />}
+                            {fileType === 'other' && <DocIcon   sx={{ fontSize: 18, color: T.muted  }} />}
+                        </Box>
+
+                        <Box>
+                            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: T.text }}>
+                                {docLabel}
+                            </Typography>
+                            <Typography sx={{ fontSize: '0.72rem', color: T.muted }}>
                                 {fileName}
                             </Typography>
-                        )}
+                        </Box>
+
+                        {/* Status chip */}
+                        <Chip
+                            label={statusMeta.label}
+                            size="small"
+                            sx={{
+                                height: 22, fontSize: '0.68rem', fontWeight: 700,
+                                bgcolor: statusMeta.soft, color: statusMeta.color,
+                                border: `1px solid ${statusMeta.color}28`,
+                            }}
+                        />
+                    </Box>
+
+                    {/* Actions */}
+                    <Box sx={{ display: 'flex', gap: 0.8 }}>
+                        <Button
+                            size="small"
+                            startIcon={downloading ? <CircularProgress size={12} /> : <DownloadIcon />}
+                            onClick={handleDownload}
+                            disabled={downloading || loading || !!error}
+                            sx={{
+                                borderRadius: '8px', textTransform: 'none',
+                                fontWeight: 600, fontSize: '0.78rem',
+                                fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                bgcolor: T.greenSoft, color: T.green,
+                                border: `1px solid ${T.green}28`,
+                                '&:hover': { bgcolor: T.green, color: '#fff' },
+                                '&.Mui-disabled': { opacity: 0.5 },
+                            }}
+                        >
+                            Download
+                        </Button>
+                        <IconButton
+                            size="small"
+                            onClick={handleClose}
+                            sx={{
+                                borderRadius: '8px', color: T.muted,
+                                '&:hover': { bgcolor: T.bg, color: T.rose },
+                            }}
+                        >
+                            <CloseIcon sx={{ fontSize: 18 }} />
+                        </IconButton>
                     </Box>
                 </Box>
-                <IconButton
-                    onClick={onClose} size="small"
-                    sx={{ color: T.muted, bgcolor: T.bg, border: `1px solid ${T.border}`, borderRadius: '8px', '&:hover': { bgcolor: T.roseSoft, color: T.rose, borderColor: T.rose } }}
-                >
-                    <CloseIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-            </Box>
+            </DialogTitle>
 
-            <DialogContent sx={{ p: 3 }}>
-                {loading ? (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 6, gap: 2 }}>
-                        <CircularProgress size={36} sx={{ color: T.accent }} />
-                        <Typography sx={{ fontSize: '0.82rem', color: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+            {/* Content */}
+            <DialogContent sx={{ p: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                {loading && (
+                    <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 2 }}>
+                        <CircularProgress sx={{ color: T.accent }} />
+                        <Typography sx={{ fontSize: '0.82rem', color: T.muted }}>
                             Loading document…
                         </Typography>
                     </Box>
-                ) : error ? (
-                    <Box sx={{ p: 2.5, borderRadius: '12px', bgcolor: T.roseSoft, border: `1px solid ${T.rose}22` }}>
-                        <Typography sx={{ fontSize: '0.85rem', color: T.rose, fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                            {error}
-                        </Typography>
-                        <Box component="button" type="button" onClick={() => setError(null)}
-                             sx={{ mt: 1, border: 'none', bgcolor: 'transparent', cursor: 'pointer', fontSize: '0.76rem', color: T.rose, fontFamily: 'Plus Jakarta Sans, sans-serif', p: 0, textDecoration: 'underline' }}>
-                            Dismiss
-                        </Box>
-                    </Box>
-                ) : documentInfo ? (
-                    <Box>
-                        {/* File info card */}
-                        <Box sx={{ p: 2.5, borderRadius: '12px', bgcolor: T.surface, border: `1px solid ${T.border}`, mb: 2.5 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                                <Typography sx={{ fontWeight: 700, fontSize: '0.87rem', color: T.text, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                                    File Information
-                                </Typography>
-                                <StatusBadge status={documentInfo.document_status} />
-                            </Box>
-                            <Box sx={{ height: 1, bgcolor: T.border, mb: 2 }} />
-                            <Grid container spacing={2.5}>
-                                <Grid item xs={6} sm={4}>
-                                    <InfoItem label="Document Type" value={formatDocumentType(documentInfo.document_type)} />
-                                </Grid>
-                                <Grid item xs={6} sm={4}>
-                                    <InfoItem label="File Size" value={formatFileSize(documentInfo.file_size)} />
-                                </Grid>
-                                <Grid item xs={6} sm={4}>
-                                    <InfoItem label="File Type" value={documentInfo.mime_type?.split('/')[1]?.toUpperCase()} />
-                                </Grid>
-                            </Grid>
-                        </Box>
+                )}
 
-                        {/* Preview area */}
-                        {blobUrl && documentInfo.mime_type?.includes('image') ? (
-                            <Box>
-                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.8, mb: 1.2, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                                    Preview
-                                </Typography>
+                {error && !loading && (
+                    <Box sx={{ p: 3 }}>
+                        <Alert
+                            severity="error"
+                            sx={{ borderRadius: '10px', fontSize: '0.83rem' }}
+                            action={
+                                <Button size="small" onClick={fetchDocument} sx={{ textTransform: 'none', fontWeight: 600 }}>
+                                    Retry
+                                </Button>
+                            }
+                        >
+                            {error}
+                        </Alert>
+                    </Box>
+                )}
+
+                {!loading && !error && blobUrl && (
+                    <>
+                        {/* PDF — Chrome blocks inline PDF blob rendering; open in new tab instead */}
+                        {fileType === 'pdf' && (
+                            <Box sx={{
+                                flex: 1, display: 'flex', alignItems: 'center',
+                                justifyContent: 'center', flexDirection: 'column',
+                                gap: 2.5, p: 4, bgcolor: '#0F1F3D',
+                            }}>
                                 <Box sx={{
-                                    border: `1px solid ${T.border}`, borderRadius: '12px',
-                                    p: 2, display: 'flex', justifyContent: 'center',
-                                    bgcolor: T.surface, maxHeight: 400, overflow: 'auto',
+                                    width: 64, height: 64, borderRadius: '16px',
+                                    bgcolor: 'rgba(220,38,38,0.15)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 }}>
-                                    <img
-                                        src={blobUrl} alt="Document preview"
-                                        style={{ maxWidth: '100%', maxHeight: '380px', objectFit: 'contain', borderRadius: '8px' }}
-                                    />
+                                    <PdfIcon sx={{ fontSize: 34, color: '#ef4444' }} />
                                 </Box>
-                            </Box>
-                        ) : blobUrl && documentInfo.mime_type?.includes('pdf') ? (
-                            <Box>
-                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.8, mb: 1.2, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                                    PDF Preview
-                                </Typography>
-                                <Box sx={{ border: `1px solid ${T.border}`, borderRadius: '12px', height: 420, overflow: 'hidden' }}>
-                                    <iframe
-                                        src={`${blobUrl}#toolbar=0&navpanes=0`}
-                                        title="PDF Preview" width="100%" height="100%"
-                                        style={{ border: 'none' }}
-                                    />
+                                <Box sx={{ textAlign: 'center' }}>
+                                    <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: '#fff', mb: 0.5, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                        {fileName}
+                                    </Typography>
+                                    <Typography sx={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                        PDF document ready — open in a new tab to view
+                                    </Typography>
                                 </Box>
-                            </Box>
-                        ) : (
-                            <Box sx={{ p: 2.5, borderRadius: '12px', bgcolor: T.accentSoft, border: `1px solid ${T.accent}22` }}>
-                                <Typography sx={{ fontSize: '0.83rem', color: T.accent, fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                                    This file type cannot be previewed inline. Use "View" to open in a new tab.
-                                </Typography>
+                                <Box sx={{ display: 'flex', gap: 1.5 }}>
+                                    <button
+                                        onClick={() => window.open(blobUrl, '_blank')}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 6,
+                                            padding: '10px 22px', borderRadius: 10,
+                                            background: '#1E4FD8', color: '#fff',
+                                            border: 'none', cursor: 'pointer',
+                                            fontWeight: 700, fontSize: '0.85rem',
+                                            fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                            boxShadow: '0 4px 14px rgba(30,79,216,0.4)',
+                                        }}
+                                    >
+                                        Open in new tab
+                                    </button>
+                                </Box>
                             </Box>
                         )}
-                    </Box>
-                ) : fetchAttempted ? (
-                    <Box sx={{ p: 2.5, borderRadius: '12px', bgcolor: T.amberSoft, border: `1px solid ${T.amber}22` }}>
-                        <Typography sx={{ fontSize: '0.83rem', color: T.amber, fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                            No document information available.
-                        </Typography>
-                    </Box>
-                ) : null}
-            </DialogContent>
 
-            {/* ── Actions ── */}
-            <DialogActions sx={{ px: 3, py: 2, bgcolor: T.surface, borderTop: `1px solid ${T.border}`, gap: 1 }}>
-                <Box
-                    component="button" type="button" onClick={onClose}
-                    sx={{
-                        border: `1.5px solid ${T.border}`, borderRadius: '10px',
-                        px: 1.8, py: 0.9, cursor: 'pointer',
-                        bgcolor: T.bg, color: T.muted,
-                        fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, fontSize: '0.82rem',
-                        mr: 'auto',
-                        '&:hover': { bgcolor: T.border }, transition: 'background-color 0.15s',
-                    }}
-                >
-                    Close
-                </Box>
+                        {/* Image */}
+                        {fileType === 'image' && (
+                            <Box sx={{
+                                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                p: 2, bgcolor: '#1a1a2e', overflow: 'auto',
+                            }}>
+                                <img
+                                    src={blobUrl}
+                                    alt={fileName}
+                                    style={{
+                                        maxWidth: '100%', maxHeight: '100%',
+                                        objectFit: 'contain', borderRadius: 8,
+                                        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                                    }}
+                                />
+                            </Box>
+                        )}
 
-                {documentInfo && blobUrl && (
-                    <>
-                        <ActionBtn onClick={handleView}     icon={OpenInNewIcon}  label="Open in tab" disabled={loading} />
-                        <ActionBtn onClick={handleDownload} icon={DownloadIcon}   label="Download"    primary disabled={loading} />
+                        {/* Other file types */}
+                        {fileType === 'other' && (
+                            <Box sx={{
+                                flex: 1, display: 'flex', alignItems: 'center',
+                                justifyContent: 'center', flexDirection: 'column', gap: 2, p: 4,
+                            }}>
+                                <Box sx={{
+                                    width: 64, height: 64, borderRadius: '16px',
+                                    bgcolor: T.accentSoft, display: 'flex',
+                                    alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                    <DocIcon sx={{ fontSize: 30, color: T.accent }} />
+                                </Box>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: T.text }}>
+                                    Preview not available
+                                </Typography>
+                                <Typography sx={{ fontSize: '0.82rem', color: T.muted, textAlign: 'center' }}>
+                                    This file type cannot be previewed in the browser.
+                                    Click Download to open it locally.
+                                </Typography>
+                                <Button
+                                    variant="contained"
+                                    startIcon={<DownloadIcon />}
+                                    onClick={handleDownload}
+                                    sx={{
+                                        borderRadius: '10px', textTransform: 'none',
+                                        fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                        bgcolor: T.accent, boxShadow: 'none',
+                                        '&:hover': { bgcolor: '#1641B8' },
+                                    }}
+                                >
+                                    Download {fileName}
+                                </Button>
+                            </Box>
+                        )}
                     </>
                 )}
-            </DialogActions>
+            </DialogContent>
         </Dialog>
     );
 };

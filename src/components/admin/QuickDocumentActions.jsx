@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
-import { Box, Typography, CircularProgress } from '@mui/material';
+import React, {useState} from 'react';
+import {Box, Typography, CircularProgress} from '@mui/material';
 import {
     MoreVert as MoreVertIcon,
     Download as DownloadIcon,
     Visibility as ViewIcon,
 } from '@mui/icons-material';
-import { adminAPI } from '../../services/api';
+import {adminAPI} from '../../services/api';
 import DocumentViewer from './DocumentViewer';
+import InvoiceViewer from './InvoiceViewer';
 
-/* ── Design tokens ── */
 const T = {
     bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
     text: '#0F1F3D', muted: '#6B7A99',
@@ -17,41 +17,69 @@ const T = {
     rose: '#DC2626', roseSoft: '#FEE2E2',
 };
 
-/* ── Toast-style snackbar ── */
-const Toast = ({ msg, type, onClose }) => {
-    const colors = { success: { bg: T.greenSoft, color: T.green }, error: { bg: T.roseSoft, color: T.rose }, info: { bg: T.accentSoft, color: T.accent } };
-    const { bg, color } = colors[type] || colors.info;
+const Toast = ({msg, type, onClose}) => {
+    const colors = {
+        success: {bg: T.greenSoft, color: T.green},
+        error: {bg: T.roseSoft, color: T.rose},
+        info: {bg: T.accentSoft, color: T.accent}
+    };
+    const {bg, color} = colors[type] || colors.info;
     return (
         <Box sx={{
-            position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
-            p: 1.8, borderRadius: '12px', bgcolor: bg, border: `1px solid ${color}28`,
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+            zIndex: 9999,
+            p: 1.8,
+            borderRadius: '12px',
+            bgcolor: bg,
+            border: `1px solid ${color}28`,
             boxShadow: '0 8px 24px rgba(15,31,61,0.12)',
-            display: 'flex', alignItems: 'center', gap: 1.5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
             animation: 'fadeUp 0.25s ease-out',
-            minWidth: 240,
+            minWidth: 240
         }}>
-            <Typography sx={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                {msg}
-            </Typography>
-            <Box component="button" type="button" onClick={onClose}
-                 sx={{ border: 'none', bgcolor: 'transparent', cursor: 'pointer', color, fontSize: '0.8rem', p: 0, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                ✕
-            </Box>
+            <Typography sx={{
+                flex: 1,
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                color,
+                fontFamily: 'Plus Jakarta Sans, sans-serif'
+            }}>{msg}</Typography>
+            <Box component="button" type="button" onClick={onClose} sx={{
+                border: 'none',
+                bgcolor: 'transparent',
+                cursor: 'pointer',
+                color,
+                fontSize: '0.8rem',
+                p: 0
+            }}>✕</Box>
         </Box>
     );
 };
 
-/* ═══════════════════════════════ COMPONENT ═══════════════════════════════ */
-const QuickDocumentActions = ({ documentId, fileName, documentType, documentStatus, isInvoice }) => {
+/* ─────────────────────────────────────────────────────────────────────────
+   Props:
+     documentId   — real document_id for regular docs; -1 for invoices
+     fileName     — display name
+     documentType — e.g. 'ID', 'Payslip', 'Invoice'
+     documentStatus
+     isInvoice    — boolean; true when this row is an invoice
+     userId       — required when isInvoice=true (to call viewInvoice(userId))
+     userName     — optional display name for InvoiceViewer header
+───────────────────────────────────────────────────────────────────────── */
+const QuickDocumentActions = ({documentId, fileName, documentType, documentStatus, isInvoice, userId, userName}) => {
 
-    const [menuOpen,    setMenuOpen]    = useState(false);
-    const [menuAnchor,  setMenuAnchor]  = useState(null);
-    const [loading,     setLoading]     = useState(false);
-    const [viewerOpen,  setViewerOpen]  = useState(false);
-    const [toast,       setToast]       = useState(null);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [menuAnchor, setMenuAnchor] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [viewerOpen, setViewerOpen] = useState(false);
+    const [toast, setToast] = useState(null);
 
     const showToast = (message, type = 'info') => {
-        setToast({ message, type });
+        setToast({message, type});
         setTimeout(() => setToast(null), 3000);
     };
 
@@ -61,34 +89,41 @@ const QuickDocumentActions = ({ documentId, fileName, documentType, documentStat
     };
     const handleMenuClose = () => setMenuOpen(false);
 
-    /* ── handleDownload — API call unchanged ── */
+    // Download — invoices use adminAPI.downloadInvoice(userId), docs use adminAPI.downloadDocument(documentId)
     const handleDownload = async () => {
         try {
             setLoading(true);
             handleMenuClose();
-            console.log('📥 Downloading document:', documentId);
 
-            const response = await adminAPI.downloadDocument(documentId, { responseType: 'blob' });
-
-            const contentDisposition = response.headers['content-disposition'];
-            let filename = fileName;
-            if (contentDisposition) {
-                const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-                if (match && match[1]) filename = match[1].replace(/['"]/g, '');
+            let response;
+            if (isInvoice) {
+                response = await adminAPI.downloadInvoice(userId);
+            } else {
+                response = await adminAPI.downloadDocument(documentId);
             }
 
-            const url  = window.URL.createObjectURL(new Blob([response.data]));
+            const cd = response.headers?.['content-disposition'] || '';
+            const nameMatch = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+            const dlName = (nameMatch ? nameMatch[1].replace(/['"]/g, '') : null)
+                || fileName
+                || `${documentType || 'document'}_${documentId}.pdf`;
+
+            const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
-            link.href  = url;
-            link.setAttribute('download', filename || `document-${documentId}.pdf`);
-            document.body.appendChild(link); link.click(); link.remove();
+            link.href = url;
+            link.setAttribute('download', dlName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
             window.URL.revokeObjectURL(url);
 
-            showToast(`${isInvoice ? 'Invoice' : 'Document'} downloaded successfully`, 'success');
+            showToast(`${isInvoice ? 'Invoice' : 'Document'} downloaded`, 'success');
         } catch (error) {
             console.error('Download error:', error);
             showToast(error.response?.data?.message || `Failed to download ${isInvoice ? 'invoice' : 'document'}`, 'error');
-        } finally { setLoading(false); }
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleView = () => {
@@ -100,60 +135,67 @@ const QuickDocumentActions = ({ documentId, fileName, documentType, documentStat
         <>
             <style>{`@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }`}</style>
 
-            {/* ── Trigger button ── */}
-            <Box
-                component="button" type="button"
-                onClick={handleMenuOpen}
-                disabled={loading}
-                sx={{
-                    width: 30, height: 30, border: `1px solid ${T.border}`,
-                    borderRadius: '8px', bgcolor: T.bg,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    color: isInvoice ? T.accent : T.muted,
-                    transition: 'all 0.15s ease',
-                    '&:hover': { bgcolor: T.accentSoft, color: T.accent, borderColor: T.accent },
-                }}
-            >
-                {loading
-                    ? <CircularProgress size={13} sx={{ color: T.accent }} />
-                    : <MoreVertIcon sx={{ fontSize: 16 }} />
-                }
+            <Box component="button" type="button" onClick={handleMenuOpen} disabled={loading}
+                 sx={{
+                     width: 30,
+                     height: 30,
+                     border: `1px solid ${T.border}`,
+                     borderRadius: '8px',
+                     bgcolor: T.bg,
+                     display: 'flex',
+                     alignItems: 'center',
+                     justifyContent: 'center',
+                     cursor: loading ? 'not-allowed' : 'pointer',
+                     color: isInvoice ? T.accent : T.muted,
+                     transition: 'all 0.15s ease',
+                     '&:hover': {bgcolor: T.accentSoft, color: T.accent, borderColor: T.accent}
+                 }}>
+                {loading ? <CircularProgress size={13} sx={{color: T.accent}}/> : <MoreVertIcon sx={{fontSize: 16}}/>}
             </Box>
 
-            {/* ── Dropdown menu ── */}
             {menuOpen && menuAnchor && (
                 <>
-                    <Box onClick={handleMenuClose} sx={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+                    <Box onClick={handleMenuClose} sx={{position: 'fixed', inset: 0, zIndex: 998}}/>
                     <Box sx={{
                         position: 'fixed',
                         top: menuAnchor.getBoundingClientRect().bottom + 6,
                         left: menuAnchor.getBoundingClientRect().left,
                         zIndex: 999,
-                        bgcolor: T.surface, border: `1px solid ${T.border}`,
-                        borderRadius: '12px', overflow: 'hidden',
+                        bgcolor: T.surface,
+                        border: `1px solid ${T.border}`,
+                        borderRadius: '12px',
+                        overflow: 'hidden',
                         boxShadow: '0 12px 32px rgba(15,31,61,0.12)',
                         minWidth: 180,
-                        animation: 'fadeUp 0.18s ease-out',
+                        animation: 'fadeUp 0.18s ease-out'
                     }}>
                         {[
-                            { icon: ViewIcon,     label: `View ${isInvoice ? 'Invoice' : 'Document'}`,     onClick: handleView     },
-                            { icon: DownloadIcon, label: `Download ${isInvoice ? 'Invoice' : 'Document'}`, onClick: handleDownload },
-                        ].map(({ icon: Icon, label, onClick }) => (
-                            <Box
-                                key={label}
-                                component="button" type="button"
-                                onClick={onClick}
-                                sx={{
-                                    width: '100%', display: 'flex', alignItems: 'center', gap: 1.2,
-                                    px: 1.8, py: 1.1, border: 'none', bgcolor: 'transparent',
-                                    cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
-                                    fontSize: '0.83rem', fontWeight: 600, color: T.text,
-                                    '&:hover': { bgcolor: T.bg },
-                                    transition: 'background-color 0.1s',
-                                }}
-                            >
-                                <Icon sx={{ fontSize: 15, color: T.muted }} />
+                            {icon: ViewIcon, label: `View ${isInvoice ? 'Invoice' : 'Document'}`, onClick: handleView},
+                            {
+                                icon: DownloadIcon,
+                                label: `Download ${isInvoice ? 'Invoice' : 'Document'}`,
+                                onClick: handleDownload
+                            },
+                        ].map(({icon: Icon, label, onClick}) => (
+                            <Box key={label} component="button" type="button" onClick={onClick}
+                                 sx={{
+                                     width: '100%',
+                                     display: 'flex',
+                                     alignItems: 'center',
+                                     gap: 1.2,
+                                     px: 1.8,
+                                     py: 1.1,
+                                     border: 'none',
+                                     bgcolor: 'transparent',
+                                     cursor: 'pointer',
+                                     fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                     fontSize: '0.83rem',
+                                     fontWeight: 600,
+                                     color: T.text,
+                                     '&:hover': {bgcolor: T.bg},
+                                     transition: 'background-color 0.1s'
+                                 }}>
+                                <Icon sx={{fontSize: 15, color: T.muted}}/>
                                 {label}
                             </Box>
                         ))}
@@ -161,18 +203,26 @@ const QuickDocumentActions = ({ documentId, fileName, documentType, documentStat
                 </>
             )}
 
-            {/* ── DocumentViewer — props unchanged ── */}
-            <DocumentViewer
-                open={viewerOpen}
-                documentId={documentId}
-                fileName={fileName}
-                documentType={isInvoice ? 'Invoice' : documentType}
-                documentStatus={documentStatus}
-                onClose={() => setViewerOpen(false)}
-            />
+            {/* Invoice rows open InvoiceViewer; regular docs open DocumentViewer */}
+            {isInvoice ? (
+                <InvoiceViewer
+                    open={viewerOpen}
+                    userId={userId}
+                    userName={userName || ''}
+                    onClose={() => setViewerOpen(false)}
+                />
+            ) : (
+                <DocumentViewer
+                    open={viewerOpen}
+                    documentId={documentId}
+                    fileName={fileName}
+                    documentType={documentType}
+                    documentStatus={documentStatus}
+                    onClose={() => setViewerOpen(false)}
+                />
+            )}
 
-            {/* ── Toast ── */}
-            {toast && <Toast msg={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            {toast && <Toast msg={toast.message} type={toast.type} onClose={() => setToast(null)}/>}
         </>
     );
 };
