@@ -1,16 +1,13 @@
-import React, {useState, useEffect, useCallback, useRef} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
     Dialog, DialogContent, DialogActions,
     Box, Grid, Typography, CircularProgress, IconButton,
 } from '@mui/material';
 import {
-    Close as CloseIcon,
-    PictureAsPdf as PdfIcon,
-    Image as ImageIcon,
-    Description as DocIcon,
-    Receipt as ReceiptIcon,
+    Download as DownloadIcon, Close as CloseIcon,
+    PictureAsPdf as PdfIcon, Image as ImageIcon,
+    Description as DocIcon, Receipt as ReceiptIcon,
     OpenInNew as OpenInNewIcon,
-    Download as DownloadIcon,  // ✅ Add this
 } from '@mui/icons-material';
 import {adminAPI} from '../../services/api';
 
@@ -52,150 +49,96 @@ const getFileConfig = (mimeType) => {
     return {icon: ReceiptIcon, color: T.accent, soft: T.accentSoft};
 };
 
-const formatFileSize = (bytes) => {
-    if (!bytes || bytes === 0) return 'Unknown';
-    const k = 1024, sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
-
+// ─────────────────────────────────────────────────────────────────────────────
 const InvoiceViewer = ({open, userId, userName, onClose}) => {
-
     const [loading, setLoading] = useState(false);
     const [invoiceInfo, setInvoiceInfo] = useState(null);
-    const [blobUrl, setBlobUrl] = useState(null);
     const [error, setError] = useState(null);
     const [fetchAttempted, setFetchAttempted] = useState(false);
-    const urlRef = useRef(null);
-    const [signedUrl, setSignedUrl] = useState(null);
 
-    // Fetches the actual file blob from the backend (which reads from Supabase)
+    // Backend returns JSON: { success, url, fileName, mimeType }
     const fetchInvoice = useCallback(async () => {
         if (!userId || !open) return;
+        setLoading(true);
+        setError(null);
+        setFetchAttempted(false);
         try {
-            setLoading(true);
-            setError(null);
-            setSignedUrl(null);
-            setBlobUrl(null);
-
             const response = await adminAPI.viewInvoice(userId);
+            const body = response.data;   // plain JSON — NOT a Blob
 
-            if (!response.data.success || !response.data.url) {
-                throw new Error('Failed to get invoice URL');
-            }
-
-            // ✅ Just store the signed URL
-            setSignedUrl(response.data.url);
-
-            // Optional: For preview image, fetch it
-            if (response.data.mimeType?.includes('image')) {
-                try {
-                    const fileResponse = await fetch(response.data.url);
-                    if (fileResponse.ok) {
-                        const blob = await fileResponse.blob();
-                        const url = URL.createObjectURL(blob);
-                        setBlobUrl(url);
-                    }
-                } catch (err) {
-                    console.warn('Could not create preview:', err);
-                }
+            if (!body?.success || !body?.url) {
+                throw new Error(body?.message || 'Failed to get invoice URL');
             }
 
             setInvoiceInfo({
-                file_name: response.data.fileName,
-                mime_type: response.data.mimeType,
-                file_size: null,
+                file_name: body.fileName || `invoice_${userId}`,
+                mime_type: body.mimeType || 'application/octet-stream',
+                url: body.url,
             });
-
         } catch (err) {
-            console.error('Invoice fetch error:', err);
-            setError(err.message || 'Invoice not found');
+            const data = err?.response?.data;
+            setError(
+                data?.legacy
+                    ? 'This invoice was uploaded before cloud storage. The user needs to re-upload it.'
+                    : data?.message || err?.message || 'Invoice not found or not uploaded yet'
+            );
         } finally {
             setLoading(false);
             setFetchAttempted(true);
         }
     }, [userId, open]);
 
-    const handleView = useCallback(() => {
-        if (signedUrl) {
-            window.open(signedUrl, '_blank');  // ✅ Open signed URL directly
-        }
-    }, [signedUrl]);
-
-
     useEffect(() => {
-        if (open && userId) {
-            fetchInvoice();
-        }
+        if (open && userId) fetchInvoice();
         return () => {
-            if (urlRef.current) {
-                try {
-                    URL.revokeObjectURL(urlRef.current);
-                } catch {
-                }
-                urlRef.current = null;
-            }
-            setBlobUrl(null);
             setInvoiceInfo(null);
             setError(null);
             setFetchAttempted(false);
         };
     }, [open, userId, fetchInvoice]);
 
+    const handleView = useCallback(() => {
+        if (invoiceInfo?.url) window.open(invoiceInfo.url, '_blank');
+    }, [invoiceInfo]);
+
     const handleDownload = useCallback(async () => {
         try {
             setLoading(true);
-
-            if (signedUrl) {
-                // ✅ Use the signed URL directly
-                const link = document.createElement('a');
-                link.href = signedUrl;
-                link.setAttribute('download', invoiceInfo?.file_name || `invoice_${userId}`);
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-            } else {
-                throw new Error('No invoice URL available');
-            }
+            const response = await adminAPI.downloadInvoice(userId);
+            const body = response.data;
+            if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
+            // Create a temp anchor to force download
+            const link = document.createElement('a');
+            link.href = body.url;
+            link.setAttribute('download', body.fileName || `invoice_${userId}`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
         } catch (err) {
-            console.error('Download error:', err);
             setError('Failed to download invoice');
         } finally {
             setLoading(false);
         }
-    }, [signedUrl, invoiceInfo, userId]);
-
-
-    // const handleView = useCallback(() => {
-    //     if (signedUrl) {
-    //         // ✅ Open the signed URL directly - works in new tab!
-    //         window.open(signedUrl, '_blank');
-    //     } else {
-    //         setError('Invoice not ready for viewing');
-    //     }
-    // }, [signedUrl]);
+    }, [userId]);
 
     const {icon: FileTypeIcon, color: fileColor, soft: fileSoft} = getFileConfig(invoiceInfo?.mime_type);
 
-    // const ActionBtn = ({onClick, icon: Icon, label, primary, disabled}) => (
-    //     <Box component="button" type="button" onClick={onClick} disabled={disabled}
-    //          sx={{
-    //              display: 'flex', alignItems: 'center', gap: 0.7,
-    //              px: 1.8, py: 0.9, border: `1.5px solid ${primary ? T.accent : T.border}`,
-    //              borderRadius: '10px', cursor: disabled ? 'not-allowed' : 'pointer',
-    //              bgcolor: primary ? T.accent : T.surface, color: primary ? '#fff' : T.text,
-    //              fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, fontSize: '0.82rem',
-    //              boxShadow: primary ? `0 3px 10px ${T.accent}33` : 'none', transition: 'all 0.15s ease',
-    //              '&:hover': {
-    //                  bgcolor: disabled ? undefined : primary ? '#1641B8' : T.bg,
-    //                  borderColor: disabled ? undefined : primary ? '#1641B8' : T.accent
-    //              },
-    //          }}>
-    //         {disabled && primary ? <CircularProgress size={13} sx={{color: 'rgba(255,255,255,0.6)'}}/> :
-    //             <Icon sx={{fontSize: 14}}/>}
-    //         {disabled && primary ? 'Processing…' : label}
-    //     </Box>
-    // );
+    const ActionBtn = ({onClick, icon: Icon, label, primary, disabled}) => (
+        <Box component="button" type="button" onClick={onClick} disabled={disabled}
+             sx={{
+                 display: 'flex', alignItems: 'center', gap: 0.7,
+                 px: 1.8, py: 0.9, border: `1.5px solid ${primary ? T.accent : T.border}`,
+                 borderRadius: '10px', cursor: disabled ? 'not-allowed' : 'pointer',
+                 bgcolor: primary ? T.accent : T.surface, color: primary ? '#fff' : T.text,
+                 fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, fontSize: '0.82rem',
+                 boxShadow: primary ? `0 3px 10px ${T.accent}33` : 'none', transition: 'all 0.15s ease',
+                 '&:hover': {bgcolor: disabled ? undefined : primary ? '#1641B8' : T.bg},
+             }}>
+            {disabled && primary ? <CircularProgress size={13} sx={{color: 'rgba(255,255,255,0.6)'}}/> :
+                <Icon sx={{fontSize: 14}}/>}
+            {disabled && primary ? 'Loading…' : label}
+        </Box>
+    );
 
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth
@@ -209,6 +152,7 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                     }
                 }}>
 
+            {/* Header */}
             <Box sx={{
                 display: 'flex',
                 alignItems: 'center',
@@ -256,6 +200,7 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                 </IconButton>
             </Box>
 
+            {/* Content */}
             <DialogContent sx={{p: 3}}>
                 {loading ? (
                     <Box sx={{
@@ -282,6 +227,7 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                     </Box>
                 ) : invoiceInfo ? (
                     <Box>
+                        {/* File info card */}
                         <Box sx={{
                             p: 2.5,
                             borderRadius: '12px',
@@ -332,14 +278,13 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                             </Box>
                             <Box sx={{height: 1, bgcolor: T.border, mb: 2}}/>
                             <Grid container spacing={2.5}>
-                                <Grid item xs={6}><InfoItem label="File Size"
-                                                            value={formatFileSize(invoiceInfo.file_size)}/></Grid>
-                                <Grid item xs={6}><InfoItem label="File Type"
-                                                            value={invoiceInfo.mime_type?.split('/')[1]?.toUpperCase() || 'Unknown'}/></Grid>
+                                <Grid item xs={12}><InfoItem label="File Type"
+                                                             value={invoiceInfo.mime_type?.split('/')[1]?.toUpperCase() || 'Unknown'}/></Grid>
                             </Grid>
                         </Box>
 
-                        {blobUrl && invoiceInfo.mime_type?.includes('image') ? (
+                        {/* Preview */}
+                        {invoiceInfo.mime_type?.includes('image') ? (
                             <Box>
                                 <Typography sx={{
                                     fontSize: '0.7rem',
@@ -360,7 +305,7 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                                     maxHeight: 400,
                                     overflow: 'auto'
                                 }}>
-                                    <img src={blobUrl} alt="Invoice preview" style={{
+                                    <img src={invoiceInfo.url} alt="Invoice preview" style={{
                                         maxWidth: '100%',
                                         maxHeight: '380px',
                                         objectFit: 'contain',
@@ -368,12 +313,11 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                                     }}/>
                                 </Box>
                             </Box>
-                        ) : blobUrl && invoiceInfo.mime_type?.includes('pdf') ? (
+                        ) : (
                             <Box sx={{
                                 p: 3,
                                 borderRadius: '12px',
                                 bgcolor: '#0F1F3D',
-                                border: `1px solid ${T.border}`,
                                 display: 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
@@ -397,16 +341,12 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                                         color: '#fff',
                                         mb: 0.5,
                                         fontFamily: 'Plus Jakarta Sans, sans-serif'
-                                    }}>
-                                        {invoiceInfo.file_name}
-                                    </Typography>
+                                    }}>{invoiceInfo.file_name}</Typography>
                                     <Typography sx={{
                                         fontSize: '0.78rem',
                                         color: 'rgba(255,255,255,0.5)',
                                         fontFamily: 'Plus Jakarta Sans, sans-serif'
-                                    }}>
-                                        PDF ready — click below to view
-                                    </Typography>
+                                    }}>Click below to open in a new tab</Typography>
                                 </Box>
                                 <Box component="button" type="button" onClick={handleView}
                                      sx={{
@@ -425,25 +365,9 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                                          fontSize: '0.83rem',
                                          boxShadow: `0 4px 14px ${T.accent}44`
                                      }}>
-                                    <OpenInNewIcon sx={{fontSize: 14}}/>
+                                    <OpenInNewIcon sx={{fontSize: 15}}/>
                                     Open in new tab
                                 </Box>
-                            </Box>
-                        ) : (
-                            <Box sx={{
-                                p: 2.5,
-                                borderRadius: '12px',
-                                bgcolor: T.accentSoft,
-                                border: `1px solid ${T.accent}22`
-                            }}>
-                                <Typography sx={{
-                                    fontSize: '0.83rem',
-                                    color: T.accent,
-                                    fontWeight: 600,
-                                    fontFamily: 'Plus Jakarta Sans, sans-serif'
-                                }}>
-                                    This file type cannot be previewed inline. Use "Open in tab" to view.
-                                </Typography>
                             </Box>
                         )}
                     </Box>
@@ -454,13 +378,12 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                             color: T.accent,
                             fontWeight: 600,
                             fontFamily: 'Plus Jakarta Sans, sans-serif'
-                        }}>
-                            No invoice has been uploaded for this user yet.
-                        </Typography>
+                        }}>No invoice has been uploaded for this user yet.</Typography>
                     </Box>
                 ) : null}
             </DialogContent>
 
+            {/* Footer */}
             <DialogActions sx={{px: 3, py: 2, bgcolor: T.surface, borderTop: `1px solid ${T.border}`, gap: 1}}>
                 <Box component="button" type="button" onClick={onClose}
                      sx={{
@@ -480,63 +403,11 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                      }}>
                     Close
                 </Box>
-
-                {/* ✅ Open in Tab Button */}
-                {invoiceInfo && signedUrl && (
+                {invoiceInfo && (
                     <>
-                        <Box component="button" type="button" onClick={handleView}
-                             disabled={loading}
-                             sx={{
-                                 display: 'flex',
-                                 alignItems: 'center',
-                                 gap: 0.7,
-                                 px: 1.8,
-                                 py: 0.9,
-                                 border: `1.5px solid ${T.border}`,
-                                 borderRadius: '10px',
-                                 cursor: loading ? 'not-allowed' : 'pointer',
-                                 bgcolor: T.surface,
-                                 color: T.text,
-                                 fontFamily: 'Plus Jakarta Sans, sans-serif',
-                                 fontWeight: 600,
-                                 fontSize: '0.82rem',
-                                 '&:hover': {
-                                     bgcolor: T.bg,
-                                     borderColor: T.accent
-                                 },
-                                 transition: 'all 0.15s ease',
-                             }}>
-                            <OpenInNewIcon sx={{fontSize: 14}} />
-                            Open in tab
-                        </Box>
-
-                        {/* ✅ Download Button */}
-                        <Box component="button" type="button" onClick={handleDownload}
-                             disabled={loading}
-                             sx={{
-                                 display: 'flex',
-                                 alignItems: 'center',
-                                 gap: 0.7,
-                                 px: 1.8,
-                                 py: 0.9,
-                                 border: `1.5px solid ${T.accent}`,
-                                 borderRadius: '10px',
-                                 cursor: loading ? 'not-allowed' : 'pointer',
-                                 bgcolor: T.accent,
-                                 color: '#fff',
-                                 fontFamily: 'Plus Jakarta Sans, sans-serif',
-                                 fontWeight: 600,
-                                 fontSize: '0.82rem',
-                                 boxShadow: `0 3px 10px ${T.accent}33`,
-                                 '&:hover': {
-                                     bgcolor: '#1641B8',
-                                     borderColor: '#1641B8'
-                                 },
-                                 transition: 'all 0.15s ease',
-                             }}>
-                            {loading ? <CircularProgress size={12} sx={{color: '#fff'}} /> : <DownloadIcon sx={{fontSize: 14}} />}
-                            Download
-                        </Box>
+                        <ActionBtn onClick={handleView} icon={OpenInNewIcon} label="Open in tab" disabled={loading}/>
+                        <ActionBtn onClick={handleDownload} icon={DownloadIcon} label="Download" primary
+                                   disabled={loading}/>
                     </>
                 )}
             </DialogActions>
