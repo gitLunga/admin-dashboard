@@ -91,6 +91,29 @@ export const deviceAPI = {
         deviceApi.get(`/applications/admin/applications/${applicationId}`),
     searchApplications: (query) =>
         deviceApi.get(`/applications/admin/applications?search=${query}`),
+
+    // NEW: Device Catalog endpoints
+    getAllDevices: () =>
+        deviceApi.get('/devices'),
+
+    getDeviceById: (deviceId) =>
+        deviceApi.get(`/devices/${deviceId}`),
+
+    createDevice: (deviceData) =>
+        deviceApi.post('/devices', deviceData),
+
+    updateDevice: (deviceId, deviceData) =>
+        deviceApi.put(`/devices/${deviceId}`, deviceData),
+
+    deleteDevice: (deviceId) =>
+        deviceApi.delete(`/devices/${deviceId}`),
+
+    // Optional: Add search/filter endpoints
+    searchDevices: (query) =>
+        deviceApi.get(`/devices/search?q=${query}`),
+
+    getDevicesByStatus: (status) =>
+        deviceApi.get(`/devices/status/${status}`),
 };
 
 export const authAPI = {

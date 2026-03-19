@@ -21,6 +21,7 @@ import OperationalUsers from './components/Users/OperationalUsers';
 import UserDetail from './components/Users/UserDetail';
 import Statistics from './components/Dashboard/Statistics';
 import SearchPage from './components/Users/SearchPage';
+import DeviceCatalogManagement from './components/Dashboard/DeviceManagement';
 
 import AdminApplications from './components/Users/AdminApplications';
 
@@ -105,6 +106,16 @@ function App() {
                     element={
                         <MainLayout>
                             <AdminApplications />
+                        </MainLayout>
+                    }
+                />
+
+                {/* For Device Catalog Management */}
+                <Route
+                    path="/admin/devices"
+                    element={
+                        <MainLayout>
+                            <DeviceCatalogManagement />
                         </MainLayout>
                     }
                 />

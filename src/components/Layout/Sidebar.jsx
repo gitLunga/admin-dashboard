@@ -52,6 +52,7 @@ const menuItems = [
     { text: 'Client Users',       icon: <PersonIcon />,       path: '/client-users' },
     { text: 'Operational Users',  icon: <GroupIcon />,        path: '/operational-users' },
     { text: 'Statistics',         icon: <ChartIcon />,        path: '/statistics' },
+    { text: 'Device Catalog',     icon: <PhoneAndroidIcon />, path: '/admin/devices' },
     { text: 'Search Users',       icon: <SearchIcon />,       path: '/search' },
 ];
 
