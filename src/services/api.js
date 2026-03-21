@@ -36,6 +36,14 @@ export const adminAPI = {
     getOperationalUsers: () => api.get('/operational-users'),
     getOperationalUserById: (id) => api.get(`/operational-users/${id}`),
 
+    createOperationalUser: (userData) => api.post('/operational-users', userData),
+    updateOperationalUser: (id, userData) => api.put(`/operational-users/${id}`, userData),
+    deleteOperationalUser: (id) => api.delete(`/operational-users/${id}`),
+
+    changeOperationalUserPassword: (id, data) =>
+        api.patch(`/operational-users/${id}/change-password`, data),
+    promoteToSuperAdmin: (id) => api.patch(`/operational-users/${id}/promote`),
+    demoteSuperAdmin: (id) => api.patch(`/operational-users/${id}/demote`),
     // Statistics
     getStatistics: () => api.get('/statistics'),
     getRecentRegistrations: () => api.get('/recent-registrations'),

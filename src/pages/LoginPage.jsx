@@ -101,8 +101,14 @@ const LoginPage = () => {
 
             if (token) localStorage.setItem('adminToken', token);
             localStorage.setItem('adminUser', JSON.stringify({
-                id: user.id, op_user_id: user.op_user_id,
-                name: user.name || 'Admin User', email: user.email,
+                id:             user.id,
+                op_user_id:     user.op_user_id,
+                first_name:     user.first_name,
+                last_name:      user.last_name,
+                name:           user.name || `${user.first_name} ${user.last_name}`.trim(),
+                email:          user.email,
+                user_role:      user.user_role,
+                is_super_admin: user.is_super_admin ?? false,  // ✅ this is the key one
             }));
 
             if (formData.rememberMe) {
