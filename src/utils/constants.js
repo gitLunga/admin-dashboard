@@ -1,9 +1,7 @@
 export const USER_ROLES = [
   { value: 'Admin', label: 'Administrator' },
-  { value: 'Manager', label: 'Manager' },
-  { value: 'Support', label: 'Support Staff' },
   { value: 'MTN_Staff', label: 'MTN Staff' },
-  { value: 'Viewer', label: 'Viewer' },
+  { value: 'Approver', label: 'Approver' },
 ];
 
 export const USER_TYPES = [
