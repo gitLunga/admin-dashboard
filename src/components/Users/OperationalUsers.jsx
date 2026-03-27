@@ -31,8 +31,8 @@ const T = {
 
 const ROLE_META = {
     Admin: {color: T.rose, soft: T.roseSoft},
-    Manager: {color: T.amber, soft: T.amberSoft},
-    Support: {color: T.cyan, soft: T.cyanSoft},
+    MTN_Staff: {color: T.amber, soft: T.amberSoft},
+    Approver: {color: T.accent, soft: T.accentSoft},
 };
 
 const RoleBadge = ({role}) => {
@@ -852,8 +852,8 @@ const OperationalUsers = () => {
                                     }}>
                                 {(USER_ROLES || [
                                     {value: 'Admin', label: 'Admin'},
-                                    {value: 'Manager', label: 'Manager'},
-                                    {value: 'Support', label: 'Support'},
+                                    {value: 'MTN_Staff', label: 'MTN_Staff'},
+                                    {value: 'Approver', label: 'Approver'},
                                 ]).map(role => (
                                     <MenuItem key={role.value} value={role.value} sx={{fontSize: '0.85rem'}}>
                                         <Box sx={{display: 'flex', alignItems: 'center', gap: 1.2}}>
