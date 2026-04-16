@@ -99,11 +99,10 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
 
     const handleView = useCallback(() => {
         if (!invoiceInfo?.url) return;
-
-        const baseUrl = process.env.REACT_APP_API_URL || '';
-        const fullUrl = `${baseUrl}${invoiceInfo.url}`;
-
-        console.log('📂 [InvoiceViewer] Opening URL:', fullUrl);
+        // ✅ Always point to API server — never admin frontend
+        const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+        const fullUrl = invoiceInfo.url.startsWith('http') ? invoiceInfo.url : `${apiBase}${invoiceInfo.url}`;
+        console.log('📄 [InvoiceViewer] Opening URL:', fullUrl);
         window.open(fullUrl, '_blank');
     }, [invoiceInfo]);
 
@@ -114,9 +113,12 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
             const response = await adminAPI.downloadInvoice(userId);
             const body = response.data;
             if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
-            // Create a temp anchor to force download
+            // ✅ Always prepend API base — body.url is a relative path like /uploads/invoices/...
+            const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+            const fullUrl = body.url.startsWith('http') ? body.url : `${apiBase}${body.url}`;
+            console.log('⬇️ [InvoiceViewer] Download URL:', fullUrl);
             const link = document.createElement('a');
-            link.href = body.url;
+            link.href = fullUrl;
             link.setAttribute('download', body.fileName || `invoice_${userId}`);
             document.body.appendChild(link);
             link.click();
@@ -314,7 +316,7 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                                 }}>
                                     <img
                                         src={`${process.env.REACT_APP_API_URL || ''}${invoiceInfo.url}`}
-                                        alt={invoiceInfo.file_name}  style={{
+                                        alt={invoiceInfo.file_name} style={{
                                         maxWidth: '100%',
                                         maxHeight: '380px',
                                         objectFit: 'contain',

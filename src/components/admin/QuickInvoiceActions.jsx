@@ -65,11 +65,13 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
             const response = await adminAPI.downloadInvoice(userId);
 
             if (response.data.success && response.data.url) {
-                // ✅ FIXED: URL is already relative path starting with /api/files/
-                const baseUrl = process.env.REACT_APP_API_URL || '';
-                const fullUrl = `${baseUrl}${response.data.url}`;
+                // ✅ Always point to API server
+                const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+                const fullUrl = response.data.url.startsWith('http')
+                    ? response.data.url
+                    : `${apiBase}${response.data.url}`;
 
-                console.log('🔗 Download URL:', fullUrl); // Debug log
+                console.log('⬇️ [QuickInvoiceActions] Download URL:', fullUrl);
 
                 const link = document.createElement('a');
                 link.href = fullUrl;
@@ -96,11 +98,13 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
             const response = await adminAPI.viewInvoice(userId);
 
             if (response.data.success && response.data.url) {
-                // ✅ FIXED: Simple concatenation - URL already has /api/files/
-                const baseUrl = process.env.REACT_APP_API_URL || '';
-                const fullUrl = `${baseUrl}${response.data.url}`;
+                // ✅ Always point to API server
+                const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+                const fullUrl = response.data.url.startsWith('http')
+                    ? response.data.url
+                    : `${apiBase}${response.data.url}`;
 
-                console.log('🔗 Opening invoice URL:', fullUrl);
+                console.log('🔗 [QuickInvoiceActions] Opening URL:', fullUrl);
                 window.open(fullUrl, '_blank');
                 showToast('Invoice opened in new tab', 'info');
             }

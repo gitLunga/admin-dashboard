@@ -105,11 +105,11 @@ const QuickDocumentActions = ({documentId, fileName, documentType, documentStatu
             const body = response.data;
             if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
 
-            // ✅ FIXED: URL is already relative path starting with /api/files/
-            const baseUrl = process.env.REACT_APP_API_URL || '';
-            const fullUrl = `${baseUrl}${body.url}`;
+            // ✅ Always point to API server — body.url is /uploads/... relative path
+            const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+            const fullUrl = body.url.startsWith('http') ? body.url : `${apiBase}${body.url}`;
 
-            console.log('⬇️ [Download] URL:', fullUrl);
+            console.log('⬇️ [QuickDocumentActions] Download URL:', fullUrl);
 
             const link = document.createElement('a');
             link.href = fullUrl;

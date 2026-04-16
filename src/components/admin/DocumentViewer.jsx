@@ -112,10 +112,9 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
 
     const handleView = useCallback(() => {
         if (!docInfo?.url) return;
-
-        const baseUrl = process.env.REACT_APP_API_URL || '';
-        const fullUrl = `${baseUrl}${docInfo.url}`;
-
+        // ✅ Always point to API server — never admin frontend
+        const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+        const fullUrl = docInfo.url.startsWith('http') ? docInfo.url : `${apiBase}${docInfo.url}`;
         console.log('📂 [DocumentViewer] Opening URL:', fullUrl);
         window.open(fullUrl, '_blank');
     }, [docInfo]);
@@ -127,8 +126,12 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
             const response = await adminAPI.downloadDocument(documentId);
             const body = response.data;
             if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
+            // ✅ Always prepend API base — body.url is a relative path like /uploads/documents/...
+            const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+            const fullUrl = body.url.startsWith('http') ? body.url : `${apiBase}${body.url}`;
+            console.log('⬇️ [DocumentViewer] Download URL:', fullUrl);
             const link = document.createElement('a');
-            link.href = body.url;
+            link.href = fullUrl;
             link.setAttribute('download', body.fileName || `document_${documentId}`);
             document.body.appendChild(link);
             link.click();
@@ -400,7 +403,7 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
                                     overflow: 'auto'
                                 }}>
                                     <img
-                                        src={`${process.env.REACT_APP_API_URL || ''}${docInfo.url}`}
+                                        src={`${process.env.REACT_APP_API_URL || 'https://api.malcam.co.za'}${docInfo.url}`}
                                         alt={docInfo.file_name}  style={{
                                         maxWidth: '100%',
                                         maxHeight: '400px',
