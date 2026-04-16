@@ -100,17 +100,13 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
     const handleView = useCallback(() => {
         if (!invoiceInfo?.url) return;
 
-        const base = process.env.REACT_APP_API_URL || '';
-        const fullUrl = invoiceInfo.url.startsWith('http')
-            ? invoiceInfo.url
-            : `${base}${invoiceInfo.url}`;
+        const baseUrl = process.env.REACT_APP_API_URL || '';
+        const fullUrl = `${baseUrl}${invoiceInfo.url}`;
 
-        console.log('📂 [DocumentViewer] Opening URL:', fullUrl);
-        console.log('   REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
-        console.log('   docInfo.url:', invoiceInfo.url);
-
+        console.log('📂 [InvoiceViewer] Opening URL:', fullUrl);
         window.open(fullUrl, '_blank');
     }, [invoiceInfo]);
+
 
     const handleDownload = useCallback(async () => {
         try {
@@ -316,7 +312,9 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                                     maxHeight: 400,
                                     overflow: 'auto'
                                 }}>
-                                    <img src={invoiceInfo.url.startsWith('http') ? invoiceInfo.url : `${process.env.REACT_APP_API_URL}${invoiceInfo.url}`} alt={invoiceInfo.file_name} style={{
+                                    <img
+                                        src={`${process.env.REACT_APP_API_URL || ''}${invoiceInfo.url}`}
+                                        alt={invoiceInfo.file_name}  style={{
                                         maxWidth: '100%',
                                         maxHeight: '380px',
                                         objectFit: 'contain',

@@ -62,14 +62,14 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
             setLoading(true);
             handleMenuClose();
 
-            // ✅ Get signed URL from backend
             const response = await adminAPI.downloadInvoice(userId);
 
             if (response.data.success && response.data.url) {
-                // ✅ FIXED: Construct FULL URL
-                const fullUrl = response.data.url.startsWith('http')
-                    ? response.data.url
-                    : `${process.env.REACT_APP_API_URL}${response.data.url}`;
+                // ✅ FIXED: URL is already relative path starting with /api/files/
+                const baseUrl = process.env.REACT_APP_API_URL || '';
+                const fullUrl = `${baseUrl}${response.data.url}`;
+
+                console.log('🔗 Download URL:', fullUrl); // Debug log
 
                 const link = document.createElement('a');
                 link.href = fullUrl;
@@ -93,14 +93,12 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
             setLoading(true);
             handleMenuClose();
 
-            // ✅ Get signed URL from backend
             const response = await adminAPI.viewInvoice(userId);
 
             if (response.data.success && response.data.url) {
-                // ✅ FIXED: Construct FULL URL to backend API
-                const fullUrl = response.data.url.startsWith('http')
-                    ? response.data.url
-                    : `${process.env.REACT_APP_API_URL}${response.data.url}`;
+                // ✅ FIXED: Simple concatenation - URL already has /api/files/
+                const baseUrl = process.env.REACT_APP_API_URL || '';
+                const fullUrl = `${baseUrl}${response.data.url}`;
 
                 console.log('🔗 Opening invoice URL:', fullUrl);
                 window.open(fullUrl, '_blank');
@@ -113,6 +111,7 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
             setLoading(false);
         }
     };
+
 
     return (
         <>

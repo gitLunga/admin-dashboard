@@ -105,9 +105,9 @@ const QuickDocumentActions = ({documentId, fileName, documentType, documentStatu
             const body = response.data;
             if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
 
-            // ✅ Build the full URL properly
-            const base = process.env.REACT_APP_API_URL || '';
-            const fullUrl = body.url.startsWith('http') ? body.url : `${base}${body.url}`;
+            // ✅ FIXED: URL is already relative path starting with /api/files/
+            const baseUrl = process.env.REACT_APP_API_URL || '';
+            const fullUrl = `${baseUrl}${body.url}`;
 
             console.log('⬇️ [Download] URL:', fullUrl);
 

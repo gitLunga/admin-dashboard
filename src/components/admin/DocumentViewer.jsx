@@ -113,17 +113,13 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
     const handleView = useCallback(() => {
         if (!docInfo?.url) return;
 
-        const base = process.env.REACT_APP_API_URL || '';
-        const fullUrl = docInfo.url.startsWith('http')
-            ? docInfo.url
-            : `${base}${docInfo.url}`;
+        const baseUrl = process.env.REACT_APP_API_URL || '';
+        const fullUrl = `${baseUrl}${docInfo.url}`;
 
         console.log('📂 [DocumentViewer] Opening URL:', fullUrl);
-        console.log('   REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
-        console.log('   docInfo.url:', docInfo.url);
-
         window.open(fullUrl, '_blank');
     }, [docInfo]);
+
 
     const handleDownload = useCallback(async () => {
         try {
@@ -403,11 +399,9 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
                                     maxHeight: 420,
                                     overflow: 'auto'
                                 }}>
-                                    <img src={
-                                        docInfo.url.startsWith('http')
-                                            ? docInfo.url
-                                            : `${process.env.REACT_APP_API_URL}${docInfo.url}`
-                                    } alt={docInfo.file_name} style={{
+                                    <img
+                                        src={`${process.env.REACT_APP_API_URL || ''}${docInfo.url}`}
+                                        alt={docInfo.file_name}  style={{
                                         maxWidth: '100%',
                                         maxHeight: '400px',
                                         objectFit: 'contain',
