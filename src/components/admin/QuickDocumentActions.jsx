@@ -102,25 +102,25 @@ const QuickDocumentActions = ({documentId, fileName, documentType, documentStatu
                 response = await adminAPI.downloadDocument(documentId);
             }
 
-            const cd = response.headers?.['content-disposition'] || '';
-            const nameMatch = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-            const dlName = (nameMatch ? nameMatch[1].replace(/['"]/g, '') : null)
-                || fileName
-                || `${documentType || 'document'}_${documentId}.pdf`;
+            const body = response.data;
+            if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
 
-            const url = window.URL.createObjectURL(new Blob([response.data]));
+            // ✅ Build the full URL properly
+            const base = process.env.REACT_APP_API_URL || '';
+            const fullUrl = body.url.startsWith('http') ? body.url : `${base}${body.url}`;
+
+            console.log('⬇️ [Download] URL:', fullUrl);
+
             const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', dlName);
+            link.href = fullUrl;
+            link.setAttribute('download', body.fileName || `document_${documentId}`);
             document.body.appendChild(link);
             link.click();
             link.remove();
-            window.URL.revokeObjectURL(url);
 
-            showToast(`${isInvoice ? 'Invoice' : 'Document'} downloaded`, 'success');
+            showToast(`Downloaded successfully`, 'success');
         } catch (error) {
-            console.error('Download error:', error);
-            showToast(error.response?.data?.message || `Failed to download ${isInvoice ? 'invoice' : 'document'}`, 'error');
+            showToast(error.response?.data?.message || 'Failed to download', 'error');
         } finally {
             setLoading(false);
         }

@@ -111,14 +111,18 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
 
 
     const handleView = useCallback(() => {
-        if (docInfo?.url) {
-            // ✅ Construct FULL URL to API backend
-            const fullUrl = docInfo.url.startsWith('http')
-                ? docInfo.url
-                : `${process.env.REACT_APP_API_URL}${docInfo.url}`;
-            console.log('📂 Opening document URL:', fullUrl);
-            window.open(fullUrl, '_blank');
-        }
+        if (!docInfo?.url) return;
+
+        const base = process.env.REACT_APP_API_URL || '';
+        const fullUrl = docInfo.url.startsWith('http')
+            ? docInfo.url
+            : `${base}${docInfo.url}`;
+
+        console.log('📂 [DocumentViewer] Opening URL:', fullUrl);
+        console.log('   REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
+        console.log('   docInfo.url:', docInfo.url);
+
+        window.open(fullUrl, '_blank');
     }, [docInfo]);
 
     const handleDownload = useCallback(async () => {

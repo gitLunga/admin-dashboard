@@ -98,14 +98,18 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
     }, [open, userId, fetchInvoice]);
 
     const handleView = useCallback(() => {
-        if (invoiceInfo?.url) {
-            // ✅ Construct FULL URL to API backend
-            const fullUrl = invoiceInfo.url.startsWith('http')
-                ? invoiceInfo.url
-                : `${process.env.REACT_APP_API_URL}${invoiceInfo.url}`;
-            console.log('📄 Opening invoice URL:', fullUrl);
-            window.open(fullUrl, '_blank');
-        }
+        if (!invoiceInfo?.url) return;
+
+        const base = process.env.REACT_APP_API_URL || '';
+        const fullUrl = invoiceInfo.url.startsWith('http')
+            ? invoiceInfo.url
+            : `${base}${invoiceInfo.url}`;
+
+        console.log('📂 [DocumentViewer] Opening URL:', fullUrl);
+        console.log('   REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
+        console.log('   docInfo.url:', invoiceInfo.url);
+
+        window.open(fullUrl, '_blank');
     }, [invoiceInfo]);
 
     const handleDownload = useCallback(async () => {
