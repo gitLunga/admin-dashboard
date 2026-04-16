@@ -395,10 +395,7 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
                                     overflow: 'auto'
                                 }}>
                                     <img
-                                        src={docInfo.url.startsWith('http')
-                                            ? docInfo.url
-                                            : `https://api.malcam.co.za${docInfo.url}`
-                                        }
+                                        src={docInfo.url}
                                         alt={docInfo.file_name}
                                         style={{
                                             maxWidth: '100%',
