@@ -113,7 +113,7 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
     const handleView = useCallback(() => {
         if (!docInfo?.url) return;
         // ✅ Always point to API server — never admin frontend
-        const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+        const apiBase = 'https://api.malcam.co.za';
         const fullUrl = docInfo.url.startsWith('http') ? docInfo.url : `${apiBase}${docInfo.url}`;
         console.log('📂 [DocumentViewer] Opening URL:', fullUrl);
         window.open(fullUrl, '_blank');
@@ -127,7 +127,7 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
             const body = response.data;
             if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
             // ✅ Always prepend API base — body.url is a relative path like /uploads/documents/...
-            const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+            const apiBase =  'https://api.malcam.co.za';
             const fullUrl = body.url.startsWith('http') ? body.url : `${apiBase}${body.url}`;
             console.log('⬇️ [DocumentViewer] Download URL:', fullUrl);
             const link = document.createElement('a');
@@ -403,13 +403,18 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
                                     overflow: 'auto'
                                 }}>
                                     <img
-                                        src={`${process.env.REACT_APP_API_URL || 'https://api.malcam.co.za'}${docInfo.url}`}
-                                        alt={docInfo.file_name}  style={{
-                                        maxWidth: '100%',
-                                        maxHeight: '400px',
-                                        objectFit: 'contain',
-                                        borderRadius: '8px'
-                                    }}/>
+                                        src={docInfo.url.startsWith('http')
+                                            ? docInfo.url
+                                            : `https://api.malcam.co.za${docInfo.url}`
+                                        }
+                                        alt={docInfo.file_name}
+                                        style={{
+                                            maxWidth: '100%',
+                                            maxHeight: '400px',
+                                            objectFit: 'contain',
+                                            borderRadius: '8px'
+                                        }}
+                                    />
                                 </Box>
                             </Box>
                         ) : (

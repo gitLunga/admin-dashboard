@@ -66,7 +66,7 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
 
             if (response.data.success && response.data.url) {
                 // ✅ Always point to API server
-                const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+                const apiBase = 'https://api.malcam.co.za';
                 const fullUrl = response.data.url.startsWith('http')
                     ? response.data.url
                     : `${apiBase}${response.data.url}`;
@@ -99,7 +99,7 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
 
             if (response.data.success && response.data.url) {
                 // ✅ Always point to API server
-                const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+                const apiBase = 'https://api.malcam.co.za';
                 const fullUrl = response.data.url.startsWith('http')
                     ? response.data.url
                     : `${apiBase}${response.data.url}`;

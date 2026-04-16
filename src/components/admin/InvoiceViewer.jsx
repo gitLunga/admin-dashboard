@@ -100,7 +100,7 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
     const handleView = useCallback(() => {
         if (!invoiceInfo?.url) return;
         // ✅ Always point to API server — never admin frontend
-        const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+        const apiBase = 'https://api.malcam.co.za';
         const fullUrl = invoiceInfo.url.startsWith('http') ? invoiceInfo.url : `${apiBase}${invoiceInfo.url}`;
         console.log('📄 [InvoiceViewer] Opening URL:', fullUrl);
         window.open(fullUrl, '_blank');
@@ -114,7 +114,7 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
             const body = response.data;
             if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
             // ✅ Always prepend API base — body.url is a relative path like /uploads/invoices/...
-            const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+            const apiBase = 'https://api.malcam.co.za';
             const fullUrl = body.url.startsWith('http') ? body.url : `${apiBase}${body.url}`;
             console.log('⬇️ [InvoiceViewer] Download URL:', fullUrl);
             const link = document.createElement('a');
@@ -315,13 +315,18 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                                     overflow: 'auto'
                                 }}>
                                     <img
-                                        src={`${process.env.REACT_APP_API_URL || ''}${invoiceInfo.url}`}
-                                        alt={invoiceInfo.file_name} style={{
-                                        maxWidth: '100%',
-                                        maxHeight: '380px',
-                                        objectFit: 'contain',
-                                        borderRadius: '8px'
-                                    }}/>
+                                        src={invoiceInfo.url.startsWith('http')
+                                            ? invoiceInfo.url
+                                            : `https://api.malcam.co.za${invoiceInfo.url}`
+                                        }
+                                        alt={invoiceInfo.file_name}
+                                        style={{
+                                            maxWidth: '100%',
+                                            maxHeight: '400px',
+                                            objectFit: 'contain',
+                                            borderRadius: '8px'
+                                        }}
+                                    />
                                 </Box>
                             </Box>
                         ) : (

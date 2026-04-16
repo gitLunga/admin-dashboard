@@ -106,7 +106,7 @@ const QuickDocumentActions = ({documentId, fileName, documentType, documentStatu
             if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
 
             // ✅ Always point to API server — body.url is /uploads/... relative path
-            const apiBase = process.env.REACT_APP_API_URL || 'https://api.malcam.co.za';
+            const apiBase = 'https://api.malcam.co.za';
             const fullUrl = body.url.startsWith('http') ? body.url : `${apiBase}${body.url}`;
 
             console.log('⬇️ [QuickDocumentActions] Download URL:', fullUrl);
