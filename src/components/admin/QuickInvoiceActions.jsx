@@ -4,7 +4,6 @@ import {
     MoreVert as MoreVertIcon,
     Download as DownloadIcon,
     OpenInNew as OpenInNewIcon,
-    Receipt as ReceiptIcon,
 } from '@mui/icons-material';
 import { adminAPI } from '../../services/api';
 
@@ -19,17 +18,25 @@ const T = {
 
 /* ── Toast ── */
 const Toast = ({ msg, type, onClose }) => {
-    const colors = { success: { bg: T.greenSoft, color: T.green }, error: { bg: T.roseSoft, color: T.rose }, info: { bg: T.accentSoft, color: T.accent } };
+    const colors = {
+        success: { bg: T.greenSoft,  color: T.green  },
+        error:   { bg: T.roseSoft,   color: T.rose   },
+        info:    { bg: T.accentSoft, color: T.accent  },
+    };
     const { bg, color } = colors[type] || colors.info;
     return (
         <Box sx={{
             position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
-            p: 1.8, borderRadius: '12px', bgcolor: bg, border: `1px solid ${color}28`,
+            p: 1.8, borderRadius: '12px', bgcolor: bg,
+            border: `1px solid ${color}28`,
             boxShadow: '0 8px 24px rgba(15,31,61,0.12)',
             display: 'flex', alignItems: 'center', gap: 1.5,
             animation: 'fadeUp 0.25s ease-out', minWidth: 220,
         }}>
-            <Typography sx={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+            <Typography sx={{
+                flex: 1, fontSize: '0.82rem', fontWeight: 600, color,
+                fontFamily: 'Plus Jakarta Sans, sans-serif',
+            }}>
                 {msg}
             </Typography>
             <Box component="button" type="button" onClick={onClose}
@@ -42,7 +49,6 @@ const Toast = ({ msg, type, onClose }) => {
 
 /* ═══════════════════════════════ COMPONENT ═══════════════════════════════ */
 const QuickInvoiceActions = ({ userId, fileName }) => {
-
     const [menuOpen,   setMenuOpen]   = useState(false);
     const [menuAnchor, setMenuAnchor] = useState(null);
     const [loading,    setLoading]    = useState(false);
@@ -53,65 +59,74 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
         setTimeout(() => setToast(null), 3000);
     };
 
-    const handleMenuOpen = (e) => { setMenuAnchor(e.currentTarget); setMenuOpen(true); };
+    const handleMenuOpen  = (e) => { setMenuAnchor(e.currentTarget); setMenuOpen(true); };
     const handleMenuClose = () => setMenuOpen(false);
 
-    /* ── handleDownload — API call unchanged ── */
-    // QuickInvoiceActions.jsx - SIMPLIFIED
+    // ── View — open window BEFORE the await so the browser recognises it as a
+    //           direct user gesture and does NOT block it as a popup.
+    const handleView = async () => {
+        handleMenuClose();
 
-    const handleDownload = async () => {
+        // ✅ Open tab synchronously inside the click handler (before any await)
+        const newTab = window.open('', '_blank');
+        if (!newTab) {
+            showToast('Popup blocked — please allow popups for this site.', 'error');
+            return;
+        }
+
+        newTab.document.write(
+            '<html><body style="margin:0;display:flex;align-items:center;justify-content:center;' +
+            'height:100vh;font-family:sans-serif;background:#0F1F3D;color:#fff;font-size:1rem;">' +
+            'Loading invoice…</body></html>'
+        );
+
         try {
             setLoading(true);
-            handleMenuClose();
+            // api.js already unwraps .data — we get a Blob directly
+            const blob = await adminAPI.viewInvoice(userId);
+            const url  = URL.createObjectURL(blob);
+            newTab.location.href = url; // ✅ Navigate the already-open tab to the blob
+        } catch (error) {
+            newTab.close();
+            showToast('Failed to view invoice.', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-            // ✅ Backend returns FILE BLOB directly
+    // ── Download
+    const handleDownload = async () => {
+        handleMenuClose();
+        try {
+            setLoading(true);
+            // api.js already unwraps .data — we get a Blob directly
             const blob = await adminAPI.downloadInvoice(userId);
-
-            // ✅ Create download link from blob
-            const url = URL.createObjectURL(blob);
+            const url  = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.href = url;
+            link.href  = url;
             link.setAttribute('download', fileName || 'invoice.pdf');
             document.body.appendChild(link);
             link.click();
             link.remove();
             URL.revokeObjectURL(url);
-
             showToast('Invoice downloaded successfully', 'success');
         } catch (error) {
-            console.error('Download error:', error);
-            showToast('Failed to download invoice', 'error');
+            showToast('Failed to download invoice.', 'error');
         } finally {
             setLoading(false);
         }
     };
-
-    const handleView = async () => {
-        try {
-            setLoading(true);
-            handleMenuClose();
-
-            // ✅ Backend returns FILE BLOB directly
-            const blob = await adminAPI.viewInvoice(userId);
-
-            // ✅ Open blob URL in new tab
-            const url = URL.createObjectURL(blob);
-            window.open(url, '_blank');
-            showToast('Invoice opened in new tab', 'info');
-        } catch (error) {
-            console.error('View error:', error);
-            showToast('Failed to view invoice', 'error');
-        } finally {
-            setLoading(false);
-        }
-    };
-
 
     return (
         <>
-            <style>{`@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }`}</style>
+            <style>{`
+                @keyframes fadeUp {
+                    from { opacity: 0; transform: translateY(8px); }
+                    to   { opacity: 1; transform: translateY(0);   }
+                }
+            `}</style>
 
-            {/* ── Trigger button ── */}
+            {/* Trigger button */}
             <Box
                 component="button" type="button"
                 onClick={handleMenuOpen} disabled={loading}
@@ -131,20 +146,20 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
                 }
             </Box>
 
-            {/* ── Dropdown menu ── */}
+            {/* Dropdown menu */}
             {menuOpen && menuAnchor && (
                 <>
-                    <Box onClick={handleMenuClose} sx={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+                    <Box onClick={handleMenuClose}
+                         sx={{ position: 'fixed', inset: 0, zIndex: 998 }} />
                     <Box sx={{
                         position: 'fixed',
-                        top: menuAnchor.getBoundingClientRect().bottom + 6,
+                        top:  menuAnchor.getBoundingClientRect().bottom + 6,
                         left: menuAnchor.getBoundingClientRect().left,
                         zIndex: 999,
                         bgcolor: T.surface, border: `1px solid ${T.border}`,
                         borderRadius: '12px', overflow: 'hidden',
                         boxShadow: '0 12px 32px rgba(15,31,61,0.12)',
-                        minWidth: 170,
-                        animation: 'fadeUp 0.18s ease-out',
+                        minWidth: 170, animation: 'fadeUp 0.18s ease-out',
                     }}>
                         {[
                             { icon: OpenInNewIcon, label: 'View Invoice',     onClick: handleView     },
@@ -170,8 +185,9 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
                 </>
             )}
 
-            {/* ── Toast ── */}
-            {toast && <Toast msg={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            {toast && (
+                <Toast msg={toast.message} type={toast.type} onClose={() => setToast(null)} />
+            )}
         </>
     );
 };
