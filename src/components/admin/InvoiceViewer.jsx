@@ -99,11 +99,9 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
 
     const handleView = useCallback(() => {
         if (!invoiceInfo?.url) return;
-        // ✅ Always point to API server — never admin frontend
-        const apiBase = 'https://api.malcam.co.za';
-        const fullUrl = invoiceInfo.url.startsWith('http') ? invoiceInfo.url : `${apiBase}${invoiceInfo.url}`;
-        console.log('📄 [InvoiceViewer] Opening URL:', fullUrl);
-        window.open(fullUrl, '_blank');
+        // ✅ Backend returns full absolute URL now
+        console.log('📂 [DocumentViewer] Opening URL:', invoiceInfo.url);
+        window.open(invoiceInfo.url, '_blank');  // ← No need to prepend API base
     }, [invoiceInfo]);
 
 
