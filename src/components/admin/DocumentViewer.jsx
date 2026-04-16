@@ -399,7 +399,11 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
                                     maxHeight: 420,
                                     overflow: 'auto'
                                 }}>
-                                    <img src={docInfo.url} alt={docInfo.file_name} style={{
+                                    <img src={
+                                        docInfo.url.startsWith('http')
+                                            ? docInfo.url
+                                            : `${process.env.REACT_APP_API_URL}${docInfo.url}`
+                                    } alt={docInfo.file_name} style={{
                                         maxWidth: '100%',
                                         maxHeight: '400px',
                                         objectFit: 'contain',

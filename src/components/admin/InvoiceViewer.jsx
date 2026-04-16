@@ -312,7 +312,7 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                                     maxHeight: 400,
                                     overflow: 'auto'
                                 }}>
-                                    <img src={invoiceInfo.url} alt="Invoice preview" style={{
+                                    <img src={invoiceInfo.url.startsWith('http') ? invoiceInfo.url : `${process.env.REACT_APP_API_URL}${invoiceInfo.url}`} alt={invoiceInfo.file_name} style={{
                                         maxWidth: '100%',
                                         maxHeight: '380px',
                                         objectFit: 'contain',
