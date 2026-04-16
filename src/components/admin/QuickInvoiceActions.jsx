@@ -66,9 +66,13 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
             const response = await adminAPI.downloadInvoice(userId);
 
             if (response.data.success && response.data.url) {
-                // ✅ Use the signed URL directly
+                // ✅ FIXED: Construct FULL URL
+                const fullUrl = response.data.url.startsWith('http')
+                    ? response.data.url
+                    : `${process.env.REACT_APP_API_URL}${response.data.url}`;
+
                 const link = document.createElement('a');
-                link.href = response.data.url;
+                link.href = fullUrl;
                 link.setAttribute('download', response.data.fileName || 'invoice.pdf');
                 document.body.appendChild(link);
                 link.click();
@@ -93,8 +97,13 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
             const response = await adminAPI.viewInvoice(userId);
 
             if (response.data.success && response.data.url) {
-                // ✅ Open the signed URL directly
-                window.open(response.data.url, '_blank');
+                // ✅ FIXED: Construct FULL URL to backend API
+                const fullUrl = response.data.url.startsWith('http')
+                    ? response.data.url
+                    : `${process.env.REACT_APP_API_URL}${response.data.url}`;
+
+                console.log('🔗 Opening invoice URL:', fullUrl);
+                window.open(fullUrl, '_blank');
                 showToast('Invoice opened in new tab', 'info');
             }
         } catch (error) {
