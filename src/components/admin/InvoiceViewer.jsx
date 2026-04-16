@@ -63,30 +63,24 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
         setError(null);
         setFetchAttempted(false);
         try {
-            const response = await adminAPI.viewInvoice(userId);
-            const body = response.data;   // plain JSON — NOT a Blob
+            // ✅ Backend now returns the FILE BLOB directly
+            const blob = await adminAPI.viewInvoice(userId);
 
-            if (!body?.success || !body?.url) {
-                throw new Error(body?.message || 'Failed to get invoice URL');
-            }
+            // ✅ Create object URL from blob
+            const objectUrl = URL.createObjectURL(blob);
 
             setInvoiceInfo({
-                file_name: body.fileName || `invoice_${userId}`,
-                mime_type: body.mimeType || 'application/octet-stream',
-                url: body.url,
+                file_name: userName || `invoice_${userId}`,
+                mime_type: blob.type || 'application/pdf',
+                url: objectUrl,  // ✅ Local blob URL
             });
         } catch (err) {
-            const data = err?.response?.data;
-            setError(
-                data?.legacy
-                    ? 'This invoice was uploaded before cloud storage. The user needs to re-upload it.'
-                    : data?.message || err?.message || 'Invoice not found or not uploaded yet'
-            );
+            setError(err?.response?.data?.message || err?.message || 'Invoice not found or not uploaded yet');
         } finally {
             setLoading(false);
             setFetchAttempted(true);
         }
-    }, [userId, open]);
+    }, [userId, open, userName]);
 
     useEffect(() => {
         if (open && userId) fetchInvoice();
@@ -99,30 +93,27 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
 
     const handleView = useCallback(() => {
         if (!invoiceInfo?.url) return;
-        // ✅ Always point to API server — never admin frontend
-        const apiBase = 'https://api.malcam.co.za';
-        const fullUrl = invoiceInfo.url.startsWith('http') ? invoiceInfo.url : `${apiBase}${invoiceInfo.url}`;
-        console.log('📄 [InvoiceViewer] Opening URL:', fullUrl);
-        window.open(fullUrl, '_blank');
+        // ✅ Open blob URL directly (no domain conversion needed)
+        console.log('📄 [InvoiceViewer] Opening URL:', invoiceInfo.url);
+        window.open(invoiceInfo.url, '_blank');
     }, [invoiceInfo]);
 
 
     const handleDownload = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await adminAPI.downloadInvoice(userId);
-            const body = response.data;
-            if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
-            // ✅ Always prepend API base — body.url is a relative path like /uploads/invoices/...
-            const apiBase = 'https://api.malcam.co.za';
-            const fullUrl = body.url.startsWith('http') ? body.url : `${apiBase}${body.url}`;
-            console.log('⬇️ [InvoiceViewer] Download URL:', fullUrl);
+            // ✅ Backend returns FILE BLOB directly
+            const blob = await adminAPI.downloadInvoice(userId);
+
+            // ✅ Create download link from blob
+            const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.href = fullUrl;
-            link.setAttribute('download', body.fileName || `invoice_${userId}`);
+            link.href = url;
+            link.setAttribute('download', `invoice_${userId}.pdf`);
             document.body.appendChild(link);
             link.click();
             link.remove();
+            URL.revokeObjectURL(url);
         } catch (err) {
             setError('Failed to download invoice');
         } finally {

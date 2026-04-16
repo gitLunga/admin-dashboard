@@ -95,28 +95,22 @@ const QuickDocumentActions = ({documentId, fileName, documentType, documentStatu
             setLoading(true);
             handleMenuClose();
 
-            let response;
+            let blob;
             if (isInvoice) {
-                response = await adminAPI.downloadInvoice(userId);
+                blob = await adminAPI.downloadInvoice(userId);
             } else {
-                response = await adminAPI.downloadDocument(documentId);
+                blob = await adminAPI.downloadDocument(documentId);
             }
 
-            const body = response.data;
-            if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
-
-            // ✅ Always point to API server — body.url is /uploads/... relative path
-            const apiBase = 'https://api.malcam.co.za';
-            const fullUrl = body.url.startsWith('http') ? body.url : `${apiBase}${body.url}`;
-
-            console.log('⬇️ [QuickDocumentActions] Download URL:', fullUrl);
-
+            // ✅ Create download from blob
+            const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.href = fullUrl;
-            link.setAttribute('download', body.fileName || `document_${documentId}`);
+            link.href = url;
+            link.setAttribute('download', fileName || `document_${documentId}`);
             document.body.appendChild(link);
             link.click();
             link.remove();
+            URL.revokeObjectURL(url);
 
             showToast(`Downloaded successfully`, 'success');
         } catch (error) {
@@ -126,9 +120,26 @@ const QuickDocumentActions = ({documentId, fileName, documentType, documentStatu
         }
     };
 
-    const handleView = () => {
-        handleMenuClose();
-        setViewerOpen(true);
+    const handleView = async () => {
+        try {
+            setLoading(true);
+            handleMenuClose();
+
+            let blob;
+            if (isInvoice) {
+                blob = await adminAPI.viewInvoice(userId);
+            } else {
+                blob = await adminAPI.viewDocument(documentId);
+            }
+
+            // ✅ Open blob URL in new tab
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+        } catch (error) {
+            showToast(error.response?.data?.message || 'Failed to view', 'error');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

@@ -57,31 +57,27 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
     const handleMenuClose = () => setMenuOpen(false);
 
     /* ── handleDownload — API call unchanged ── */
+    // QuickInvoiceActions.jsx - SIMPLIFIED
+
     const handleDownload = async () => {
         try {
             setLoading(true);
             handleMenuClose();
 
-            const response = await adminAPI.downloadInvoice(userId);
+            // ✅ Backend returns FILE BLOB directly
+            const blob = await adminAPI.downloadInvoice(userId);
 
-            if (response.data.success && response.data.url) {
-                // ✅ Always point to API server
-                const apiBase = 'https://api.malcam.co.za';
-                const fullUrl = response.data.url.startsWith('http')
-                    ? response.data.url
-                    : `${apiBase}${response.data.url}`;
+            // ✅ Create download link from blob
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', fileName || 'invoice.pdf');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
 
-                console.log('⬇️ [QuickInvoiceActions] Download URL:', fullUrl);
-
-                const link = document.createElement('a');
-                link.href = fullUrl;
-                link.setAttribute('download', response.data.fileName || 'invoice.pdf');
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-
-                showToast('Invoice downloaded successfully', 'success');
-            }
+            showToast('Invoice downloaded successfully', 'success');
         } catch (error) {
             console.error('Download error:', error);
             showToast('Failed to download invoice', 'error');
@@ -95,19 +91,13 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
             setLoading(true);
             handleMenuClose();
 
-            const response = await adminAPI.viewInvoice(userId);
+            // ✅ Backend returns FILE BLOB directly
+            const blob = await adminAPI.viewInvoice(userId);
 
-            if (response.data.success && response.data.url) {
-                // ✅ Always point to API server
-                const apiBase = 'https://api.malcam.co.za';
-                const fullUrl = response.data.url.startsWith('http')
-                    ? response.data.url
-                    : `${apiBase}${response.data.url}`;
-
-                console.log('🔗 [QuickInvoiceActions] Opening URL:', fullUrl);
-                window.open(fullUrl, '_blank');
-                showToast('Invoice opened in new tab', 'info');
-            }
+            // ✅ Open blob URL in new tab
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+            showToast('Invoice opened in new tab', 'info');
         } catch (error) {
             console.error('View error:', error);
             showToast('Failed to view invoice', 'error');

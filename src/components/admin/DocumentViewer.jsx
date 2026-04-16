@@ -74,31 +74,26 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
         setError(null);
         setFetchAttempted(false);
         try {
-            const response = await adminAPI.viewDocument(documentId);
-            const body = response.data;   // plain JSON — NOT a Blob
+            // ✅ Backend now returns the FILE BLOB directly
+            const blob = await adminAPI.viewDocument(documentId);
 
-            if (!body?.success || !body?.url) {
-                throw new Error(body?.message || 'Failed to load document');
-            }
+            // ✅ Create object URL from blob
+            const objectUrl = URL.createObjectURL(blob);
 
             setDocInfo({
-                file_name: body.fileName || `document_${documentId}`,
-                mime_type: body.mimeType || 'application/octet-stream',
-                url: body.url,
+                file_name: docMeta?.file_name || `document_${documentId}`,
+                mime_type: blob.type || docMeta?.mime_type || 'application/octet-stream',
+                url: objectUrl,  // ✅ Local blob URL
             });
         } catch (err) {
             console.error('❌ fetchDocument error:', err);
-            const data = err?.response?.data;
-            setError(
-                data?.legacy
-                    ? 'This document was stored before cloud storage was enabled. The user needs to re-upload it.'
-                    : data?.message || err?.message || 'Failed to load document'
-            );
+            setError(err?.response?.data?.message || err?.message || 'Failed to load document');
         } finally {
             setLoading(false);
             setFetchAttempted(true);
         }
     }, [documentId, open]);
+
 
     useEffect(() => {
         if (open && documentId) fetchDocument();
@@ -112,36 +107,33 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
 
     const handleView = useCallback(() => {
         if (!docInfo?.url) return;
-        // ✅ Always point to API server — never admin frontend
-        const apiBase = 'https://api.malcam.co.za';
-        const fullUrl = docInfo.url.startsWith('http') ? docInfo.url : `${apiBase}${docInfo.url}`;
-        console.log('📂 [DocumentViewer] Opening URL:', fullUrl);
-        window.open(fullUrl, '_blank');
+        // ✅ Open blob URL directly (no domain needed)
+        console.log('📂 [DocumentViewer] Opening URL:', docInfo.url);
+        window.open(docInfo.url, '_blank');
     }, [docInfo]);
 
 
     const handleDownload = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await adminAPI.downloadDocument(documentId);
-            const body = response.data;
-            if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
-            // ✅ Always prepend API base — body.url is a relative path like /uploads/documents/...
-            const apiBase =  'https://api.malcam.co.za';
-            const fullUrl = body.url.startsWith('http') ? body.url : `${apiBase}${body.url}`;
-            console.log('⬇️ [DocumentViewer] Download URL:', fullUrl);
+            // ✅ Backend returns FILE BLOB directly
+            const blob = await adminAPI.downloadDocument(documentId);
+
+            // ✅ Create download link from blob
+            const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.href = fullUrl;
-            link.setAttribute('download', body.fileName || `document_${documentId}`);
+            link.href = url;
+            link.setAttribute('download', docMeta?.file_name || `document_${documentId}`);
             document.body.appendChild(link);
             link.click();
             link.remove();
+            URL.revokeObjectURL(url);
         } catch (err) {
             setError('Failed to download document');
         } finally {
             setLoading(false);
         }
-    }, [documentId]);
+    }, [documentId, docMeta]);
 
     const handleStatusChange = useCallback(async (newStatus) => {
         try {

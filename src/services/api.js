@@ -57,14 +57,24 @@ export const adminAPI = {
 
     // ── Invoices — backend returns JSON { success, url, fileName, mimeType } ──
     // NO responseType:'blob' — these are plain JSON responses now
-    viewInvoice: (userId) => api.get(`/client-users/${userId}/invoice/view`),
-    downloadInvoice: (userId) => api.get(`/client-users/${userId}/invoice`),
-    getInvoiceInfo: (userId) => api.get(`/client-users/${userId}/invoice/info`),
+    viewInvoice: (userId) => api.get(
+        `/client-users/${userId}/invoice/view`,
+        { responseType: 'blob' }  // ✅ Expect binary data
+    ),
+    downloadInvoice: (userId) => api.get(
+        `/client-users/${userId}/invoice`,
+        { responseType: 'blob' }  // ✅ Expect binary data
+    ),
 
-    // ── Documents — same: backend returns JSON { success, url, fileName, mimeType } ──
-    getUserDocuments: (userId) => api.get(`/client-users/${userId}/documents`),
-    viewDocument: (documentId) => api.get(`/documents/${documentId}/view`),
-    downloadDocument: (documentId) => api.get(`/documents/${documentId}/download`),
+    // ── Documents — backend now returns FILE DIRECTLY ──
+    viewDocument: (documentId) => api.get(
+        `/documents/${documentId}/view`,
+        { responseType: 'blob' }  // ✅ Expect binary data
+    ),
+    downloadDocument: (documentId) => api.get(
+        `/documents/${documentId}/download`,
+        { responseType: 'blob' }  // ✅ Expect binary data
+    ),
     updateDocumentStatus: (documentId, status, notes) =>
         api.patch(`/documents/${documentId}/status`, {status, notes}),
 };
