@@ -98,7 +98,12 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
     }, [open, userId, fetchInvoice]);
 
     const handleView = useCallback(() => {
-        if (invoiceInfo?.url) window.open(invoiceInfo.url, '_blank');
+        if (invoiceInfo?.url) {
+            const fullUrl = invoiceInfo.url.startsWith('http')
+                ? invoiceInfo.url
+                : `${process.env.REACT_APP_API_URL}${invoiceInfo.url}`;
+            window.open(fullUrl, '_blank');
+        }
     }, [invoiceInfo]);
 
     const handleDownload = useCallback(async () => {

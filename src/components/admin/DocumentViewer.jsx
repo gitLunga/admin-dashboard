@@ -110,7 +110,13 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
     }, [open, documentId, fetchDocument]);
 
     const handleView = useCallback(() => {
-        if (docInfo?.url) window.open(docInfo.url, '_blank');
+        if (docInfo?.url) {
+            // ✅ Ensure full URL to backend
+            const fullUrl = docInfo.url.startsWith('http')
+                ? docInfo.url
+                : `${process.env.REACT_APP_API_URL}${docInfo.url}`;
+            window.open(fullUrl, '_blank');
+        }
     }, [docInfo]);
 
     const handleDownload = useCallback(async () => {
