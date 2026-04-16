@@ -35,14 +35,15 @@ export const adminAPI = {
     // Operational Users
     getOperationalUsers: () => api.get('/operational-users'),
     getOperationalUserById: (id) => api.get(`/operational-users/${id}`),
+
     createOperationalUser: (userData) => api.post('/operational-users', userData),
     updateOperationalUser: (id, userData) => api.put(`/operational-users/${id}`, userData),
     deleteOperationalUser: (id) => api.delete(`/operational-users/${id}`),
+
     changeOperationalUserPassword: (id, data) =>
         api.patch(`/operational-users/${id}/change-password`, data),
     promoteToSuperAdmin: (id) => api.patch(`/operational-users/${id}/promote`),
     demoteSuperAdmin: (id) => api.patch(`/operational-users/${id}/demote`),
-
     // Statistics
     getStatistics: () => api.get('/statistics'),
     getRecentRegistrations: () => api.get('/recent-registrations'),
@@ -54,58 +55,35 @@ export const adminAPI = {
     // Search
     searchUsers: (query) => api.get(`/search?query=${query}`),
 
-    // ── Invoices — backend streams binary blob directly ──────────────────────
-    // Returns the Blob (response.data) already unwrapped — callers get a Blob directly.
-    viewInvoice: async (userId) => {
-        const response = await api.get(
-            `/client-users/${userId}/invoice/view`,
-            { responseType: 'blob' }
-        );
-        return response.data; // ✅ Blob, not the full axios response object
-    },
-    downloadInvoice: async (userId) => {
-        const response = await api.get(
-            `/client-users/${userId}/invoice`,
-            { responseType: 'blob' }
-        );
-        return response.data; // ✅ Blob
-    },
+    // ── Invoices — backend returns JSON { success, url, fileName, mimeType } ──
+    // NO responseType:'blob' — these are plain JSON responses now
+    viewInvoice: (userId) => api.get(`/client-users/${userId}/invoice/view`),
+    downloadInvoice: (userId) => api.get(`/client-users/${userId}/invoice`),
+    getInvoiceInfo: (userId) => api.get(`/client-users/${userId}/invoice/info`),
 
-    // ── Documents — backend streams binary blob directly ─────────────────────
-    viewDocument: async (documentId) => {
-        const response = await api.get(
-            `/documents/${documentId}/view`,
-            { responseType: 'blob' }
-        );
-        return response.data; // ✅ Blob
-    },
-    downloadDocument: async (documentId) => {
-        const response = await api.get(
-            `/documents/${documentId}/download`,
-            { responseType: 'blob' }
-        );
-        return response.data; // ✅ Blob
-    },
-
+    // ── Documents — same: backend returns JSON { success, url, fileName, mimeType } ──
+    getUserDocuments: (userId) => api.get(`/client-users/${userId}/documents`),
+    viewDocument: (documentId) => api.get(`/documents/${documentId}/view`),
+    downloadDocument: (documentId) => api.get(`/documents/${documentId}/download`),
     updateDocumentStatus: (documentId, status, notes) =>
-        api.patch(`/documents/${documentId}/status`, { status, notes }),
+        api.patch(`/documents/${documentId}/status`, {status, notes}),
 };
 
 export const notificationsAPI = {
     getNotifications: () => notificationsApi.get('/notifications/all'),
     getUserNotifications: (userId, userType) =>
-        notificationsApi.get('/notifications/user', { params: { user_id: userId, user_type: userType } }),
+        notificationsApi.get('/notifications/user', {params: {user_id: userId, user_type: userType}}),
     getUnreadCount: (userId, userType) =>
-        notificationsApi.get('/notifications/unread-count', { params: { user_id: userId, user_type: userType } }),
+        notificationsApi.get('/notifications/unread-count', {params: {user_id: userId, user_type: userType}}),
     markAsRead: (notificationId, userId, userType) =>
-        notificationsApi.patch(`/notifications/${notificationId}/read`, { user_id: userId, user_type: userType }),
+        notificationsApi.patch(`/notifications/${notificationId}/read`, {user_id: userId, user_type: userType}),
     markAllAsRead: (userId, userType) =>
-        notificationsApi.patch('/notifications/mark-all-read', { user_id: userId, user_type: userType }),
+        notificationsApi.patch('/notifications/mark-all-read', {user_id: userId, user_type: userType}),
     deleteNotification: (notificationId) => {
         const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
         const adminId = adminUser.op_user_id || adminUser.id;
         return notificationsApi.delete(`/notifications/${notificationId}`, {
-            data: { user_id: adminId, user_type: 'Operational' }
+            data: {user_id: adminId, user_type: 'Operational'}
         });
     },
 };
@@ -122,13 +100,28 @@ export const deviceAPI = {
     searchApplications: (query) =>
         deviceApi.get(`/applications/admin/applications?search=${query}`),
 
-    getAllDevices: () => deviceApi.get('/devices'),
-    getDeviceById: (deviceId) => deviceApi.get(`/devices/${deviceId}`),
-    createDevice: (deviceData) => deviceApi.post('/devices', deviceData),
-    updateDevice: (deviceId, deviceData) => deviceApi.put(`/devices/${deviceId}`, deviceData),
-    deleteDevice: (deviceId) => deviceApi.delete(`/devices/${deviceId}`),
-    searchDevices: (query) => deviceApi.get(`/devices/search?q=${query}`),
-    getDevicesByStatus: (status) => deviceApi.get(`/devices/status/${status}`),
+    // NEW: Device Catalog endpoints
+    getAllDevices: () =>
+        deviceApi.get('/devices'),
+
+    getDeviceById: (deviceId) =>
+        deviceApi.get(`/devices/${deviceId}`),
+
+    createDevice: (deviceData) =>
+        deviceApi.post('/devices', deviceData),
+
+    updateDevice: (deviceId, deviceData) =>
+        deviceApi.put(`/devices/${deviceId}`, deviceData),
+
+    deleteDevice: (deviceId) =>
+        deviceApi.delete(`/devices/${deviceId}`),
+
+    // Optional: Add search/filter endpoints
+    searchDevices: (query) =>
+        deviceApi.get(`/devices/search?q=${query}`),
+
+    getDevicesByStatus: (status) =>
+        deviceApi.get(`/devices/status/${status}`),
 };
 
 export const authAPI = {
