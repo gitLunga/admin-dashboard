@@ -98,11 +98,15 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
     }, [open, userId, fetchInvoice]);
 
     const handleView = useCallback(() => {
-        if (docInfo?.url) {
-            // ✅ Since backend is on SAME domain, just use the URL as-is
-            window.open(docInfo.url, '_blank');
+        if (invoiceInfo?.url) {
+            // ✅ Construct FULL URL to API backend
+            const fullUrl = invoiceInfo.url.startsWith('http')
+                ? invoiceInfo.url
+                : `${process.env.REACT_APP_API_URL}${invoiceInfo.url}`;
+            console.log('📄 Opening invoice URL:', fullUrl);
+            window.open(fullUrl, '_blank');
         }
-    }, [docInfo]);
+    }, [invoiceInfo]);
 
     const handleDownload = useCallback(async () => {
         try {

@@ -109,10 +109,15 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
         };
     }, [open, documentId, fetchDocument]);
 
+
     const handleView = useCallback(() => {
         if (docInfo?.url) {
-            // ✅ Since backend is on SAME domain, just use the URL as-is
-            window.open(docInfo.url, '_blank');
+            // ✅ Construct FULL URL to API backend
+            const fullUrl = docInfo.url.startsWith('http')
+                ? docInfo.url
+                : `${process.env.REACT_APP_API_URL}${docInfo.url}`;
+            console.log('📂 Opening document URL:', fullUrl);
+            window.open(fullUrl, '_blank');
         }
     }, [docInfo]);
 
