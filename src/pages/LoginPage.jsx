@@ -118,8 +118,13 @@ const LoginPage = () => {
             }
 
             const msg = response.data?.message || `Welcome back, ${user.name?.split(' ')[0] || 'Admin'}!`;
+            const route = user.user_role === 'Manager' ? '/manager/dashboard'
+                : user.user_role === 'Finance'  ? '/finance/dashboard'
+                    : '/dashboard';
+
             success(msg, 'Login Successful');
-            setTimeout(() => navigate('/dashboard'), 900);
+            setTimeout(() => navigate(route), 900);
+           // setTimeout(() => navigate('/dashboard'), 900);
         } catch (err) {
             const status = err.response?.status;
             const msg = err.response?.data?.message || 'Invalid email or password';

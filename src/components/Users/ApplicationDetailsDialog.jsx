@@ -9,6 +9,7 @@ import {
     Email as EmailIcon, Phone as PhoneIcon, LocationOn as LocationIcon,
     Business as BusinessIcon, Badge as BadgeIcon, CalendarToday as CalendarIcon,
     CheckCircle as ApprovedIcon, Cancel as RejectedIcon,
+    Timeline as TimelineIcon,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 
@@ -30,6 +31,13 @@ const STATUS_META = {
     Pending:   { color: T.amber, soft: T.amberSoft  },
     Cancelled: { color: T.muted, soft: '#F1F5F9'   },
     Verified:  { color: T.green, soft: T.greenSoft  },
+};
+
+// Stage label map — converts DB stage string to human-readable
+const STAGE_LABELS = {
+    manager: 'Manager Review',
+    finance: 'Finance Review',
+    admin:   'Admin Review',
 };
 
 const StatusBadge = ({ status }) => {
@@ -60,6 +68,119 @@ const SectionHeader = ({ icon: Icon, label, color = T.accent }) => (
 );
 
 const fmtR = (a) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', minimumFractionDigits: 2 }).format(a || 0);
+
+// ── NEW: Approval History Timeline ───────────────────────────────────────────
+// Renders a vertical timeline of every approval event for this application.
+// Handles the full workflow: Pending → Manager → Finance → Approved/Rejected.
+const ApprovalTimeline = ({ application }) => {
+    // Build timeline from approval_history array + current application state
+    const history = Array.isArray(application.approval_history) ? application.approval_history : [];
+
+    // Determine which workflow steps are shown based on the application status
+    const steps = [
+        {
+            key: 'submitted',
+            stage: 'Submitted',
+            label: 'Application Submitted',
+            date: application.submission_date,
+            status: 'Completed',
+            actor: `${application.first_name} ${application.last_name}`,
+            notes: null,
+            color: T.accent,
+        },
+        // Inject actual approval history entries
+        ...history.map((h) => ({
+            key: `approval_${h.approval_id}`,
+            stage: STAGE_LABELS[h.approval_stage] || h.approval_stage,
+            label: `${STAGE_LABELS[h.approval_stage] || h.approval_stage} — ${h.approval_status}`,
+            date: h.approval_date,
+            status: h.approval_status,
+            actor: `${h.approver_first_name} ${h.approver_last_name}${h.approver_role ? ` (${h.approver_role})` : ''}`,
+            notes: h.notes,
+            color: h.approval_status === 'Approved' ? T.green : T.rose,
+        })),
+    ];
+
+    // Add a final "Order Placed" step if an order exists
+    if (application.order_id) {
+        steps.push({
+            key: 'order',
+            stage: 'Order Placed',
+            label: 'MTN Order Placed',
+            date: application.order_date,
+            status: 'Ordered',
+            actor: application.mtn_staff_first_name
+                ? `${application.mtn_staff_first_name} ${application.mtn_staff_last_name}`
+                : 'Admin',
+            notes: `Order #${application.order_id} · Status: ${application.order_status || 'Processing'}`,
+            color: T.cyan,
+        });
+    }
+
+    if (steps.length === 0) return null;
+
+    const dotColor = (status) => {
+        if (status === 'Approved' || status === 'Completed' || status === 'Ordered') return T.green;
+        if (status === 'Rejected') return T.rose;
+        return T.amber;
+    };
+
+    return (
+        <Box sx={{ bgcolor: T.surface, borderRadius: '12px', p: 2.5, border: `1px solid ${T.border}` }}>
+            <SectionHeader icon={TimelineIcon} label="Approval Journey" color={T.purple} />
+            <Box sx={{ position: 'relative', pl: 2 }}>
+                {/* Vertical line */}
+                <Box sx={{
+                    position: 'absolute', left: '7px', top: 8, bottom: 8,
+                    width: 2, bgcolor: T.border, borderRadius: 1,
+                }} />
+
+                {steps.map((step, idx) => (
+                    <Box key={step.key} sx={{
+                        position: 'relative', mb: idx < steps.length - 1 ? 2.5 : 0,
+                        pl: 2.5,
+                    }}>
+                        {/* Timeline dot */}
+                        <Box sx={{
+                            position: 'absolute', left: -1, top: 3,
+                            width: 14, height: 14, borderRadius: '50%',
+                            bgcolor: dotColor(step.status),
+                            border: `2px solid ${T.surface}`,
+                            boxShadow: `0 0 0 2px ${dotColor(step.status)}44`,
+                            zIndex: 1,
+                        }} />
+
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 0.5 }}>
+                            <Box sx={{ flex: 1 }}>
+                                <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: T.text }}>
+                                    {step.label}
+                                </Typography>
+                                <Typography sx={{ fontSize: '0.74rem', color: T.muted, mt: 0.2 }}>
+                                    {step.actor}
+                                </Typography>
+                                {step.notes && (
+                                    <Box sx={{ mt: 0.7, px: 1.5, py: 0.8, borderRadius: '8px',
+                                        bgcolor: step.status === 'Rejected' ? T.roseSoft : T.bg,
+                                        border: `1px solid ${step.status === 'Rejected' ? T.rose + '33' : T.border}`,
+                                    }}>
+                                        <Typography sx={{ fontSize: '0.74rem', color: step.status === 'Rejected' ? T.rose : T.muted }}>
+                                            {step.notes}
+                                        </Typography>
+                                    </Box>
+                                )}
+                            </Box>
+                            {step.date && (
+                                <Typography className="mono" sx={{ fontSize: '0.7rem', color: T.muted, flexShrink: 0, mt: 0.2 }}>
+                                    {dayjs(step.date).format('DD MMM YYYY HH:mm')}
+                                </Typography>
+                            )}
+                        </Box>
+                    </Box>
+                ))}
+            </Box>
+        </Box>
+    );
+};
 
 const ApplicationDetailsDialog = ({ open, application, onClose }) => {
     if (!application) return null;
@@ -175,6 +296,11 @@ const ApplicationDetailsDialog = ({ open, application, onClose }) => {
                             <InfoRow label="Contract">
                                 <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{application.contract_duration_months} months</Typography>
                             </InfoRow>
+                            <InfoRow label="Total Value">
+                                <Typography className="mono" sx={{ fontSize: '0.82rem', fontWeight: 700, color: T.text }}>
+                                    {fmtR((application.monthly_cost || 0) * (application.contract_duration_months || 0))}
+                                </Typography>
+                            </InfoRow>
                         </Box>
 
                         <Box sx={{ bgcolor: T.surface, borderRadius: '12px', p: 2.5, border: `1px solid ${T.border}` }}>
@@ -223,8 +349,36 @@ const ApplicationDetailsDialog = ({ open, application, onClose }) => {
                                     </Typography>
                                 </InfoRow>
                             )}
+
+                            {/* Order info if placed */}
+                            {application.order_id && (
+                                <>
+                                    <InfoRow label="Order ID">
+                                        <Typography className="mono" sx={{ fontSize: '0.82rem', fontWeight: 700, color: T.cyan }}>
+                                            #{application.order_id}
+                                        </Typography>
+                                    </InfoRow>
+                                    <InfoRow label="Order Status">
+                                        <Chip label={application.order_status || 'Processing'} size="small"
+                                              sx={{ height: 22, fontSize: '0.71rem', fontWeight: 600, bgcolor: T.cyanSoft, color: T.cyan }} />
+                                    </InfoRow>
+                                    {application.order_date && (
+                                        <InfoRow label="Order Date">
+                                            <Typography className="mono" sx={{ fontSize: '0.8rem', color: T.text }}>
+                                                {dayjs(application.order_date).format('DD MMM YYYY HH:mm')}
+                                            </Typography>
+                                        </InfoRow>
+                                    )}
+                                </>
+                            )}
                         </Box>
                     </Grid>
+
+                    {/* ── Approval Journey Timeline ── */}
+                    <Grid item xs={12}>
+                        <ApprovalTimeline application={application} />
+                    </Grid>
+
                 </Grid>
             </DialogContent>
         </Dialog>

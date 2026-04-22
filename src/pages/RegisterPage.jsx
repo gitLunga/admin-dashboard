@@ -7,6 +7,8 @@ import {
     Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon,
     AdminPanelSettings as AdminIcon, Build as StaffIcon,
     HowToReg as ApproverIcon, Check as CheckIcon,
+    Gavel as ManagerIcon, AccountBalance as FinanceIcon,
+    ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
 import Navbar from '../components/Navigation/Navbar';
 
@@ -29,6 +31,7 @@ const TITLES = [
     {value: 'Prof', label: 'Professor'},
 ];
 
+// Top-level role cards shown to every registrant
 const USER_ROLES = [
     {
         value: 'Admin',
@@ -36,7 +39,7 @@ const USER_ROLES = [
         description: 'Full system access and management',
         Icon: AdminIcon,
         color: T.rose,
-        soft: T.roseSoft
+        soft: T.roseSoft,
     },
     {
         value: 'MTN_Staff',
@@ -44,32 +47,47 @@ const USER_ROLES = [
         description: 'Device and order management',
         Icon: StaffIcon,
         color: T.amber,
-        soft: T.amberSoft
+        soft: T.amberSoft,
     },
     {
+        // Selecting 'Approver' reveals the sub-role picker below.
+        // The actual value sent to the API will be 'Manager' or 'Finance',
+        // never the literal string 'Approver'.
         value: 'Approver',
         label: 'Approver',
-        description: 'Application process approver',
+        description: 'Application process approver — Manager or Finance',
         Icon: ApproverIcon,
         color: T.accent,
-        soft: T.accentSoft
+        soft: T.accentSoft,
     },
 ];
 
-/* ─────────────────────────────────────────────────────────────
-   All sub-components defined OUTSIDE RegisterPage.
-   Defining them inside would cause unmount/remount on every
-   keystroke, breaking focus.
-───────────────────────────────────────────────────────────── */
+// Sub-roles shown only when Approver card is selected
+const APPROVER_SUB_ROLES = [
+    {
+        value: 'Manager',
+        label: 'Manager',
+        description: 'Stage 1 approver — reviews applications and forwards to Finance',
+        Icon: ManagerIcon,
+        color: T.accent,
+        soft: T.accentSoft,
+    },
+    {
+        value: 'Finance',
+        label: 'Finance',
+        description: 'Stage 2 approver — gives final financial approval',
+        Icon: FinanceIcon,
+        color: T.green,
+        soft: T.greenSoft,
+    },
+];
+
+/* ─── Sub-components (defined OUTSIDE to prevent remount on every keystroke) ── */
 
 const FieldLabel = ({text, required}) => (
     <Typography sx={{
-        fontSize: '0.7rem',
-        fontWeight: 700,
-        color: T.muted,
-        textTransform: 'uppercase',
-        letterSpacing: 0.8,
-        mb: 0.8,
+        fontSize: '0.7rem', fontWeight: 700, color: T.muted,
+        textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.8,
         fontFamily: 'Plus Jakarta Sans, sans-serif'
     }}>
         {text}{required && <span style={{color: T.rose}}> *</span>}
@@ -85,45 +103,35 @@ const FieldError = ({msg}) =>
         fontFamily: 'Plus Jakarta Sans, sans-serif'
     }}>{msg}</Typography> : null;
 
-/* Text / email input — value & onChange come from props, no closure over parent */
 const ModernInput = ({label, placeholder, value, onChange, onBlur, type = 'text', error, disabled, icon: Icon}) => {
     const [focused, setFocused] = useState(false);
-
-    const handleBlur = (e) => {
-        setFocused(false);
-        onBlur?.(e);
-    };
 
     return (
         <Box sx={{mb: 2}}>
             <FieldLabel text={label} required/>
             <Box sx={{
-                display: 'flex', alignItems: 'center', gap: 1, bgcolor: T.surface,
+                display: 'flex', alignItems: 'center', gap: 1.2,
+                px: 1.6, py: 1.1,
                 border: `1.5px solid ${error ? T.rose : focused ? T.accent : T.border}`,
-                borderRadius: '10px', px: 1.4, py: 0.85,
-                boxShadow: focused ? `0 0 0 3px ${error ? T.roseSoft : T.accentSoft}` : 'none',
-                transition: 'all 0.2s ease',
+                borderRadius: '10px', bgcolor: T.surface,
+                transition: 'border-color 0.18s',
             }}>
-                {Icon && <Icon sx={{fontSize: 16, color: focused ? T.accent : T.muted, flexShrink: 0}}/>}
+                {Icon && <Icon sx={{fontSize: 17, color: focused ? T.accent : T.muted, flexShrink: 0}}/>}
                 <input
                     type={type}
-                    placeholder={placeholder}
                     value={value}
-                    disabled={disabled}
                     onChange={onChange}
-                    onBlur={handleBlur}
+                    onBlur={(e) => {
+                        setFocused(false);
+                        onBlur?.(e);
+                    }}
                     onFocus={() => setFocused(true)}
-                    autoCapitalize={type === 'email' ? 'off' : 'words'}
-                    autoCorrect={type === 'email' ? 'off' : 'on'}
-                    spellCheck={type === 'email' ? 'false' : 'true'}
+                    placeholder={placeholder}
+                    disabled={disabled}
                     style={{
-                        border: 'none',
-                        outline: 'none',
-                        background: 'transparent',
-                        width: '100%',
-                        fontFamily: 'Plus Jakarta Sans, sans-serif',
-                        fontSize: '0.87rem',
-                        color: T.text
+                        border: 'none', outline: 'none', background: 'transparent',
+                        flex: 1, fontFamily: 'Plus Jakarta Sans, sans-serif',
+                        fontSize: '0.87rem', color: T.text,
                     }}
                 />
             </Box>
@@ -132,102 +140,75 @@ const ModernInput = ({label, placeholder, value, onChange, onBlur, type = 'text'
     );
 };
 
-/* Password input */
 const PasswordInput = ({label, value, onChange, onBlur, error, showPassword, onToggleVisibility, disabled}) => {
     const [focused, setFocused] = useState(false);
     return (
         <Box sx={{mb: 2}}>
             <FieldLabel text={label} required/>
             <Box sx={{
-                display: 'flex', alignItems: 'center', gap: 1, bgcolor: T.surface,
+                display: 'flex', alignItems: 'center', gap: 1.2,
+                px: 1.6, py: 1.1,
                 border: `1.5px solid ${error ? T.rose : focused ? T.accent : T.border}`,
-                borderRadius: '10px', px: 1.4, py: 0.85,
-                boxShadow: focused ? `0 0 0 3px ${error ? T.roseSoft : T.accentSoft}` : 'none',
-                transition: 'all 0.2s ease',
+                borderRadius: '10px', bgcolor: T.surface, transition: 'border-color 0.18s',
             }}>
-                <LockIcon sx={{fontSize: 16, color: focused ? T.accent : T.muted, flexShrink: 0}}/>
+                <LockIcon sx={{fontSize: 17, color: focused ? T.accent : T.muted, flexShrink: 0}}/>
                 <input
-                    type={showPassword ? 'text' : 'password'} placeholder="Enter password"
-                    value={value} disabled={disabled} onChange={onChange}
-                    onFocus={() => setFocused(true)}
+                    type={showPassword ? 'text' : 'password'}
+                    value={value}
+                    onChange={onChange}
                     onBlur={(e) => {
                         setFocused(false);
                         onBlur?.(e);
                     }}
-                    autoCapitalize="off" autoCorrect="off" spellCheck="false"
+                    onFocus={() => setFocused(true)}
+                    placeholder="Enter password"
+                    disabled={disabled}
                     style={{
-                        border: 'none',
-                        outline: 'none',
-                        background: 'transparent',
-                        flex: 1,
-                        fontFamily: 'Plus Jakarta Sans, sans-serif',
-                        fontSize: '0.87rem',
-                        color: T.text
+                        border: 'none', outline: 'none', background: 'transparent',
+                        flex: 1, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.87rem', color: T.text,
                     }}
                 />
                 <Box component="button" type="button" onClick={onToggleVisibility} disabled={disabled}
                      sx={{
                          border: 'none',
-                         background: 'transparent',
+                         bgcolor: 'transparent',
                          cursor: 'pointer',
+                         p: 0,
                          display: 'flex',
-                         p: 0.3,
-                         borderRadius: '6px',
-                         color: T.muted,
-                         '&:hover': {color: T.accent, bgcolor: T.accentSoft},
-                         transition: 'all 0.15s'
+                         alignItems: 'center'
                      }}>
-                    {showPassword ? <VisibilityOffIcon sx={{fontSize: 16}}/> : <VisibilityIcon sx={{fontSize: 16}}/>}
+                    {showPassword
+                        ? <VisibilityOffIcon sx={{fontSize: 17, color: T.muted}}/>
+                        : <VisibilityIcon sx={{fontSize: 17, color: T.muted}}/>}
                 </Box>
             </Box>
-            {error && <FieldError msg={error}/>}
-            {!error && label === 'Password' && value && (
-                <Typography sx={{
-                    fontSize: '0.7rem',
-                    color: T.muted,
-                    mt: 0.5,
-                    ml: 0.2,
-                    fontFamily: 'Plus Jakarta Sans, sans-serif'
-                }}>
-                    Must be at least 8 characters
-                </Typography>
-            )}
+            <FieldError msg={error}/>
         </Box>
     );
 };
 
-/* Custom select */
-const SelectInput = ({label, value, placeholder, onSelect, disabled, options, error}) => {
+const SelectInput = ({label, value, placeholder, onSelect, options, error, disabled}) => {
     const [open, setOpen] = useState(false);
-    const selectedLabel = options.find(o => o.value === value)?.label || '';
+    const selected = options.find(o => o.value === value);
     return (
         <Box sx={{mb: 2, position: 'relative'}}>
             <FieldLabel text={label} required/>
-            <Box component="button" type="button" onClick={() => !disabled && setOpen(!open)} disabled={disabled}
+            <Box component="button" type="button" onClick={() => !disabled && setOpen(o => !o)} disabled={disabled}
                  sx={{
-                     width: '100%',
-                     display: 'flex',
-                     justifyContent: 'space-between',
-                     alignItems: 'center',
-                     bgcolor: T.surface,
-                     border: `1.5px solid ${error ? T.rose : open ? T.accent : T.border}`,
-                     borderRadius: '10px',
-                     px: 1.6,
-                     py: 1.05,
-                     cursor: disabled ? 'not-allowed' : 'pointer',
-                     boxShadow: open ? `0 0 0 3px ${T.accentSoft}` : 'none',
-                     transition: 'all 0.2s ease',
-                     fontFamily: 'Plus Jakarta Sans, sans-serif'
+                     width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                     px: 1.6, py: 1.1, border: `1.5px solid ${error ? T.rose : open ? T.accent : T.border}`,
+                     borderRadius: '10px', bgcolor: T.surface, cursor: disabled ? 'not-allowed' : 'pointer',
+                     fontFamily: 'Plus Jakarta Sans, sans-serif', transition: 'border-color 0.18s',
                  }}>
-                <Typography sx={{fontSize: '0.87rem', color: value ? T.text : T.muted}}>
-                    {selectedLabel || placeholder}
+                <Typography sx={{fontSize: '0.87rem', color: selected ? T.text : T.muted}}>
+                    {selected ? selected.label : placeholder}
                 </Typography>
-                <Typography sx={{
-                    fontSize: '0.7rem',
+                <ExpandMoreIcon sx={{
+                    fontSize: 18,
                     color: T.muted,
-                    transition: 'transform 0.2s',
-                    transform: open ? 'rotate(180deg)' : 'none'
-                }}>▼</Typography>
+                    transform: open ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 0.2s'
+                }}/>
             </Box>
             {open && (
                 <>
@@ -259,8 +240,8 @@ const SelectInput = ({label, value, placeholder, onSelect, disabled, options, er
                                      px: 2,
                                      py: 1.1,
                                      border: 'none',
-                                     bgcolor: value === opt.value ? T.accentSoft : 'transparent',
                                      cursor: 'pointer',
+                                     bgcolor: value === opt.value ? T.accentSoft : 'transparent',
                                      fontFamily: 'Plus Jakarta Sans, sans-serif',
                                      '&:hover': {bgcolor: T.bg},
                                      transition: 'background-color 0.1s'
@@ -289,12 +270,23 @@ const RegisterPage = () => {
 
     const [formData, setFormData] = useState({
         title: '', firstName: '', lastName: '', email: '',
-        userRole: 'Admin', password: '', confirmPassword: '',
+        // userRole holds the top-level card selection ('Admin','MTN_Staff','Approver')
+        userRole: 'Admin',
+        // approverSubRole holds 'Manager' or 'Finance' — only used when userRole === 'Approver'
+        approverSubRole: '',
+        password: '', confirmPassword: '',
     });
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+    // Derives the actual role value to send to the API:
+    // - 'Approver' card selected → send approverSubRole ('Manager' or 'Finance')
+    // - anything else → send userRole directly
+    const resolvedRole = formData.userRole === 'Approver'
+        ? formData.approverSubRole
+        : formData.userRole;
 
     const validateField = (field, value) => {
         switch (field) {
@@ -331,11 +323,19 @@ const RegisterPage = () => {
 
     const handleRegister = async (e) => {
         e?.preventDefault();
+
+        // Validate all fields
         const newErrors = {};
-        Object.keys(formData).forEach(k => {
+        ['title', 'firstName', 'lastName', 'email', 'password', 'confirmPassword'].forEach(k => {
             const err = validateField(k, formData[k]);
             if (err) newErrors[k] = err;
         });
+
+        // Extra validation: if Approver is selected, a sub-role must be chosen
+        if (formData.userRole === 'Approver' && !formData.approverSubRole) {
+            newErrors.approverSubRole = 'Please select Manager or Finance';
+        }
+
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
             return;
@@ -344,8 +344,12 @@ const RegisterPage = () => {
         setLoading(true);
         try {
             const response = await authAPI.registerOperational({
-                title: formData.title, first_name: formData.firstName, last_name: formData.lastName,
-                email: formData.email, user_role: formData.userRole, password: formData.password,
+                title: formData.title,
+                first_name: formData.firstName,
+                last_name: formData.lastName,
+                email: formData.email,
+                user_role: resolvedRole,   // 'Manager', 'Finance', 'Admin', or 'MTN_Staff'
+                password: formData.password,
             });
             if (response.data.success) {
                 navigate('/login');
@@ -365,17 +369,15 @@ const RegisterPage = () => {
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
                 @keyframes fadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+                @keyframes slideDown { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
             `}</style>
 
             <Navbar/>
 
             <Container maxWidth="sm" sx={{py: {xs: 4, md: 6}}}>
                 <Box sx={{
-                    bgcolor: T.surface,
-                    borderRadius: '16px',
-                    border: `1px solid ${T.border}`,
-                    overflow: 'hidden',
-                    boxShadow: '0 8px 32px rgba(15,31,61,0.08)',
+                    bgcolor: T.surface, borderRadius: '16px', border: `1px solid ${T.border}`,
+                    overflow: 'hidden', boxShadow: '0 8px 32px rgba(15,31,61,0.08)',
                     animation: 'fadeUp 0.45s ease-out'
                 }}>
                     <Box sx={{height: 4, bgcolor: T.accent}}/>
@@ -384,25 +386,15 @@ const RegisterPage = () => {
                         {/* Header */}
                         <Box sx={{mb: 3.5, textAlign: 'center'}}>
                             <Box sx={{
-                                width: 50,
-                                height: 50,
-                                borderRadius: '14px',
-                                bgcolor: T.accentSoft,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                mx: 'auto',
-                                mb: 1.5
+                                width: 50, height: 50, borderRadius: '14px', bgcolor: T.accentSoft,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                mx: 'auto', mb: 1.5
                             }}>
                                 <PersonIcon sx={{fontSize: 24, color: T.accent}}/>
                             </Box>
                             <Typography sx={{
-                                fontWeight: 800,
-                                fontSize: '1.35rem',
-                                color: T.text,
-                                letterSpacing: '-0.3px',
-                                mb: 0.5,
-                                fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                fontWeight: 800, fontSize: '1.35rem', color: T.text,
+                                letterSpacing: '-0.3px', mb: 0.5, fontFamily: 'Plus Jakarta Sans, sans-serif'
                             }}>
                                 Operational Registration
                             </Typography>
@@ -426,7 +418,9 @@ const RegisterPage = () => {
                                     color: T.rose,
                                     fontWeight: 600,
                                     fontFamily: 'Plus Jakarta Sans, sans-serif'
-                                }}>{errors._form}</Typography>
+                                }}>
+                                    {errors._form}
+                                </Typography>
                             </Box>
                         )}
 
@@ -445,17 +439,15 @@ const RegisterPage = () => {
                             <Box sx={{display: 'flex', gap: 1.5, flexWrap: {xs: 'wrap', sm: 'nowrap'}}}>
                                 <Box sx={{flex: 1}}>
                                     <ModernInput label="First Name" placeholder="First name" value={formData.firstName}
-                                                 icon={PersonIcon}
-                                                 onChange={handleFieldChange('firstName')}
-                                                 onBlur={handleBlur('firstName')}
-                                                 disabled={loading} error={errors.firstName}/>
+                                                 icon={PersonIcon} onChange={handleFieldChange('firstName')}
+                                                 onBlur={handleBlur('firstName')} disabled={loading}
+                                                 error={errors.firstName}/>
                                 </Box>
                                 <Box sx={{flex: 1}}>
                                     <ModernInput label="Last Name" placeholder="Last name" value={formData.lastName}
-                                                 icon={PersonIcon}
-                                                 onChange={handleFieldChange('lastName')}
-                                                 onBlur={handleBlur('lastName')}
-                                                 disabled={loading} error={errors.lastName}/>
+                                                 icon={PersonIcon} onChange={handleFieldChange('lastName')}
+                                                 onBlur={handleBlur('lastName')} disabled={loading}
+                                                 error={errors.lastName}/>
                                 </Box>
                             </Box>
 
@@ -465,75 +457,165 @@ const RegisterPage = () => {
                                          onChange={handleFieldChange('email')} onBlur={handleBlur('email')}
                                          disabled={loading} error={errors.email}/>
 
-                            {/* Role cards */}
+                            {/* ── Role Cards ───────────────────────────────── */}
                             <Box sx={{mb: 2.5}}>
                                 <FieldLabel text="User Role" required/>
                                 <Box sx={{display: 'flex', flexDirection: 'column', gap: 1}}>
                                     {USER_ROLES.map(role => {
                                         const selected = formData.userRole === role.value;
+                                        const isApprover = role.value === 'Approver';
                                         return (
-                                            <Box key={role.value} component="button" type="button"
-                                                 onClick={() => !loading && setFormData(prev => ({
-                                                     ...prev,
-                                                     userRole: role.value
-                                                 }))}
-                                                 disabled={loading}
-                                                 sx={{
-                                                     display: 'flex',
-                                                     alignItems: 'center',
-                                                     gap: 1.5,
-                                                     width: '100%',
-                                                     textAlign: 'left',
-                                                     p: 1.6,
-                                                     borderRadius: '12px',
-                                                     cursor: loading ? 'not-allowed' : 'pointer',
-                                                     border: `2px solid ${selected ? role.color : T.border}`,
-                                                     bgcolor: selected ? role.soft : T.bg,
-                                                     transition: 'all 0.16s ease',
-                                                     '&:hover': {borderColor: role.color, bgcolor: role.soft}
-                                                 }}>
-                                                <Box sx={{
-                                                    width: 36,
-                                                    height: 36,
-                                                    borderRadius: '10px',
-                                                    bgcolor: selected ? role.color : T.border,
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    flexShrink: 0,
-                                                    transition: 'background-color 0.16s'
-                                                }}>
-                                                    <role.Icon sx={{fontSize: 18, color: selected ? '#fff' : T.muted}}/>
+                                            <Box key={role.value}>
+                                                {/* Role card */}
+                                                <Box component="button" type="button"
+                                                     onClick={() => !loading && setFormData(prev => ({
+                                                         ...prev,
+                                                         userRole: role.value,
+                                                         // Reset sub-role when switching away from Approver
+                                                         approverSubRole: role.value === 'Approver' ? prev.approverSubRole : '',
+                                                     }))}
+                                                     disabled={loading}
+                                                     sx={{
+                                                         display: 'flex', alignItems: 'center', gap: 1.5,
+                                                         width: '100%', textAlign: 'left', p: 1.6,
+                                                         borderRadius: selected && isApprover ? '12px 12px 0 0' : '12px',
+                                                         cursor: loading ? 'not-allowed' : 'pointer',
+                                                         border: `2px solid ${selected ? role.color : T.border}`,
+                                                         borderBottom: selected && isApprover ? `2px solid ${role.color}` : undefined,
+                                                         bgcolor: selected ? role.soft : T.bg,
+                                                         transition: 'all 0.16s ease',
+                                                         '&:hover': {borderColor: role.color, bgcolor: role.soft},
+                                                     }}>
+                                                    <Box sx={{
+                                                        width: 36, height: 36, borderRadius: '10px',
+                                                        bgcolor: selected ? role.color : T.border,
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        flexShrink: 0, transition: 'background-color 0.16s'
+                                                    }}>
+                                                        <role.Icon
+                                                            sx={{fontSize: 18, color: selected ? '#fff' : T.muted}}/>
+                                                    </Box>
+                                                    <Box sx={{flex: 1}}>
+                                                        <Typography sx={{
+                                                            fontWeight: 700, fontSize: '0.85rem',
+                                                            color: selected ? role.color : T.text,
+                                                            lineHeight: 1.3, fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                                        }}>{role.label}</Typography>
+                                                        <Typography sx={{
+                                                            fontSize: '0.72rem', color: T.muted,
+                                                            lineHeight: 1.4, fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                                        }}>{role.description}</Typography>
+                                                    </Box>
+                                                    <Box sx={{
+                                                        width: 18, height: 18, borderRadius: '50%',
+                                                        border: `2px solid ${selected ? role.color : T.border}`,
+                                                        bgcolor: selected ? role.color : 'transparent',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        flexShrink: 0, transition: 'all 0.15s'
+                                                    }}>
+                                                        {selected && <CheckIcon sx={{fontSize: 11, color: '#fff'}}/>}
+                                                    </Box>
                                                 </Box>
-                                                <Box sx={{flex: 1}}>
-                                                    <Typography sx={{
-                                                        fontWeight: 700,
-                                                        fontSize: '0.85rem',
-                                                        color: selected ? role.color : T.text,
-                                                        lineHeight: 1.3,
-                                                        fontFamily: 'Plus Jakarta Sans, sans-serif'
-                                                    }}>{role.label}</Typography>
-                                                    <Typography sx={{
-                                                        fontSize: '0.72rem',
-                                                        color: T.muted,
-                                                        lineHeight: 1.4,
-                                                        fontFamily: 'Plus Jakarta Sans, sans-serif'
-                                                    }}>{role.description}</Typography>
-                                                </Box>
-                                                <Box sx={{
-                                                    width: 18,
-                                                    height: 18,
-                                                    borderRadius: '50%',
-                                                    border: `2px solid ${selected ? role.color : T.border}`,
-                                                    bgcolor: selected ? role.color : 'transparent',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    flexShrink: 0,
-                                                    transition: 'all 0.15s'
-                                                }}>
-                                                    {selected && <CheckIcon sx={{fontSize: 11, color: '#fff'}}/>}
-                                                </Box>
+
+                                                {/* ── Approver sub-role picker — only when Approver is selected ── */}
+                                                {isApprover && selected && (
+                                                    <Box sx={{
+                                                        border: `2px solid ${role.color}`,
+                                                        borderTop: 'none',
+                                                        borderRadius: '0 0 12px 12px',
+                                                        bgcolor: T.accentSoft,
+                                                        p: 1.8,
+                                                        animation: 'slideDown 0.2s ease-out',
+                                                    }}>
+                                                        <Typography sx={{
+                                                            fontSize: '0.68rem', fontWeight: 700, color: T.accent,
+                                                            textTransform: 'uppercase', letterSpacing: 0.8, mb: 1.2,
+                                                            fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                                        }}>
+                                                            Select Approver Type
+                                                        </Typography>
+                                                        <Box sx={{display: 'flex', gap: 1, flexWrap: 'wrap'}}>
+                                                            {APPROVER_SUB_ROLES.map(sub => {
+                                                                const subSelected = formData.approverSubRole === sub.value;
+                                                                return (
+                                                                    <Box key={sub.value} component="button"
+                                                                         type="button"
+                                                                         onClick={() => !loading && setFormData(prev => ({
+                                                                             ...prev,
+                                                                             approverSubRole: sub.value,
+                                                                         }))}
+                                                                         disabled={loading}
+                                                                         sx={{
+                                                                             flex: 1,
+                                                                             minWidth: 140,
+                                                                             display: 'flex',
+                                                                             alignItems: 'flex-start',
+                                                                             gap: 1.2,
+                                                                             p: 1.4,
+                                                                             borderRadius: '10px',
+                                                                             textAlign: 'left',
+                                                                             cursor: loading ? 'not-allowed' : 'pointer',
+                                                                             border: `2px solid ${subSelected ? sub.color : T.border}`,
+                                                                             bgcolor: subSelected ? sub.soft : T.surface,
+                                                                             transition: 'all 0.15s ease',
+                                                                             '&:hover': {
+                                                                                 borderColor: sub.color,
+                                                                                 bgcolor: sub.soft
+                                                                             },
+                                                                         }}>
+                                                                        <Box sx={{
+                                                                            width: 30,
+                                                                            height: 30,
+                                                                            borderRadius: '8px',
+                                                                            bgcolor: subSelected ? sub.color : T.border,
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            justifyContent: 'center',
+                                                                            flexShrink: 0,
+                                                                            transition: 'background-color 0.15s'
+                                                                        }}>
+                                                                            <sub.Icon sx={{
+                                                                                fontSize: 15,
+                                                                                color: subSelected ? '#fff' : T.muted
+                                                                            }}/>
+                                                                        </Box>
+                                                                        <Box sx={{flex: 1}}>
+                                                                            <Typography sx={{
+                                                                                fontWeight: 700,
+                                                                                fontSize: '0.82rem',
+                                                                                color: subSelected ? sub.color : T.text,
+                                                                                lineHeight: 1.2,
+                                                                                fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                                                            }}>{sub.label}</Typography>
+                                                                            <Typography sx={{
+                                                                                fontSize: '0.69rem', color: T.muted,
+                                                                                lineHeight: 1.35, mt: 0.3,
+                                                                                fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                                                            }}>{sub.description}</Typography>
+                                                                        </Box>
+                                                                        {subSelected && (
+                                                                            <CheckIcon sx={{
+                                                                                fontSize: 14,
+                                                                                color: sub.color,
+                                                                                flexShrink: 0,
+                                                                                mt: 0.2
+                                                                            }}/>
+                                                                        )}
+                                                                    </Box>
+                                                                );
+                                                            })}
+                                                        </Box>
+                                                        {/* Sub-role validation error */}
+                                                        {errors.approverSubRole && (
+                                                            <Typography sx={{
+                                                                fontSize: '0.7rem', color: T.rose, mt: 1,
+                                                                fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                                            }}>
+                                                                {errors.approverSubRole}
+                                                            </Typography>
+                                                        )}
+                                                    </Box>
+                                                )}
                                             </Box>
                                         );
                                     })}
@@ -557,35 +639,24 @@ const RegisterPage = () => {
                             {/* Submit */}
                             <Box component="button" type="submit" disabled={loading}
                                  sx={{
-                                     width: '100%',
-                                     mt: 1,
-                                     py: 1.4,
-                                     border: 'none',
-                                     borderRadius: '12px',
-                                     cursor: loading ? 'not-allowed' : 'pointer',
-                                     fontFamily: 'Plus Jakarta Sans, sans-serif',
-                                     fontWeight: 700,
-                                     fontSize: '0.9rem',
+                                     width: '100%', mt: 1, py: 1.4, border: 'none',
+                                     borderRadius: '12px', cursor: loading ? 'not-allowed' : 'pointer',
+                                     fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: '0.9rem',
                                      bgcolor: loading ? T.border : T.accent,
                                      color: loading ? T.muted : '#fff',
-                                     display: 'flex',
-                                     alignItems: 'center',
-                                     justifyContent: 'center',
-                                     gap: 1,
+                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1,
                                      boxShadow: loading ? 'none' : `0 4px 14px ${T.accent}44`,
                                      transition: 'all 0.2s ease',
                                      '&:hover': {bgcolor: loading ? T.border : '#1641B8'}
                                  }}>
-                                {loading ? <><CircularProgress size={16} sx={{color: T.muted}}/> Creating
-                                    Account…</> : 'Create Staff Account'}
+                                {loading
+                                    ? <><CircularProgress size={16} sx={{color: T.muted}}/> Creating Account…</>
+                                    : 'Create Staff Account'}
                             </Box>
 
                             <Typography sx={{
-                                textAlign: 'center',
-                                mt: 2.5,
-                                fontSize: '0.82rem',
-                                color: T.muted,
-                                fontFamily: 'Plus Jakarta Sans, sans-serif'
+                                textAlign: 'center', mt: 2.5, fontSize: '0.82rem',
+                                color: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'
                             }}>
                                 Already have an account?{' '}
                                 <Box component={Link} to="/login"

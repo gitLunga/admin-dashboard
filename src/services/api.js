@@ -100,6 +100,9 @@ export const deviceAPI = {
     searchApplications: (query) =>
         deviceApi.get(`/applications/admin/applications?search=${query}`),
 
+    placeOrder: (applicationId, data) =>
+        deviceApi.post(`/applications/admin/applications/${applicationId}/place-order`, data),
+
     // NEW: Device Catalog endpoints
     getAllDevices: () =>
         deviceApi.get('/devices'),

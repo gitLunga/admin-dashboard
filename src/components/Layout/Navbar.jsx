@@ -66,6 +66,22 @@ const Navbar = ({ onDrawerToggle }) => {
     const [refreshing, setRefreshing]                 = useState(false);
     const [notificationError, setNotificationError]   = useState(null);
 
+    // Lightweight — only fetches the badge count. Runs on interval.
+    const fetchUnreadCount = async () => {
+        try {
+            const adminUserStr = localStorage.getItem('adminUser');
+            if (!adminUserStr) return;
+            const adminUser = JSON.parse(adminUserStr);
+            const adminId   = adminUser.op_user_id || adminUser.id;
+            if (!adminId) return;
+            const res = await notificationsAPI.getUnreadCount(adminId, 'Operational');
+            setUnreadCount(res.data?.unreadCount ?? 0);
+        } catch {
+            // Silently fail — badge is non-critical
+        }
+    };
+
+    // Full fetch — loads the list. Only runs when the panel is opened.
     const fetchNotifications = async () => {
         try {
             setLoading(true);
@@ -94,14 +110,16 @@ const Navbar = ({ onDrawerToggle }) => {
     };
 
     useEffect(() => {
-        fetchNotifications();
-        const interval = setInterval(fetchNotifications, 100000);
+        // Fetch badge count immediately, then every 60 seconds.
+        // Do NOT fetch the full list here — only when the panel opens.
+        fetchUnreadCount();
+        const interval = setInterval(fetchUnreadCount, 60000);
         return () => clearInterval(interval);
     }, []);
 
     const handleProfileMenuOpen    = (e) => setAnchorEl(e.currentTarget);
     const handleMenuClose          = () => setAnchorEl(null);
-    const handleNotificationClick  = (e) => { setNotificationAnchorEl(e.currentTarget); fetchNotifications(); };
+    const handleNotificationClick  = (e) => { setNotificationAnchorEl(e.currentTarget); fetchNotifications(); }; // full fetch on open
     const handleNotificationClose  = () => setNotificationAnchorEl(null);
     const handleSearch             = (e) => { if (e.key === 'Enter' && searchTerm.trim().length >= 2) window.location.href = `/search?q=${encodeURIComponent(searchTerm)}`; };
     const handleLogout             = () => { localStorage.removeItem('adminToken'); window.location.href = '/login'; };
