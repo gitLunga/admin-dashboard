@@ -622,7 +622,7 @@ const FinanceDashboard = () => {
             setQueue(qRes.data?.data?.applications || []);
             setStats(sRes.data?.data?.stats || null);
         } catch (err) {
-            toastError(err.response?.data?.message || 'Failed to load queue', 'Load Error');
+            toastError(err.response?.data?.message || 'Failed to load the queue', 'Load Error');
         } finally {
             setLoading(false);
         }
