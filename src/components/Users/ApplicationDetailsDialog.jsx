@@ -26,11 +26,12 @@ const T = {
 };
 
 const STATUS_META = {
-    Approved:  { color: T.green, soft: T.greenSoft },
-    Rejected:  { color: T.rose,  soft: T.roseSoft  },
-    Pending:   { color: T.amber, soft: T.amberSoft  },
-    Cancelled: { color: T.muted, soft: '#F1F5F9'   },
-    Verified:  { color: T.green, soft: T.greenSoft  },
+    Approved:        { color: T.green,  soft: T.greenSoft  },
+    Rejected:        { color: T.rose,   soft: T.roseSoft   },
+    Pending:         { color: T.amber,  soft: T.amberSoft  },
+    Pending_Finance: { color: T.purple, soft: T.purpleSoft },
+    Cancelled:       { color: T.muted,  soft: '#F1F5F9'    },
+    Verified:        { color: T.green,  soft: T.greenSoft  },
 };
 
 // Stage label map — converts DB stage string to human-readable
