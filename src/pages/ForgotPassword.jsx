@@ -6,6 +6,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navigation/Navbar';
+import { authAPI } from '../services/api';
 
 const T = {
     bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
@@ -56,10 +57,11 @@ const ForgotPasswordPage = () => {
 
         setLoading(true); setError('');
         try {
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            await authAPI.forgotPassword(email.trim().toLowerCase());
             setSuccess(true); setSubmittedEmail(email); setEmail('');
-        } catch {
-            setError('Failed to send reset email. Please try again.');
+        } catch (err) {
+            // Always show generic message — do not reveal if email exists
+            setSuccess(true); setSubmittedEmail(email); setEmail('');
         } finally { setLoading(false); }
     };
 

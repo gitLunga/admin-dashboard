@@ -146,15 +146,15 @@ const NotificationBell = ({ userId }) => {
 
     const fetchUnread = useCallback(async () => {
         try {
-            const res = await approverAPI.getUnreadCount(userId);
+            const res = await approverAPI.getUnreadCount();
             setUnreadCount(res.data?.unreadCount || 0);
         } catch { /* silent */ }
-    }, [userId]);
+    }, []);
 
     const fetchNotifications = async () => {
         setLoading(true);
         try {
-            const res = await approverAPI.getNotifications(userId);
+            const res = await approverAPI.getNotifications();
             setNotifications(res.data?.data || []);
             setUnreadCount(0);
         } catch { /* silent */ }
@@ -172,7 +172,7 @@ const NotificationBell = ({ userId }) => {
 
     const handleMarkAllRead = async () => {
         try {
-            await approverAPI.markAllAsRead(userId);
+            await approverAPI.markAllAsRead();
             setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
             setUnreadCount(0);
         } catch { /* silent */ }
@@ -180,7 +180,7 @@ const NotificationBell = ({ userId }) => {
 
     const handleMarkOne = async (notificationId) => {
         try {
-            await approverAPI.markAsRead(notificationId, userId);
+            await approverAPI.markAsRead(notificationId);
             setNotifications(prev => prev.map(n => n.notification_id === notificationId ? { ...n, is_read: true } : n));
             setUnreadCount(prev => Math.max(0, prev - 1));
         } catch { /* silent */ }
@@ -258,10 +258,9 @@ const ProfileView = ({ user }) => {
         setErr('');
         if (!current || !newPass || !confirm) { setErr('All fields are required.'); return; }
         if (newPass !== confirm) { setErr('New password and confirmation do not match.'); return; }
-        if (newPass.length < 8) { setErr('New password must be at least 8 characters.'); return; }
         setSaving(true);
         try {
-            await approverAPI.changePassword(user.op_user_id, current, newPass, confirm);
+            await approverAPI.changePassword(current, newPass);
             success('Password changed successfully.', 'Password Updated');
             setCurrent(''); setNewPass(''); setConfirm('');
         } catch (e) {
@@ -617,7 +616,7 @@ const FinanceDashboard = () => {
             setLoading(true);
             const [qRes, sRes] = await Promise.all([
                 approverAPI.getFinanceQueue(),
-                approverAPI.getFinanceStats(user.op_user_id),
+                approverAPI.getFinanceStats(),
             ]);
             setQueue(qRes.data?.data?.applications || []);
             setStats(sRes.data?.data?.stats || null);
@@ -626,7 +625,7 @@ const FinanceDashboard = () => {
         } finally {
             setLoading(false);
         }
-    }, [toastError, user.op_user_id]);
+    }, [toastError]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -647,7 +646,7 @@ const FinanceDashboard = () => {
     const handleApprove = async (id, notes) => {
         setSubmitting(true);
         try {
-            await approverAPI.financeApprove(id, { notes }, user.op_user_id);
+            await approverAPI.financeApprove(id, { notes });
             success(`Application #${id} has been fully approved. Admin notified.`, 'Final Approval Granted');
             setDetailApp(null);
             await fetchData();
@@ -662,7 +661,7 @@ const FinanceDashboard = () => {
         if (!rejection_reason?.trim()) { warning('Rejection reason is required.'); return; }
         setSubmitting(true);
         try {
-            await approverAPI.financeReject(id, { rejection_reason }, user.op_user_id);
+            await approverAPI.financeReject(id, { rejection_reason });
             success(`Application #${id} has been rejected at the finance stage.`, 'Rejected');
             setDetailApp(null);
             await fetchData();

@@ -151,17 +151,17 @@ const NotificationBell = ({ userId }) => {
 
     const fetchUnread = useCallback(async () => {
         try {
-            const res = await approverAPI.getUnreadCount(userId);
+            const res = await approverAPI.getUnreadCount();
             setUnreadCount(res.data?.unreadCount || 0);
         } catch { /* silent */ }
-    }, [userId]);
+    }, []);
 
     const fetchNotifications = async () => {
         setLoading(true);
         try {
-            const res = await approverAPI.getNotifications(userId);
+            const res = await approverAPI.getNotifications();
             setNotifications(res.data?.data || []);
-            setUnreadCount(0); // reset badge once panel opened
+            setUnreadCount(0);
         } catch { /* silent */ }
         finally { setLoading(false); }
     };
@@ -180,7 +180,7 @@ const NotificationBell = ({ userId }) => {
 
     const handleMarkAllRead = async () => {
         try {
-            await approverAPI.markAllAsRead(userId);
+            await approverAPI.markAllAsRead();
             setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
             setUnreadCount(0);
         } catch { /* silent */ }
@@ -188,7 +188,7 @@ const NotificationBell = ({ userId }) => {
 
     const handleMarkOne = async (notificationId) => {
         try {
-            await approverAPI.markAsRead(notificationId, userId);
+            await approverAPI.markAsRead(notificationId);
             setNotifications(prev => prev.map(n => n.notification_id === notificationId ? { ...n, is_read: true } : n));
             setUnreadCount(prev => Math.max(0, prev - 1));
         } catch { /* silent */ }
@@ -270,10 +270,9 @@ const ProfileView = ({ user }) => {
         setErr('');
         if (!current || !newPass || !confirm) { setErr('All fields are required.'); return; }
         if (newPass !== confirm) { setErr('New password and confirmation do not match.'); return; }
-        if (newPass.length < 8) { setErr('New password must be at least 8 characters.'); return; }
         setSaving(true);
         try {
-            await approverAPI.changePassword(user.op_user_id, current, newPass, confirm);
+            await approverAPI.changePassword(current, newPass);
             success('Password changed successfully. Please use your new password next time you log in.', 'Password Updated');
             setCurrent(''); setNewPass(''); setConfirm('');
         } catch (e) {
@@ -352,7 +351,7 @@ const ProfileView = ({ user }) => {
                         <PasswordField label="Confirm New Password" value={confirm} onChange={setConfirm} show={showCon} onToggle={() => setShowCon(p => !p)} />
 
                         <Box sx={{ mt: 1 }}>
-                            <Typography sx={{ fontSize: '0.72rem', color: T.muted, mb: 2 }}>Password must be at least 8 characters and different from your current password.</Typography>
+                            <Typography sx={{ fontSize: '0.72rem', color: T.muted, mb: 2 }}>Password must be at least 8 characters and include an uppercase letter, lowercase letter, number, and special character.</Typography>
                             <Button onClick={handleSave} disabled={saving} variant="contained"
                                     sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700, fontFamily: 'Plus Jakarta Sans', fontSize: '0.85rem', px: 3, boxShadow: 'none', bgcolor: T.accent, '&:hover': { bgcolor: '#1641B8', boxShadow: `0 4px 14px ${T.accent}44` }, '&.Mui-disabled': { bgcolor: T.border, color: T.muted } }}>
                                 {saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Update Password'}
@@ -365,18 +364,57 @@ const ProfileView = ({ user }) => {
     );
 };
 
+// ── Full-screen document viewer overlay ──────────────────────────────────────
+const DocViewerOverlay = ({ open, url, docType, mimeType, onClose }) => (
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth
+            PaperProps={{ sx: { borderRadius: '16px', height: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: `1px solid ${T.border}` } }}>
+        <Box sx={{ px: 3, py: 1.8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: T.surface, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Box sx={{ width: 30, height: 30, borderRadius: '9px', bgcolor: T.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <DocIcon sx={{ fontSize: 16, color: T.accent }} />
+                </Box>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.92rem', color: T.text }}>{docType}</Typography>
+            </Box>
+            <IconButton onClick={onClose} size="small" sx={{ color: T.muted, '&:hover': { bgcolor: T.roseSoft, color: T.rose } }}>
+                <CloseIcon fontSize="small" />
+            </IconButton>
+        </Box>
+        <Box sx={{ flex: 1, overflow: 'hidden', bgcolor: '#0F1F3D', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {!url ? (
+                <CircularProgress sx={{ color: 'rgba(255,255,255,0.5)' }} />
+            ) : mimeType?.startsWith('image/') ? (
+                <img src={url} alt={docType}
+                     style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
+            ) : (
+                <iframe src={url} title={docType}
+                        style={{ width: '100%', height: '100%', border: 'none' }} />
+            )}
+        </Box>
+    </Dialog>
+);
+
 // ── Application Detail Dialog ─────────────────────────────────────────────────
 const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }) => {
-    const [notes,     setNotes]    = useState('');
-    const [rejReason, setRejReason]= useState('');
-    const [view,      setView]     = useState('detail'); // 'detail' | 'approve' | 'reject' | 'docs'
-    const [documents, setDocuments]= useState([]);
-    const [docLoading,setDocLoading]=useState(false);
-    const [docStatus, setDocStatus]= useState({}); // { [docId]: 'Verified'|'Rejected' }
+    const [notes,        setNotes]        = useState('');
+    const [rejReason,    setRejReason]    = useState('');
+    const [view,         setView]         = useState('detail');
+    const [documents,    setDocuments]    = useState([]);
+    const [docLoading,   setDocLoading]   = useState(false);
+    const [docStatus,    setDocStatus]    = useState({});
+    const [confirmingAll,setConfirmingAll]= useState(false);
+    // document viewer state
+    const [viewerOpen,   setViewerOpen]   = useState(false);
+    const [viewerUrl,    setViewerUrl]    = useState(null);
+    const [viewerDocType,setViewerDocType]= useState('');
+    const [viewerMime,   setViewerMime]   = useState('');
+
     const { success, error: toastError } = useToast();
 
     useEffect(() => {
-        if (open) { setView('detail'); setNotes(''); setRejReason(''); setDocuments([]); }
+        if (open) {
+            setView('detail'); setNotes(''); setRejReason('');
+            setDocuments([]); setDocStatus({}); setViewerOpen(false);
+        }
     }, [open]);
 
     const fetchDocuments = useCallback(async () => {
@@ -393,24 +431,50 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
         if (view === 'docs') fetchDocuments();
     }, [view, fetchDocuments]);
 
-    const handleViewDoc = async (docId) => {
+    // Opens the fullscreen viewer for a single document
+    const handleOpenViewer = async (docId, docType) => {
+        setViewerDocType(docType?.replace(/_/g, ' ') || 'Document');
+        setViewerUrl(null);
+        setViewerMime('');
+        setViewerOpen(true);
         try {
-            const res = await adminAPI.viewDocument(docId);
-            const url = res.data?.url || res.data?.data?.url;
-            if (url) window.open(url, '_blank');
-        } catch { toastError('Could not open document.', 'Error'); }
+            const res  = await adminAPI.viewDocument(docId);
+            const url  = res.data?.url  || res.data?.data?.url;
+            const mime = res.data?.mimeType || res.data?.data?.mimeType || 'application/pdf';
+            setViewerUrl(url);
+            setViewerMime(mime);
+        } catch {
+            toastError('Could not load document.', 'Error');
+            setViewerOpen(false);
+        }
     };
 
     const handleUpdateDocStatus = async (docId, status) => {
         try {
             await adminAPI.updateDocumentStatus(docId, status, '');
             setDocStatus(prev => ({ ...prev, [docId]: status }));
-            success(`Document marked as ${status}.`, 'Updated');
         } catch { toastError('Failed to update document status.', 'Error'); }
     };
 
+    // Verifies all pending docs in one go, then moves straight to the approve step
+    const handleConfirmAllDocs = async () => {
+        setConfirmingAll(true);
+        try {
+            const pending = documents.filter(d => {
+                const s = docStatus[d.document_id] || d.document_status;
+                return s !== 'Verified' && s !== 'Rejected';
+            });
+            await Promise.all(pending.map(d => handleUpdateDocStatus(d.document_id, 'Verified')));
+            success('All documents confirmed valid.', 'Documents Verified');
+            setView('approve');
+        } catch { toastError('Could not confirm documents.', 'Error'); }
+        finally { setConfirmingAll(false); }
+    };
+
     if (!app) return null;
-    const canAct = app.application_status === 'Pending';
+    const canAct       = app.application_status === 'Pending';
+    const verifiedCount = documents.filter(d => (docStatus[d.document_id] || d.document_status) === 'Verified').length;
+    const allVerified   = documents.length > 0 && verifiedCount === documents.length;
 
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth
@@ -497,58 +561,156 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
                     </Grid>
                 )}
 
-                {/* ── Documents view ── */}
+                {/* ── Documents carousel view ── */}
                 {view === 'docs' && (
                     <Box>
-                        <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: T.text, mb: 2 }}>Applicant Documents</Typography>
+                        {/* Header row */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
+                            <Box>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: T.text }}>Supporting Documents</Typography>
+                                <Typography sx={{ fontSize: '0.74rem', color: T.muted, mt: 0.3 }}>
+                                    Tap a card to open the document, then confirm all are valid before approving.
+                                </Typography>
+                            </Box>
+                            {documents.length > 0 && (
+                                <Box sx={{ px: 1.5, py: 0.5, borderRadius: '8px',
+                                    bgcolor: allVerified ? T.greenSoft : T.amberSoft,
+                                    border: `1px solid ${allVerified ? T.green : T.amber}28` }}>
+                                    <Typography sx={{ fontSize: '0.72rem', fontWeight: 700,
+                                        color: allVerified ? T.green : T.amber }}>
+                                        {verifiedCount} / {documents.length} verified
+                                    </Typography>
+                                </Box>
+                            )}
+                        </Box>
+
                         {docLoading ? (
-                            <Box sx={{ py: 4, display: 'flex', justifyContent: 'center' }}><CircularProgress size={28} sx={{ color: T.accent }} /></Box>
+                            <Box sx={{ py: 6, display: 'flex', justifyContent: 'center' }}>
+                                <CircularProgress size={28} sx={{ color: T.accent }} />
+                            </Box>
                         ) : documents.length === 0 ? (
-                            <Box sx={{ py: 5, textAlign: 'center' }}>
-                                <DocIcon sx={{ fontSize: 40, color: T.border, mb: 1 }} />
-                                <Typography sx={{ fontSize: '0.85rem', color: T.muted }}>No documents uploaded for this applicant.</Typography>
+                            <Box sx={{ py: 6, textAlign: 'center' }}>
+                                <DocIcon sx={{ fontSize: 44, color: T.border, mb: 1.5 }} />
+                                <Typography sx={{ fontWeight: 600, color: T.text, mb: 0.5 }}>No documents found</Typography>
+                                <Typography sx={{ fontSize: '0.82rem', color: T.muted }}>This applicant has not uploaded any supporting documents.</Typography>
                             </Box>
                         ) : (
-                            documents.map((doc) => {
-                                const currentStatus = docStatus[doc.document_id] || doc.document_status || 'Pending';
-                                return (
-                                    <Box key={doc.document_id} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, mb: 1.5, borderRadius: '12px', border: `1px solid ${T.border}`, bgcolor: T.surface, flexWrap: 'wrap', gap: 1 }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                            <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: T.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <DocIcon sx={{ fontSize: 18, color: T.accent }} />
+                            <>
+                                {/* ── Horizontal sliding carousel ── */}
+                                <Box sx={{
+                                    display: 'flex',
+                                    gap: 2,
+                                    overflowX: 'auto',
+                                    pb: 2,
+                                    scrollSnapType: 'x mandatory',
+                                    scrollBehavior: 'smooth',
+                                    '&::-webkit-scrollbar': { height: 5 },
+                                    '&::-webkit-scrollbar-track': { bgcolor: T.bg, borderRadius: 4 },
+                                    '&::-webkit-scrollbar-thumb': { bgcolor: T.border, borderRadius: 4, '&:hover': { bgcolor: T.muted } },
+                                }}>
+                                    {documents.map((doc, idx) => {
+                                        const status     = docStatus[doc.document_id] || doc.document_status || 'Pending';
+                                        const isVerified = status === 'Verified';
+                                        const isRejected = status === 'Rejected';
+                                        const borderCol  = isVerified ? T.green : isRejected ? T.rose : T.border;
+                                        const bgCol      = isVerified ? T.greenSoft : isRejected ? T.roseSoft : T.surface;
+                                        const iconCol    = isVerified ? T.green : T.accent;
+                                        const iconBg     = isVerified ? `${T.green}1A` : T.accentSoft;
+
+                                        return (
+                                            <Box key={doc.document_id} sx={{
+                                                minWidth: 196,
+                                                maxWidth: 196,
+                                                flexShrink: 0,
+                                                scrollSnapAlign: 'start',
+                                                animation: `slideIn 0.35s ease-out ${idx * 0.08}s both`,
+                                            }}>
+                                                {/* ── Document card — tap to open viewer ── */}
+                                                <Paper elevation={0} onClick={() => handleOpenViewer(doc.document_id, doc.document_type)}
+                                                       sx={{
+                                                           p: 2.5, borderRadius: '14px',
+                                                           border: `2px solid ${borderCol}`,
+                                                           bgcolor: bgCol,
+                                                           cursor: 'pointer',
+                                                           transition: 'all 0.22s ease',
+                                                           position: 'relative', overflow: 'hidden',
+                                                           '&:hover': {
+                                                               transform: 'translateY(-4px)',
+                                                               boxShadow: `0 10px 28px ${T.accent}22`,
+                                                               borderColor: T.accent,
+                                                           },
+                                                       }}>
+
+                                                    {/* Verified tick (top-right corner) */}
+                                                    {isVerified && (
+                                                        <Box sx={{ position: 'absolute', top: 9, right: 9 }}>
+                                                            <ApprovedIcon sx={{ fontSize: 18, color: T.green }} />
+                                                        </Box>
+                                                    )}
+
+                                                    {/* Doc icon */}
+                                                    <Box sx={{ width: 50, height: 50, borderRadius: '13px', bgcolor: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+                                                        <DocIcon sx={{ fontSize: 26, color: iconCol }} />
+                                                    </Box>
+
+                                                    {/* Doc name */}
+                                                    <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: T.text, mb: 0.4, lineHeight: 1.3, pr: isVerified ? 2.5 : 0 }}>
+                                                        {doc.document_type?.replace(/_/g, ' ')}
+                                                    </Typography>
+
+                                                    {/* Upload date */}
+                                                    <Typography sx={{ fontSize: '0.68rem', color: T.muted, mb: 1.5 }}>
+                                                        {fmtDate(doc.upload_date)}
+                                                    </Typography>
+
+                                                    {/* Status pill */}
+                                                    <Box sx={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                                                        px: 1, py: 0.3, borderRadius: '20px', mb: 1.5,
+                                                        bgcolor: isVerified ? `${T.green}1A` : isRejected ? `${T.rose}1A` : `${T.amber}1A`,
+                                                    }}>
+                                                        <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: isVerified ? T.green : isRejected ? T.rose : T.amber }} />
+                                                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: isVerified ? T.green : isRejected ? T.rose : T.amber }}>
+                                                            {status}
+                                                        </Typography>
+                                                    </Box>
+
+                                                    {/* Tap hint */}
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                        <EyeIcon sx={{ fontSize: 12, color: T.accent }} />
+                                                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, color: T.accent }}>Tap to view</Typography>
+                                                    </Box>
+                                                </Paper>
+
+                                                {/* Flag-as-invalid button below the card */}
+                                                {!isRejected && (
+                                                    <Button size="small" fullWidth
+                                                            onClick={e => { e.stopPropagation(); handleUpdateDocStatus(doc.document_id, 'Rejected'); }}
+                                                            sx={{ mt: 0.8, borderRadius: '8px', textTransform: 'none', fontFamily: 'Plus Jakarta Sans', fontSize: '0.71rem', fontWeight: 600, color: T.rose, border: `1px solid ${T.rose}33`, '&:hover': { bgcolor: T.roseSoft } }}>
+                                                        Flag invalid
+                                                    </Button>
+                                                )}
                                             </Box>
-                                            <Box>
-                                                <Typography sx={{ fontSize: '0.83rem', fontWeight: 600, color: T.text }}>{doc.document_type}</Typography>
-                                                <Typography sx={{ fontSize: '0.71rem', color: T.muted }}>Uploaded {fmtDate(doc.upload_date)}</Typography>
-                                            </Box>
-                                        </Box>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            {/* Status badge */}
-                                            <Box sx={{ px: 1.2, py: 0.3, borderRadius: '20px',
-                                                bgcolor: currentStatus === 'Verified' ? T.greenSoft : currentStatus === 'Rejected' ? T.roseSoft : T.amberSoft,
-                                                border: `1px solid ${currentStatus === 'Verified' ? T.green : currentStatus === 'Rejected' ? T.rose : T.amber}28` }}>
-                                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700,
-                                                    color: currentStatus === 'Verified' ? T.green : currentStatus === 'Rejected' ? T.rose : T.amber }}>
-                                                    {currentStatus}
-                                                </Typography>
-                                            </Box>
-                                            <Button size="small" startIcon={<EyeIcon sx={{ fontSize: 14 }} />} onClick={() => handleViewDoc(doc.document_id)}
-                                                    sx={{ borderRadius: '8px', textTransform: 'none', fontFamily: 'Plus Jakarta Sans', fontWeight: 600, fontSize: '0.75rem', color: T.accent, border: `1px solid ${T.border}`, px: 1.5 }}>
-                                                View
-                                            </Button>
-                                            <Button size="small" onClick={() => handleUpdateDocStatus(doc.document_id, 'Verified')} disabled={currentStatus === 'Verified'}
-                                                    sx={{ borderRadius: '8px', textTransform: 'none', fontFamily: 'Plus Jakarta Sans', fontWeight: 600, fontSize: '0.75rem', color: T.green, border: `1px solid ${T.green}44`, px: 1.5, '&:hover': { bgcolor: T.greenSoft } }}>
-                                                Verify
-                                            </Button>
-                                            <Button size="small" onClick={() => handleUpdateDocStatus(doc.document_id, 'Rejected')} disabled={currentStatus === 'Rejected'}
-                                                    sx={{ borderRadius: '8px', textTransform: 'none', fontFamily: 'Plus Jakarta Sans', fontWeight: 600, fontSize: '0.75rem', color: T.rose, border: `1px solid ${T.rose}44`, px: 1.5, '&:hover': { bgcolor: T.roseSoft } }}>
-                                                Reject
-                                            </Button>
-                                        </Box>
-                                    </Box>
-                                );
-                            })
+                                        );
+                                    })}
+                                </Box>
+
+                                {documents.length > 2 && (
+                                    <Typography sx={{ fontSize: '0.69rem', color: T.muted, textAlign: 'center', mt: 0.5 }}>
+                                        ← scroll to see all documents →
+                                    </Typography>
+                                )}
+                            </>
                         )}
+
+                        {/* ── Full-screen document viewer overlay ── */}
+                        <DocViewerOverlay
+                            open={viewerOpen}
+                            url={viewerUrl}
+                            docType={viewerDocType}
+                            mimeType={viewerMime}
+                            onClose={() => setViewerOpen(false)}
+                        />
                     </Box>
                 )}
 
@@ -582,10 +744,10 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
             </DialogContent>
 
             <DialogActions sx={{ px: 3, py: 2, bgcolor: T.surface, borderTop: `1px solid ${T.border}`, gap: 1 }}>
-                {(view === 'detail' || view === 'docs') && (
+                {view === 'detail' && (
                     <>
                         <Button onClick={onClose} sx={{ color: T.muted, textTransform: 'none', fontFamily: 'Plus Jakarta Sans', borderRadius: '10px' }}>Close</Button>
-                        {canAct && view === 'detail' && (
+                        {canAct && (
                             <>
                                 <Button onClick={() => setView('reject')} variant="outlined"
                                         sx={{ borderRadius: '10px', textTransform: 'none', fontFamily: 'Plus Jakarta Sans', fontWeight: 600, color: T.rose, borderColor: T.rose, '&:hover': { bgcolor: T.roseSoft, borderColor: T.rose } }}>
@@ -596,6 +758,22 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
                                     Approve & Forward
                                 </Button>
                             </>
+                        )}
+                    </>
+                )}
+                {view === 'docs' && (
+                    <>
+                        <Button onClick={onClose} sx={{ color: T.muted, textTransform: 'none', fontFamily: 'Plus Jakarta Sans', borderRadius: '10px' }}>Close</Button>
+                        <Box sx={{ flex: 1 }} />
+                        {canAct && documents.length > 0 && !docLoading && (
+                            <Button onClick={handleConfirmAllDocs} disabled={confirmingAll} variant="contained"
+                                    startIcon={confirmingAll ? <CircularProgress size={14} sx={{ color: '#fff' }} /> : <ApprovedIcon sx={{ fontSize: 16 }} />}
+                                    sx={{ borderRadius: '10px', textTransform: 'none', fontFamily: 'Plus Jakarta Sans', fontWeight: 700, fontSize: '0.85rem', px: 2.5,
+                                        bgcolor: allVerified ? T.green : T.accent,
+                                        '&:hover': { bgcolor: allVerified ? '#047857' : '#1641B8' },
+                                        boxShadow: `0 4px 14px ${allVerified ? T.green : T.accent}44` }}>
+                                {confirmingAll ? 'Confirming…' : allVerified ? 'Documents Confirmed — Proceed to Approve' : 'Confirm Documents Valid & Proceed'}
+                            </Button>
                         )}
                     </>
                 )}
@@ -719,7 +897,7 @@ const ManagerDashboard = () => {
             setLoading(true);
             const [qRes, sRes] = await Promise.all([
                 approverAPI.getManagerQueue(),
-                approverAPI.getManagerStats(user.op_user_id),
+                approverAPI.getManagerStats(),
             ]);
             setQueue(qRes.data?.data?.applications || []);
             setStats(sRes.data?.data?.stats || null);
@@ -728,7 +906,7 @@ const ManagerDashboard = () => {
         } finally {
             setLoading(false);
         }
-    }, [toastError, user.op_user_id]);
+    }, [toastError]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -746,7 +924,7 @@ const ManagerDashboard = () => {
     const handleApprove = async (id, notes) => {
         setSubmitting(true);
         try {
-            await approverAPI.managerApprove(id, { notes }, user.op_user_id);
+            await approverAPI.managerApprove(id, { notes });
             success(`Application #${id} approved and forwarded to Finance.`, 'Approved');
             setDetailApp(null);
             await fetchData();
@@ -761,7 +939,7 @@ const ManagerDashboard = () => {
         if (!rejection_reason?.trim()) { warning('Rejection reason is required.'); return; }
         setSubmitting(true);
         try {
-            await approverAPI.managerReject(id, { rejection_reason }, user.op_user_id);
+            await approverAPI.managerReject(id, { rejection_reason });
             success(`Application #${id} has been rejected.`, 'Rejected');
             setDetailApp(null);
             await fetchData();

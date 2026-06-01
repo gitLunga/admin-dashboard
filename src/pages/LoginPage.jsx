@@ -97,18 +97,22 @@ const LoginPage = () => {
         try {
             const response = await authAPI.login({email: formData.email, password: formData.password});
             const responseData = response.data?.data || response.data;
-            const {user, token} = responseData;
+            const { user, accessToken, refreshToken } = responseData;
 
-            if (token) localStorage.setItem('adminToken', token);
+            if (accessToken)  localStorage.setItem('adminToken',        accessToken);
+            if (refreshToken) localStorage.setItem('adminRefreshToken', refreshToken);
+
             localStorage.setItem('adminUser', JSON.stringify({
-                id:             user.id,
-                op_user_id:     user.op_user_id,
-                first_name:     user.first_name,
-                last_name:      user.last_name,
-                name:           user.name || `${user.first_name} ${user.last_name}`.trim(),
-                email:          user.email,
-                user_role:      user.user_role,
-                is_super_admin: user.is_super_admin ?? false,  // ✅ this is the key one
+                id:                  user.op_user_id || user.id,
+                op_user_id:          user.op_user_id,
+                first_name:          user.first_name,
+                last_name:           user.last_name,
+                name:                user.name || `${user.first_name} ${user.last_name}`.trim(),
+                email:               user.email,
+                user_role:           user.user_role,
+                department_id:       user.department_id   || null,
+                is_super_admin:      user.is_super_admin  ?? false,
+                must_change_password: user.must_change_password ?? false,
             }));
 
             if (formData.rememberMe) {
@@ -117,7 +121,15 @@ const LoginPage = () => {
                 localStorage.removeItem('remember_email');
             }
 
-            const msg = response.data?.message || `Welcome back, ${user.name?.split(' ')[0] || 'Admin'}!`;
+            const msg = response.data?.message || `Welcome back, ${user.first_name || 'Admin'}!`;
+
+            // Force password change on first login
+            if (user.must_change_password) {
+                warning('Please set a new password before continuing.', 'Password Change Required');
+                setTimeout(() => navigate('/change-password'), 900);
+                return;
+            }
+
             const route = user.user_role === 'Manager' ? '/manager/dashboard'
                 : user.user_role === 'Finance'  ? '/finance/dashboard'
                     : '/dashboard';

@@ -1,65 +1,92 @@
-// src/services/approverApi.js
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+const getToken = () => localStorage.getItem('adminToken');
+
+const attachToken = (config) => {
+    const token = getToken();
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+};
+
+const handle401 = (error) => {
+    if (error.response?.status === 401) {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminRefreshToken');
+        localStorage.removeItem('adminUser');
+        window.location.href = '/login';
+    }
+    return Promise.reject(error);
+};
 
 const approverApi = axios.create({
     baseURL: `${API_BASE_URL}/approver`,
     headers: { 'Content-Type': 'application/json' },
 });
 
-// Separate instance that hits the root /api prefix (for notifications + admin password)
 const rootApi = axios.create({
     baseURL: API_BASE_URL,
     headers: { 'Content-Type': 'application/json' },
 });
 
+[approverApi, rootApi].forEach(inst => {
+    inst.interceptors.request.use(attachToken, (err) => Promise.reject(err));
+    inst.interceptors.response.use((res) => res, handle401);
+});
+
 export const approverAPI = {
-    // ── Shared ──────────────────────────────────────────────────────────────
-    getApplicationDetail:  (id) => approverApi.get(`/applications/${id}`),
-    getApplicationHistory: (id) => approverApi.get(`/applications/${id}/history`),
+    // ── Shared ────────────────────────────────────────────────────────────────
+    getApplicationDetail:  (id)      => approverApi.get(`/applications/${id}`),
+    getApplicationHistory: (id)      => approverApi.get(`/applications/${id}/history`),
+    getMyClients:          (qs = '') => approverApi.get(`/my-clients${qs ? '?' + qs : ''}`),
 
-    // ── Manager (Approver 1) ─────────────────────────────────────────────────
-    getManagerQueue:  (params = '') => approverApi.get(`/manager/queue${params ? '?' + params : ''}`),
-    getManagerStats:  (userId)      => approverApi.get(`/manager/stats?user_id=${userId}`),
-    managerApprove:   (id, data, userId) => approverApi.post(`/manager/applications/${id}/approve?user_id=${userId}`, data),
-    managerReject:    (id, data, userId) => approverApi.post(`/manager/applications/${id}/reject?user_id=${userId}`, data),
+    // ── Manager ───────────────────────────────────────────────────────────────
+    // user_id removed from all calls — backend reads actor from JWT
+    getManagerQueue:       (qs = '') => approverApi.get(`/manager/queue${qs ? '?' + qs : ''}`),
+    getManagerStats:       ()        => approverApi.get('/manager/stats'),
+    managerApprove:        (id, data)=> approverApi.post(`/manager/applications/${id}/approve`, data),
+    managerReject:         (id, data)=> approverApi.post(`/manager/applications/${id}/reject`, data),
 
-    // ── Finance (Approver 2) ─────────────────────────────────────────────────
-    getFinanceQueue:  (params = '') => approverApi.get(`/finance/queue${params ? '?' + params : ''}`),
-    getFinanceStats:  (userId)      => approverApi.get(`/finance/stats?user_id=${userId}`),
-    financeApprove:   (id, data, userId) => approverApi.post(`/finance/applications/${id}/approve?user_id=${userId}`, data),
-    financeReject:    (id, data, userId) => approverApi.post(`/finance/applications/${id}/reject?user_id=${userId}`, data),
+    bulkManagerApprove:    (ids, notes)            =>
+        approverApi.post('/manager/bulk-approve', { application_ids: ids, notes }),
+    bulkManagerReject:     (ids, rejection_reason) =>
+        approverApi.post('/manager/bulk-reject',  { application_ids: ids, rejection_reason }),
 
-    // ── Notifications (Operational users — Manager & Finance) ─────────────────
-    // Uses /api/notifications/* which is shared with the admin notification system.
-    // user_type is always 'Operational' for approver-role users.
-    getNotifications: (userId) =>
-        rootApi.get('/notifications/user', { params: { user_id: userId, user_type: 'Operational' } }),
+    // ── Finance ───────────────────────────────────────────────────────────────
+    getFinanceQueue:       (qs = '') => approverApi.get(`/finance/queue${qs ? '?' + qs : ''}`),
+    getFinanceStats:       ()        => approverApi.get('/finance/stats'),
+    financeApprove:        (id, data)=> approverApi.post(`/finance/applications/${id}/approve`, data),
+    financeReject:         (id, data)=> approverApi.post(`/finance/applications/${id}/reject`, data),
 
-    getUnreadCount: (userId) =>
-        rootApi.get('/notifications/unread-count', { params: { user_id: userId, user_type: 'Operational' } }),
+    bulkFinanceApprove:    (ids, notes)            =>
+        approverApi.post('/finance/bulk-approve', { application_ids: ids, notes }),
+    bulkFinanceReject:     (ids, rejection_reason) =>
+        approverApi.post('/finance/bulk-reject',  { application_ids: ids, rejection_reason }),
 
-    markAsRead: (notificationId, userId) =>
-        rootApi.patch(`/notifications/${notificationId}/read`, { user_id: userId, user_type: 'Operational' }),
+    // ── Notifications — identity from JWT, no user_id params ──────────────────
+    getNotifications:      ()    => rootApi.get('/notifications/user'),
+    getUnreadCount:        ()    => rootApi.get('/notifications/unread-count'),
+    markAsRead:            (id)  => rootApi.patch(`/notifications/${id}/read`),
+    markAllAsRead:         ()    => rootApi.patch('/notifications/mark-all-read'),
+    deleteNotification:    (id)  => rootApi.delete(`/notifications/${id}`),
 
-    markAllAsRead: (userId) =>
-        rootApi.patch('/notifications/mark-all-read', { user_id: userId, user_type: 'Operational' }),
+    // ── SLA (read-only, available to Manager and Finance) ─────────────────────
+    getSlaBreached:        (qs = '') => rootApi.get(`/sla/breached${qs ? '?' + qs : ''}`),
+    getSlaApproaching:     (qs = '') => rootApi.get(`/sla/approaching${qs ? '?' + qs : ''}`),
+    getSlaDetail:          (id)      => rootApi.get(`/sla/applications/${id}`),
 
-    deleteNotification: (notificationId, userId) =>
-        rootApi.delete(`/notifications/${notificationId}`, {
-            data: { user_id: userId, user_type: 'Operational' }
+    // ── Password — self-service via auth endpoint ─────────────────────────────
+    changePassword: (currentPw, newPw) =>
+        rootApi.post('/auth/change-password', {
+            current_password: currentPw,
+            new_password:     newPw,
         }),
 
-    // ── Profile — password change ─────────────────────────────────────────────
-    // Hits the same endpoint the admin uses for operational users.
-    // Manager / Finance call this with their own op_user_id.
-    changePassword: (userId, currentPassword, newPassword, confirmPassword) =>
-        rootApi.patch(`/admin/operational-users/${userId}/change-password`, {
-            current_password: currentPassword,
-            new_password: newPassword,
-            confirm_password: confirmPassword,
-        }),
+    // ── Documents (for manager document review before approving) ──────────────
+    getUserDocuments: (userId) => rootApi.get(`/admin/client-users/${userId}/documents`),
+    viewDocument:     (docId)  => rootApi.get(`/admin/documents/${docId}/view`),
+    downloadDocument: (docId)  => rootApi.get(`/admin/documents/${docId}/download`),
 };
 
 export default approverApi;
