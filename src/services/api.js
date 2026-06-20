@@ -63,10 +63,14 @@ const auditApi = axios.create({
 });
 
 // Apply interceptors to every instance
-[api, notificationsApi, authApi, deviceApi, slaApi, reportsApi, contractsApi, auditApi].forEach(inst => {
+// authApi is excluded from handle401 — a 401 from login/refresh is an expected error
+// the component handles it; the global redirect would swallow the error before catch fires
+[api, notificationsApi, deviceApi, slaApi, reportsApi, contractsApi, auditApi].forEach(inst => {
     inst.interceptors.request.use(attachToken, (err) => Promise.reject(err));
     inst.interceptors.response.use((res) => res, handle401);
 });
+
+authApi.interceptors.request.use(attachToken, (err) => Promise.reject(err));
 
 // ── Auth API ──────────────────────────────────────────────────────────────────
 export const authAPI = {
