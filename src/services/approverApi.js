@@ -83,10 +83,10 @@ export const approverAPI = {
             new_password:     newPw,
         }),
 
-    // ── Documents (for manager document review before approving) ──────────────
-    getUserDocuments: (userId) => rootApi.get(`/admin/client-users/${userId}/documents`),
-    viewDocument:     (docId)  => rootApi.get(`/admin/documents/${docId}/view`),
-    downloadDocument: (docId)  => rootApi.get(`/admin/documents/${docId}/download`),
+    // ── Documents (read-only for Manager/Finance review) ─────────────────────
+    getUserDocuments: (userId) => approverApi.get(`/client-users/${userId}/documents`),
+    viewDocument:     (docId)  => approverApi.get(`/documents/${docId}/view`),
+    downloadDocument: (docId)  => approverApi.get(`/documents/${docId}/download`),
 };
 
 export default approverApi;
