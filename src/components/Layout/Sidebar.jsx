@@ -21,6 +21,7 @@ import {
     ChevronLeft as ChevronLeftIcon,
     PhoneAndroid as PhoneAndroidIcon,
     Gavel as GavelIcon,
+    Speed as SpeedIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -52,8 +53,9 @@ const menuItems = [
     { text: 'Client Users',       icon: <PersonIcon />,       path: '/client-users' },
     { text: 'Operational Users',  icon: <GroupIcon />,        path: '/operational-users' },
     { text: 'Statistics',         icon: <ChartIcon />,        path: '/statistics' },
-    { text: 'Device Management',     icon: <PhoneAndroidIcon />, path: '/admin/devices' },
-    { text: 'Search Users',       icon: <SearchIcon />,       path: '/search' },
+    { text: 'Device Management', icon: <PhoneAndroidIcon />, path: '/admin/devices' },
+    { text: 'SLA Monitor',       icon: <SpeedIcon />,        path: '/admin/sla' },
+    { text: 'Search Users',      icon: <SearchIcon />,       path: '/search' },
 ];
 
 const globalStyles = `

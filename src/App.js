@@ -24,6 +24,7 @@ import SearchPage from './components/Users/SearchPage';
 import DeviceCatalogManagement from './components/Dashboard/DeviceManagement';
 
 import AdminApplications from './components/Users/AdminApplications';
+import SLAMonitor from './components/SLA/SLAMonitor';
 
 import ManagerDashboard from './components/approver/ManagerDashboard';
 import FinanceDashboard from './components/approver/FinanceDashboard';
@@ -137,6 +138,15 @@ function App() {
                                 element={
                                     <MainLayout>
                                         <SearchPage/>
+                                    </MainLayout>
+                                }
+                            />
+
+                            <Route
+                                path="/admin/sla"
+                                element={
+                                    <MainLayout>
+                                        <SLAMonitor/>
                                     </MainLayout>
                                 }
                             />
