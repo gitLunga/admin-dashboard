@@ -1,8 +1,8 @@
 // src/components/admin/Users/ApplicationDetailsDialog.jsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, IconButton, Typography,
-    Box, Grid, Chip,
+    Box, Grid, Chip, CircularProgress,
 } from '@mui/material';
 import {
     Close as CloseIcon, Person as PersonIcon, PhoneAndroid as DeviceIcon,
@@ -12,6 +12,7 @@ import {
     Timeline as TimelineIcon,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
+import { deviceAPI } from '../../services/api';
 
 /* ── Shared tokens ── */
 const T = {
@@ -184,7 +185,22 @@ const ApprovalTimeline = ({ application }) => {
 };
 
 const ApplicationDetailsDialog = ({ open, application, onClose }) => {
-    if (!application) return null;
+    const [detail, setDetail]   = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!open || !application?.application_id) return;
+        setDetail(null);
+        setLoading(true);
+        deviceAPI.getApplicationDetails(application.application_id)
+            .then(res => setDetail(res.data?.data?.application || res.data?.data || null))
+            .catch(() => setDetail(application))
+            .finally(() => setLoading(false));
+    }, [open, application?.application_id]);
+
+    const app = detail || application;
+
+    if (!app) return null;
 
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth
@@ -204,9 +220,9 @@ const ApplicationDetailsDialog = ({ open, application, onClose }) => {
                         </Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.3 }}>
                             <Typography className="mono" sx={{ fontSize: '0.7rem', color: T.muted }}>
-                                #{application.application_id}
+                                #{app.application_id}
                             </Typography>
-                            <StatusBadge status={application.application_status} />
+                            <StatusBadge status={app.application_status} />
                         </Box>
                     </Box>
                     <IconButton onClick={onClose} size="small"
@@ -217,6 +233,11 @@ const ApplicationDetailsDialog = ({ open, application, onClose }) => {
             </DialogTitle>
 
             <DialogContent sx={{ p: 3, bgcolor: T.bg }}>
+                {loading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+                        <CircularProgress size={28} sx={{ color: T.accent }} />
+                    </Box>
+                ) : (
                 <Grid container spacing={2.5}>
 
                     {/* ── Applicant Information ── */}
@@ -226,47 +247,47 @@ const ApplicationDetailsDialog = ({ open, application, onClose }) => {
 
                             <InfoRow label="Full Name">
                                 <Typography sx={{ fontSize: '0.83rem', fontWeight: 600, color: T.text }}>
-                                    {application.first_name} {application.last_name}
+                                    {app.first_name} {app.last_name}
                                 </Typography>
                             </InfoRow>
                             <InfoRow label="Email">
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
                                     <EmailIcon sx={{ fontSize: 14, color: T.muted }} />
-                                    <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{application.email}</Typography>
+                                    <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{app.email}</Typography>
                                 </Box>
                             </InfoRow>
-                            {application.phone_number && (
+                            {app.phone_number && (
                                 <InfoRow label="Phone">
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
                                         <PhoneIcon sx={{ fontSize: 14, color: T.muted }} />
-                                        <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{application.phone_number}</Typography>
+                                        <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{app.phone_number}</Typography>
                                     </Box>
                                 </InfoRow>
                             )}
                             <InfoRow label="User Type">
-                                <Chip label={application.user_type} size="small"
+                                <Chip label={app.user_type} size="small"
                                       sx={{ height: 22, fontSize: '0.71rem', fontWeight: 600, bgcolor: T.purpleSoft, color: T.purple }} />
                             </InfoRow>
                             <InfoRow label="Region">
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
                                     <LocationIcon sx={{ fontSize: 14, color: T.muted }} />
-                                    <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{application.region || '—'}</Typography>
+                                    <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{app.region || '—'}</Typography>
                                 </Box>
                             </InfoRow>
                             <InfoRow label="Persal ID">
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
                                     <BadgeIcon sx={{ fontSize: 14, color: T.muted }} />
-                                    <Typography className="mono" sx={{ fontSize: '0.8rem', color: T.text }}>{application.persal_id || '—'}</Typography>
+                                    <Typography className="mono" sx={{ fontSize: '0.8rem', color: T.text }}>{app.persal_id || '—'}</Typography>
                                 </Box>
                             </InfoRow>
                             <InfoRow label="Department">
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
                                     <BusinessIcon sx={{ fontSize: 14, color: T.muted }} />
-                                    <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{application.department_id || '—'}</Typography>
+                                    <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{app.department_id || '—'}</Typography>
                                 </Box>
                             </InfoRow>
                             <InfoRow label="Reg. Status">
-                                <StatusBadge status={application.registration_status} />
+                                <StatusBadge status={app.registration_status} />
                             </InfoRow>
                         </Box>
                     </Grid>
@@ -277,29 +298,29 @@ const ApplicationDetailsDialog = ({ open, application, onClose }) => {
                             <SectionHeader icon={DeviceIcon} label="Device & Plan Details" color={T.purple} />
 
                             <InfoRow label="Device">
-                                <Typography sx={{ fontSize: '0.83rem', fontWeight: 600, color: T.text }}>{application.device_name}</Typography>
+                                <Typography sx={{ fontSize: '0.83rem', fontWeight: 600, color: T.text }}>{app.device_name}</Typography>
                             </InfoRow>
                             <InfoRow label="Model">
-                                <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{application.model}</Typography>
+                                <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{app.model}</Typography>
                             </InfoRow>
                             <InfoRow label="Manufacturer">
-                                <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{application.manufacturer}</Typography>
+                                <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{app.manufacturer}</Typography>
                             </InfoRow>
                             <InfoRow label="Plan">
-                                <Chip label={application.plan_name} size="small"
+                                <Chip label={app.plan_name} size="small"
                                       sx={{ height: 22, fontSize: '0.71rem', fontWeight: 600, bgcolor: T.cyanSoft, color: T.cyan }} />
                             </InfoRow>
                             <InfoRow label="Monthly Cost">
                                 <Typography className="mono" sx={{ fontSize: '0.85rem', fontWeight: 700, color: T.accent }}>
-                                    {fmtR(application.monthly_cost)}
+                                    {fmtR(app.monthly_cost)}
                                 </Typography>
                             </InfoRow>
                             <InfoRow label="Contract">
-                                <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{application.contract_duration_months} months</Typography>
+                                <Typography sx={{ fontSize: '0.82rem', color: T.text }}>{app.contract_duration_months} months</Typography>
                             </InfoRow>
                             <InfoRow label="Total Value">
                                 <Typography className="mono" sx={{ fontSize: '0.82rem', fontWeight: 700, color: T.text }}>
-                                    {fmtR((application.monthly_cost || 0) * (application.contract_duration_months || 0))}
+                                    {fmtR((app.monthly_cost || 0) * (app.contract_duration_months || 0))}
                                 </Typography>
                             </InfoRow>
                         </Box>
@@ -308,65 +329,44 @@ const ApplicationDetailsDialog = ({ open, application, onClose }) => {
                             <SectionHeader icon={CalendarIcon} label="Application Timeline" color={T.green} />
 
                             <InfoRow label="Status">
-                                <StatusBadge status={application.application_status} />
+                                <StatusBadge status={app.application_status} />
                             </InfoRow>
                             <InfoRow label="Submitted">
                                 <Typography className="mono" sx={{ fontSize: '0.8rem', color: T.text }}>
-                                    {dayjs(application.submission_date).format('DD MMM YYYY HH:mm')}
+                                    {dayjs(app.submission_date).format('DD MMM YYYY HH:mm')}
                                 </Typography>
                             </InfoRow>
                             <InfoRow label="Last Updated">
                                 <Typography className="mono" sx={{ fontSize: '0.8rem', color: T.text }}>
-                                    {dayjs(application.last_updated).format('DD MMM YYYY HH:mm')}
+                                    {dayjs(app.last_updated).format('DD MMM YYYY HH:mm')}
                                 </Typography>
                             </InfoRow>
-                            {application.rejection_reason && (
+                            {app.rejection_reason && (
                                 <InfoRow label="Rejection Reason">
                                     <Box sx={{ p: 1.2, bgcolor: T.roseSoft, borderRadius: '8px', border: `1px solid ${T.rose}22` }}>
                                         <Typography sx={{ fontSize: '0.78rem', color: T.rose }}>
-                                            {application.rejection_reason}
+                                            {app.rejection_reason}
                                         </Typography>
                                     </Box>
-                                </InfoRow>
-                            )}
-                            {application.approval_status && (
-                                <InfoRow label="Approval Status">
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
-                                        {application.approval_status === 'Approved'
-                                            ? <ApprovedIcon sx={{ fontSize: 15, color: T.green }} />
-                                            : <RejectedIcon sx={{ fontSize: 15, color: T.rose }} />
-                                        }
-                                        <Typography sx={{ fontSize: '0.82rem', fontWeight: 600,
-                                            color: application.approval_status === 'Approved' ? T.green : T.rose }}>
-                                            {application.approval_status}
-                                        </Typography>
-                                    </Box>
-                                </InfoRow>
-                            )}
-                            {application.approver_first_name && (
-                                <InfoRow label="Processed By">
-                                    <Typography sx={{ fontSize: '0.82rem', color: T.text }}>
-                                        {application.approver_first_name} {application.approver_last_name}
-                                    </Typography>
                                 </InfoRow>
                             )}
 
                             {/* Order info if placed */}
-                            {application.order_id && (
+                            {app.order_id && (
                                 <>
                                     <InfoRow label="Order ID">
                                         <Typography className="mono" sx={{ fontSize: '0.82rem', fontWeight: 700, color: T.cyan }}>
-                                            #{application.order_id}
+                                            #{app.order_id}
                                         </Typography>
                                     </InfoRow>
                                     <InfoRow label="Order Status">
-                                        <Chip label={application.order_status || 'Processing'} size="small"
+                                        <Chip label={app.order_status || 'Processing'} size="small"
                                               sx={{ height: 22, fontSize: '0.71rem', fontWeight: 600, bgcolor: T.cyanSoft, color: T.cyan }} />
                                     </InfoRow>
-                                    {application.order_date && (
+                                    {app.order_date && (
                                         <InfoRow label="Order Date">
                                             <Typography className="mono" sx={{ fontSize: '0.8rem', color: T.text }}>
-                                                {dayjs(application.order_date).format('DD MMM YYYY HH:mm')}
+                                                {dayjs(app.order_date).format('DD MMM YYYY HH:mm')}
                                             </Typography>
                                         </InfoRow>
                                     )}
@@ -377,10 +377,11 @@ const ApplicationDetailsDialog = ({ open, application, onClose }) => {
 
                     {/* ── Approval Journey Timeline ── */}
                     <Grid item xs={12}>
-                        <ApprovalTimeline application={application} />
+                        <ApprovalTimeline application={app} />
                     </Grid>
 
                 </Grid>
+                )}
             </DialogContent>
         </Dialog>
     );

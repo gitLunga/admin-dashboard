@@ -27,9 +27,10 @@ const T = {
 };
 
 const STATUS_META = {
-    Verified: { color: T.green,  soft: T.greenSoft,  dot: '#059669' },
-    Pending:  { color: T.amber,  soft: T.amberSoft,  dot: '#D97706' },
-    Rejected: { color: T.rose,   soft: T.roseSoft,   dot: '#DC2626' },
+    Verified:          { color: T.green,  soft: T.greenSoft,  dot: '#059669' },
+    Pending:           { color: T.amber,  soft: T.amberSoft,  dot: '#D97706' },
+    Rejected:          { color: T.rose,   soft: T.roseSoft,   dot: '#DC2626' },
+    Profile_Completed: { color: T.purple, soft: T.purpleSoft, dot: '#7C3AED' },
 };
 
 const StatusChip = ({ status }) => {
@@ -204,11 +205,11 @@ const ClientUsers = () => {
                             renderValue={v => v === 'all' ? 'All Statuses' : v}
                         >
                             <MenuItem value="all" sx={{ fontSize: '0.83rem' }}>All Statuses</MenuItem>
-                            {['Verified','Pending','Rejected'].map(s => (
+                            {['Verified','Pending','Profile_Completed','Rejected'].map(s => (
                                 <MenuItem key={s} value={s} sx={{ fontSize: '0.83rem' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                         <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: STATUS_META[s]?.dot || T.muted }} />
-                                        {s}
+                                        {s === 'Profile_Completed' ? 'Profile Completed' : s}
                                     </Box>
                                 </MenuItem>
                             ))}
