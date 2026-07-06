@@ -421,7 +421,7 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
         if (!app?.client_user_id) return;
         setDocLoading(true);
         try {
-            const res = await adminAPI.getUserDocuments(app.client_user_id);
+            const res = await approverAPI.getUserDocuments(app.client_user_id);
             setDocuments(res.data?.data?.documents || []);
         } catch { /* silent */ }
         finally { setDocLoading(false); }
@@ -438,7 +438,7 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
         setViewerMime('');
         setViewerOpen(true);
         try {
-            const res  = await adminAPI.viewDocument(docId);
+            const res  = await approverAPI.viewDocument(docId);
             const url  = res.data?.url  || res.data?.data?.url;
             const mime = res.data?.mimeType || res.data?.data?.mimeType || 'application/pdf';
             setViewerUrl(url);
@@ -1037,10 +1037,27 @@ const ManagerDashboard = () => {
                                                 <Typography sx={{ fontSize: '0.7rem', color: T.muted }}>{app.contract_duration_months}mo contract</Typography>
                                             </TableCell>
                                             <TableCell sx={{ py: 1.5 }}>
-                                                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, px: 1, py: 0.4, borderRadius: '8px', bgcolor: (app.days_waiting || 0) > 3 ? T.roseSoft : T.amberSoft }}>
-                                                    <TimeIcon sx={{ fontSize: 11, color: (app.days_waiting || 0) > 3 ? T.rose : T.amber }} />
-                                                    <Typography className="mono" sx={{ fontSize: '0.75rem', fontWeight: 700, color: (app.days_waiting || 0) > 3 ? T.rose : T.amber }}>{app.days_waiting || 0}d</Typography>
-                                                </Box>
+                                                {(() => {
+                                                    const s     = app.sla_status || (app.days_waiting > (app.sla_days || 3) ? 'breached' : 'within');
+                                                    const color = s === 'breached' ? T.rose : s === 'approaching' ? T.amber : T.green;
+                                                    const bg    = s === 'breached' ? T.roseSoft : s === 'approaching' ? T.amberSoft : T.greenSoft;
+                                                    const label = s === 'breached' ? 'Breached' : s === 'approaching' ? 'Approaching' : 'On Track';
+                                                    const daysLeft = (app.sla_days || 3) - (app.days_waiting || 0);
+                                                    return (
+                                                        <Box>
+                                                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, px: 1, py: 0.4, borderRadius: '8px', bgcolor: bg, mb: 0.4 }}>
+                                                                <TimeIcon sx={{ fontSize: 11, color }} />
+                                                                <Typography className="mono" sx={{ fontSize: '0.72rem', fontWeight: 700, color }}>{app.days_waiting || 0}d</Typography>
+                                                            </Box>
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                                <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+                                                                <Typography sx={{ fontSize: '0.66rem', fontWeight: 700, color }}>
+                                                                    {label}{s === 'breached' ? ` (+${Math.abs(daysLeft).toFixed(1)}d over)` : s !== 'within' ? ` (${daysLeft.toFixed(1)}d left)` : ''}
+                                                                </Typography>
+                                                            </Box>
+                                                        </Box>
+                                                    );
+                                                })()}
                                             </TableCell>
                                             <TableCell sx={{ py: 1.5 }}><StatusChip status={app.application_status} /></TableCell>
                                             <TableCell sx={{ py: 1.5 }}>

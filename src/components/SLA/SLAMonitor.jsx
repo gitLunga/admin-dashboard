@@ -335,21 +335,18 @@ export default function SLAMonitor() {
     const [dashboard,    setDashboard]   = useState(null);
     const [applications, setApplications] = useState([]);
     const [total,        setTotal]        = useState(0);
-    const [slaFilter,    setSlaFilter]    = useState('');           // '' | 'breached' | 'approaching' | 'within'
-    const [stageFilter,  setStageFilter]  = useState('');           // '' | 'Pending' | 'Pending_Finance' | 'Approved'
+    const [slaFilter,    setSlaFilter]    = useState('');
+    const [stageFilter,  setStageFilter]  = useState('');
     const [loading,      setLoading]      = useState(true);
     const [appsLoading,  setAppsLoading]  = useState(false);
     const [lastRefresh,  setLastRefresh]  = useState(null);
+    const [error,        setError]        = useState(null);
     const timerRef = useRef(null);
 
     /* ── Fetch dashboard summary ── */
     const fetchDashboard = useCallback(async () => {
-        try {
-            const res = await slaAPI.getDashboard();
-            setDashboard(res.data?.data || res.data);
-        } catch (err) {
-            console.error('SLA dashboard error:', err);
-        }
+        const res = await slaAPI.getDashboard();
+        setDashboard(res.data?.data || res.data);
     }, []);
 
     /* ── Fetch application list ── */
@@ -364,8 +361,6 @@ export default function SLAMonitor() {
             const d   = res.data?.data || res.data;
             setApplications(d?.applications || []);
             setTotal(d?.total || 0);
-        } catch (err) {
-            console.error('SLA applications error:', err);
         } finally {
             setAppsLoading(false);
         }
@@ -373,9 +368,18 @@ export default function SLAMonitor() {
 
     /* ── Initial load + refresh cycle ── */
     const refresh = useCallback(async () => {
-        await Promise.all([fetchDashboard(), fetchApplications()]);
-        setLastRefresh(new Date());
-        setLoading(false);
+        setError(null);
+        try {
+            await Promise.all([fetchDashboard(), fetchApplications()]);
+            setLastRefresh(new Date());
+        } catch (err) {
+            const status = err.response?.status;
+            if (status === 401) setError('Session expired — please log in again.');
+            else if (status === 403) setError('Access denied. SLA Monitor requires Admin role.');
+            else setError(`Failed to load SLA data: ${err.message}`);
+        } finally {
+            setLoading(false);
+        }
     }, [fetchDashboard, fetchApplications]);
 
     useEffect(() => {
@@ -400,6 +404,26 @@ export default function SLAMonitor() {
         return (
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
                 <CircularProgress sx={{ color: T.accent }} />
+            </Box>
+        );
+    }
+
+    if (error) {
+        return (
+            <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: '60vh', justifyContent: 'center' }}>
+                <BreachIcon sx={{ fontSize: 48, color: T.rose }} />
+                <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: T.text }}>{error}</Typography>
+                <Box
+                    component="button"
+                    onClick={refresh}
+                    sx={{
+                        mt: 1, px: 3, py: 1.2, borderRadius: '10px', border: 'none', cursor: 'pointer',
+                        bgcolor: T.accent, color: '#fff', fontFamily: 'Plus Jakarta Sans', fontSize: '0.82rem', fontWeight: 700,
+                        '&:hover': { opacity: 0.88 },
+                    }}
+                >
+                    Try again
+                </Box>
             </Box>
         );
     }
