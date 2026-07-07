@@ -30,6 +30,14 @@ import ProfileSettings from './components/Settings/ProfileSettings';
 import ManagerDashboard from './components/approver/ManagerDashboard';
 import FinanceDashboard from './components/approver/FinanceDashboard';
 
+import ReportsPage          from './components/Reports/ReportsPage';
+import AuditLogViewer       from './components/Audit/AuditLogViewer';
+import ContractManagement   from './components/Contracts/ContractManagement';
+import DeviceReturns        from './components/Returns/DeviceReturns';
+import ApprovalDelegation   from './components/Delegation/ApprovalDelegation';
+import BudgetTracker        from './components/Budget/BudgetTracker';
+import ExecutiveDashboard   from './components/Dashboard/ExecutiveDashboard';
+
 import './assets/styling/styles.css';
 
 
@@ -163,6 +171,15 @@ function App() {
 
                             <Route path="/manager/dashboard" element={<ManagerDashboard/>}/>
                             <Route path="/finance/dashboard" element={<FinanceDashboard/>}/>
+
+                            {/* ── New pages ── */}
+                            <Route path="/reports" element={<MainLayout><ReportsPage/></MainLayout>}/>
+                            <Route path="/audit" element={<MainLayout><AuditLogViewer/></MainLayout>}/>
+                            <Route path="/contracts" element={<MainLayout><ContractManagement/></MainLayout>}/>
+                            <Route path="/returns" element={<MainLayout><DeviceReturns/></MainLayout>}/>
+                            <Route path="/delegation" element={<MainLayout><ApprovalDelegation/></MainLayout>}/>
+                            <Route path="/budget" element={<MainLayout><BudgetTracker/></MainLayout>}/>
+                            <Route path="/executive" element={<MainLayout><ExecutiveDashboard/></MainLayout>}/>
 
                             {/* Fallback */}
                             <Route path="*" element={<Navigate to="/"/>}/>

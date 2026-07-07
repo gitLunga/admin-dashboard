@@ -24,6 +24,13 @@ import {
     Speed as SpeedIcon,
     Settings as SettingsIcon,
     AdminPanelSettings as AdminIcon,
+    Assessment as ReportsIcon,
+    Security as AuditIcon,
+    Assignment as ContractIcon,
+    Replay as ReturnIcon,
+    SwapHoriz as DelegationIcon,
+    AccountBalance as BudgetIcon,
+    Analytics as ExecutiveIcon,
 } from '@mui/icons-material';
 import { Avatar } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -50,15 +57,30 @@ export const T = {
 };
 
 const menuItems = [
-    { text: 'Dashboard',          icon: <DashboardIcon />,    path: '/dashboard' },
-    // { text: 'All Users',          icon: <PeopleIcon />,       path: '/users' },
-    { text: 'Applications',       icon: <PhoneAndroidIcon />, path: '/admin/applications' },
-    { text: 'Client Users',       icon: <PersonIcon />,       path: '/client-users' },
-    { text: 'Operational Users',  icon: <GroupIcon />,        path: '/operational-users' },
-    { text: 'Statistics',         icon: <ChartIcon />,        path: '/statistics' },
-    { text: 'Device Management', icon: <PhoneAndroidIcon />, path: '/admin/devices' },
-    { text: 'SLA Monitor',       icon: <SpeedIcon />,        path: '/admin/sla' },
+    // ── Core ─────────────────────────────────────────────────────────────────
+    { text: 'Dashboard',         icon: <DashboardIcon />,    path: '/dashboard' },
+    { text: 'Executive View',    icon: <ExecutiveIcon />,    path: '/executive' },
+    { text: 'Applications',      icon: <PhoneAndroidIcon />, path: '/admin/applications' },
+    { text: 'Statistics',        icon: <ChartIcon />,        path: '/statistics' },
+
+    // ── Users ─────────────────────────────────────────────────────────────────
+    { text: 'Client Users',      icon: <PersonIcon />,       path: '/client-users' },
+    { text: 'Operational Users', icon: <GroupIcon />,        path: '/operational-users' },
     { text: 'Search Users',      icon: <SearchIcon />,       path: '/search' },
+
+    // ── Devices & Contracts ───────────────────────────────────────────────────
+    { text: 'Device Management', icon: <PhoneAndroidIcon />, path: '/admin/devices' },
+    { text: 'Contracts',         icon: <ContractIcon />,     path: '/contracts' },
+    { text: 'Device Returns',    icon: <ReturnIcon />,       path: '/returns' },
+
+    // ── Governance ────────────────────────────────────────────────────────────
+    { text: 'SLA Monitor',       icon: <SpeedIcon />,        path: '/admin/sla' },
+    { text: 'Budget Tracker',    icon: <BudgetIcon />,       path: '/budget' },
+    { text: 'Delegation',        icon: <DelegationIcon />,   path: '/delegation' },
+
+    // ── Reporting & Audit ─────────────────────────────────────────────────────
+    { text: 'Reports & Exports', icon: <ReportsIcon />,      path: '/reports' },
+    { text: 'Audit Log',         icon: <AuditIcon />,        path: '/audit' },
 ];
 
 const globalStyles = `

@@ -219,3 +219,52 @@ export const profileAPI = {
     getMe:    ()     => profileApi.get('/me'),
     updateMe: (data) => profileApi.patch('/me', data),
 };
+
+// ── PDF API ───────────────────────────────────────────────────────────────────
+const pdfApi = axios.create({ baseURL: `${API_BASE_URL}/pdf`, headers: { 'Content-Type': 'application/json' } });
+pdfApi.interceptors.request.use(attachToken, (err) => Promise.reject(err));
+pdfApi.interceptors.response.use((res) => res, handle401);
+
+export const pdfAPI = {
+    allocationLetter: (applicationId) => pdfApi.get(`/allocation-letter/${applicationId}`, { responseType: 'blob' }),
+    contractSummary:  (contractId)    => pdfApi.get(`/contract/${contractId}`,              { responseType: 'blob' }),
+    orderConfirmation:(orderId)       => pdfApi.get(`/order/${orderId}`,                    { responseType: 'blob' }),
+};
+
+// ── Device Returns API ────────────────────────────────────────────────────────
+const returnsApi = axios.create({ baseURL: `${API_BASE_URL}/returns`, headers: { 'Content-Type': 'application/json' } });
+returnsApi.interceptors.request.use(attachToken, (err) => Promise.reject(err));
+returnsApi.interceptors.response.use((res) => res, handle401);
+
+export const returnsAPI = {
+    list:         (qs = '')       => returnsApi.get(`/${qs ? '?' + qs : ''}`),
+    summary:      ()              => returnsApi.get('/summary'),
+    getOne:       (id)            => returnsApi.get(`/${id}`),
+    initiate:     (data)          => returnsApi.post('/', data),
+    updateStatus: (id, data)      => returnsApi.patch(`/${id}/status`, data),
+};
+
+// ── Delegation API ────────────────────────────────────────────────────────────
+const delegationApi = axios.create({ baseURL: `${API_BASE_URL}/delegation`, headers: { 'Content-Type': 'application/json' } });
+delegationApi.interceptors.request.use(attachToken, (err) => Promise.reject(err));
+delegationApi.interceptors.response.use((res) => res, handle401);
+
+export const delegationAPI = {
+    list:             (qs = '')   => delegationApi.get(`/${qs ? '?' + qs : ''}`),
+    mine:             ()          => delegationApi.get('/mine'),
+    eligible:         ()          => delegationApi.get('/eligible'),
+    create:           (data)      => delegationApi.post('/', data),
+    revoke:           (id)        => delegationApi.delete(`/${id}`),
+};
+
+// ── Budget API ────────────────────────────────────────────────────────────────
+const budgetApi = axios.create({ baseURL: `${API_BASE_URL}/budget`, headers: { 'Content-Type': 'application/json' } });
+budgetApi.interceptors.request.use(attachToken, (err) => Promise.reject(err));
+budgetApi.interceptors.response.use((res) => res, handle401);
+
+export const budgetAPI = {
+    list:   (qs = '')   => budgetApi.get(`/${qs ? '?' + qs : ''}`),
+    spend:  (year)      => budgetApi.get(`/spend${year ? '?fiscal_year=' + year : ''}`),
+    upsert: (data)      => budgetApi.post('/', data),
+    remove: (id)        => budgetApi.delete(`/${id}`),
+};
