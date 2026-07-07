@@ -2,13 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     Box, Typography, Card, Grid, Button, Chip, LinearProgress,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    TextField, MenuItem, Alert, CircularProgress, Tooltip,
+    TextField, MenuItem, Alert, CircularProgress,
     Dialog, DialogTitle, DialogContent, DialogActions,
     IconButton,
 } from '@mui/material';
 import {
     Add as AddIcon, Delete as DeleteIcon, Refresh as RefreshIcon,
-    Warning as WarningIcon, TrendingUp as SpendIcon,
 } from '@mui/icons-material';
 import { budgetAPI } from '../../services/api';
 import { T } from '../Layout/Sidebar';

@@ -6,7 +6,6 @@ import {
     FormControl, InputLabel, Drawer, Divider, Collapse,
 } from '@mui/material';
 import {
-    Timer as TimerIcon,
     Warning as WarnIcon,
     CheckCircle as OkIcon,
     Error as BreachIcon,
@@ -18,10 +17,8 @@ import {
     HelpOutline as HelpIcon,
     ExpandMore as ExpandIcon,
     ExpandLess as CollapseIcon,
-    RadioButtonUnchecked as DotIcon,
     ArrowForward as ArrowIcon,
     Info as InfoIcon,
-    OpenInNew as DetailIcon,
 } from '@mui/icons-material';
 import { slaAPI } from '../../services/api';
 
@@ -266,7 +263,6 @@ function AppRow({ app, idx, onSelect }) {
 /* ── Stage timeline item (inside the detail drawer) ─────────────── */
 function StageTimelineItem({ stage, isLast }) {
     const meta        = statusMeta(stage.sla_status, !!stage.completed_at);
-    const cfg         = SLA_CONFIG[stage.stage] || {};
     const daysOver    = parseFloat((stage.days_taken - stage.sla_days).toFixed(1));
     const daysLeft    = parseFloat((stage.sla_days - stage.days_taken).toFixed(1));
     const isCompleted = !!stage.completed_at;

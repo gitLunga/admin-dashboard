@@ -8,7 +8,6 @@ import {
     Close as CloseIcon, Person as PersonIcon, PhoneAndroid as DeviceIcon,
     Email as EmailIcon, Phone as PhoneIcon, LocationOn as LocationIcon,
     Business as BusinessIcon, Badge as BadgeIcon, CalendarToday as CalendarIcon,
-    CheckCircle as ApprovedIcon, Cancel as RejectedIcon,
     Timeline as TimelineIcon,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
@@ -196,7 +195,7 @@ const ApplicationDetailsDialog = ({ open, application, onClose }) => {
             .then(res => setDetail(res.data?.data?.application || res.data?.data || null))
             .catch(() => setDetail(application))
             .finally(() => setLoading(false));
-    }, [open, application?.application_id]);
+    }, [open, application]);
 
     const app = detail || application;
 

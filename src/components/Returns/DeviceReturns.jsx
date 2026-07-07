@@ -4,12 +4,10 @@ import {
     TableCell, TableContainer, TableHead, TableRow, TablePagination,
     TextField, MenuItem, Alert, CircularProgress,
     Dialog, DialogTitle, DialogContent, DialogActions,
-    Stepper, Step, StepLabel,
 } from '@mui/material';
 import {
     Refresh as RefreshIcon,
     Add as AddIcon,
-    PhoneAndroid as DeviceIcon,
 } from '@mui/icons-material';
 import { returnsAPI } from '../../services/api';
 import { T } from '../Layout/Sidebar';
@@ -194,7 +192,7 @@ export default function DeviceReturns() {
         finally { setLoading(false); }
     }, [statusFlt]);
 
-    useEffect(() => { loadSummary(); load(0); }, []);
+    useEffect(() => { loadSummary(); load(0); }, [load, loadSummary]);
 
     const onSaved = () => {
         setSelected(null);

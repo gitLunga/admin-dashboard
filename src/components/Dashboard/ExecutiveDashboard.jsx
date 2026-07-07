@@ -8,10 +8,7 @@ import {
     People as PeopleIcon,
     Assignment as AppIcon,
     Speed as SlaIcon,
-    AttachMoney as SpendIcon,
     Warning as WarningIcon,
-    CheckCircle as OkIcon,
-    Timeline as TrendIcon,
 } from '@mui/icons-material';
 import { adminAPI, slaAPI, contractsAPI, budgetAPI } from '../../services/api';
 import { T } from '../Layout/Sidebar';
