@@ -62,10 +62,15 @@ const auditApi = axios.create({
     headers: { 'Content-Type': 'application/json' },
 });
 
+const profileApi = axios.create({
+    baseURL: `${API_BASE_URL}/profile`,
+    headers: { 'Content-Type': 'application/json' },
+});
+
 // Apply interceptors to every instance
 // authApi is excluded from handle401 — a 401 from login/refresh is an expected error
 // the component handles it; the global redirect would swallow the error before catch fires
-[api, notificationsApi, deviceApi, slaApi, reportsApi, contractsApi, auditApi].forEach(inst => {
+[api, notificationsApi, deviceApi, slaApi, reportsApi, contractsApi, auditApi, profileApi].forEach(inst => {
     inst.interceptors.request.use(attachToken, (err) => Promise.reject(err));
     inst.interceptors.response.use((res) => res, handle401);
 });
@@ -106,6 +111,15 @@ export const adminAPI = {
         api.patch(`/operational-users/${id}/change-password`, data),
     promoteToSuperAdmin:            (id)        => api.patch(`/operational-users/${id}/promote`),
     demoteSuperAdmin:               (id)        => api.patch(`/operational-users/${id}/demote`),
+    setGlobalAccess:                (id, val)   => api.patch(`/operational-users/${id}/global-access`, { has_global_access: val }),
+
+    // Departments
+    getDepartments:   ()             => api.get('/departments'),
+    createDepartment: (data)         => api.post('/departments', data),
+    deleteDepartment: (id)           => api.delete(`/departments/${id}`),
+
+    // System overview (Admin settings panel)
+    getSystemOverview:       ()             => api.get('/system-overview'),
 
     // Statistics
     getStatistics:          ()              => api.get('/statistics'),
@@ -198,4 +212,10 @@ export const contractsAPI = {
 export const auditAPI = {
     getLogs:              (qs = '')       => auditApi.get(`/logs${qs ? '?' + qs : ''}`),
     getLogins:            (qs = '')       => auditApi.get(`/logins${qs ? '?' + qs : ''}`),
+};
+
+// ── Profile API (any authenticated operational user) ─────────────────────────
+export const profileAPI = {
+    getMe:    ()     => profileApi.get('/me'),
+    updateMe: (data) => profileApi.patch('/me', data),
 };

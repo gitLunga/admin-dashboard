@@ -22,7 +22,10 @@ import {
     PhoneAndroid as PhoneAndroidIcon,
     Gavel as GavelIcon,
     Speed as SpeedIcon,
+    Settings as SettingsIcon,
+    AdminPanelSettings as AdminIcon,
 } from '@mui/icons-material';
+import { Avatar } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const drawerWidth = 256;
@@ -77,6 +80,48 @@ if (!document.getElementById('ja-styles')) {
     s.textContent = globalStyles;
     document.head.appendChild(s);
 }
+
+const ROLE_COLORS = {
+    Admin:     { color: T.accent, soft: T.accentSoft },
+    Manager:   { color: '#7C3AED', soft: '#EDE9FE'    },
+    Finance:   { color: '#059669', soft: '#D1FAE5'    },
+    Approver:  { color: '#D97706', soft: '#FEF3C7'    },
+    MTN_Staff: { color: T.muted,   soft: T.bg         },
+};
+
+const UserFooter = ({ navigate }) => {
+    const user = JSON.parse(localStorage.getItem('adminUser') || '{}');
+    const rs   = ROLE_COLORS[user.user_role] || { color: T.muted, soft: T.bg };
+    const initials = `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase();
+    const isAdmin  = user.user_role === 'Admin';
+
+    return (
+        <Box sx={{
+            px: 2, py: 1.5, borderRadius: '12px',
+            bgcolor: T.bg, border: `1px solid ${T.border}`,
+            display: 'flex', alignItems: 'center', gap: 1.2,
+            cursor: 'pointer',
+            '&:hover': { bgcolor: T.accentSoft, borderColor: T.accent + '40' },
+            transition: 'all 0.18s',
+        }}
+        onClick={() => navigate('/settings/profile')}
+        >
+            <Avatar sx={{ width: 34, height: 34, bgcolor: rs.soft, color: rs.color, fontSize: '0.78rem', fontWeight: 800, border: `2px solid ${rs.color}30`, flexShrink: 0 }}>
+                {initials || <PersonIcon sx={{ fontSize: 16 }} />}
+            </Avatar>
+            <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {user.first_name} {user.last_name}
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    {isAdmin && <AdminIcon sx={{ fontSize: 11, color: rs.color }} />}
+                    <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, color: rs.color }}>{user.user_role || 'User'}</Typography>
+                </Box>
+            </Box>
+            <SettingsIcon sx={{ fontSize: 16, color: T.muted, flexShrink: 0 }} />
+        </Box>
+    );
+};
 
 const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
     const theme   = useTheme();
@@ -178,21 +223,10 @@ const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
                 </List>
             </Box>
 
-            {/* ── Footer ── */}
+            {/* ── Footer — logged-in user card ── */}
             <Box sx={{ px: 2, pb: 2.5 }}>
                 <Divider sx={{ borderColor: T.border, mb: 2 }} />
-                <Box sx={{
-                    px: 2, py: 1.5, borderRadius: '10px',
-                    bgcolor: T.bg, border: `1px solid ${T.border}`,
-                }}>
-                    <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: T.muted }}>
-                        Version 1.0.0
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: T.accent, mt: 0.2 }}>
-                        Premium Edition
-                    </Typography>
-                </Box>
-            </Box>
+                <UserFooter navigate={navigate} /></Box>
         </Box>
     );
 

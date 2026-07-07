@@ -36,9 +36,12 @@ import {
     VisibilityOff as EyeOffIcon,
     AccountCircle as ProfileIcon,
     MarkEmailRead as MarkReadIcon,
+    Edit as EditIcon,
+    Public as GlobalIcon,
+    Domain as DeptIcon,
 } from '@mui/icons-material';
 import { approverAPI } from '../../services/approverApi';
-import { adminAPI } from '../../services/api';
+import { adminAPI, profileAPI } from '../../services/api';
 import { useToast } from '../../hooks/useToast';
 
 /* ── Design tokens ── */
@@ -255,8 +258,16 @@ const NotificationBell = ({ userId }) => {
 };
 
 // ── Profile / Change Password View ────────────────────────────────────────────
-const ProfileView = ({ user }) => {
+const ProfileView = ({ user: initialUser }) => {
     const { success, error: toastError } = useToast();
+
+    // ── Personal info state ──────────────────────────────────────────
+    const [profile,  setProfile]  = useState(null);
+    const [editing,  setEditing]  = useState(false);
+    const [form,     setForm]     = useState({ title: '', first_name: '', last_name: '', email: '' });
+    const [savingInfo, setSavingInfo] = useState(false);
+
+    // ── Password state ───────────────────────────────────────────────
     const [current,  setCurrent]  = useState('');
     const [newPass,  setNewPass]  = useState('');
     const [confirm,  setConfirm]  = useState('');
@@ -266,7 +277,40 @@ const ProfileView = ({ user }) => {
     const [saving,   setSaving]   = useState(false);
     const [err,      setErr]      = useState('');
 
-    const handleSave = async () => {
+    useEffect(() => {
+        profileAPI.getMe()
+            .then(r => {
+                const p = r.data?.data || r.data;
+                setProfile(p);
+                setForm({ title: p.title || '', first_name: p.first_name || '', last_name: p.last_name || '', email: p.email || '' });
+            })
+            .catch(() => {
+                // fallback to passed-in user
+                setProfile(initialUser);
+                setForm({ title: initialUser.title || '', first_name: initialUser.first_name || '', last_name: initialUser.last_name || '', email: initialUser.email || '' });
+            });
+    }, [initialUser]);
+
+    const handleSaveInfo = async () => {
+        if (!form.first_name || !form.last_name || !form.email) { toastError('Name and email are required.', 'Validation'); return; }
+        setSavingInfo(true);
+        try {
+            const res = await profileAPI.updateMe(form);
+            const updated = res.data?.data || res.data;
+            setProfile(p => ({ ...p, ...updated }));
+            // sync localStorage so sidebar name updates on next render
+            const stored = JSON.parse(localStorage.getItem('adminUser') || '{}');
+            localStorage.setItem('adminUser', JSON.stringify({ ...stored, first_name: updated.first_name, last_name: updated.last_name, name: `${updated.first_name} ${updated.last_name}`.trim(), email: updated.email }));
+            success('Profile updated.', 'Saved');
+            setEditing(false);
+        } catch (e) {
+            toastError(e.response?.data?.message || 'Failed to save changes.', 'Error');
+        } finally {
+            setSavingInfo(false);
+        }
+    };
+
+    const handleSavePassword = async () => {
         setErr('');
         if (!current || !newPass || !confirm) { setErr('All fields are required.'); return; }
         if (newPass !== confirm) { setErr('New password and confirmation do not match.'); return; }
@@ -297,36 +341,81 @@ const ProfileView = ({ user }) => {
         </Box>
     );
 
+    const displayName = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : `${initialUser.first_name || ''} ${initialUser.last_name || ''}`.trim();
+
     return (
         <Box>
             <Typography sx={{ fontSize: '1.7rem', fontWeight: 800, color: T.text, mb: 0.5 }}>My Profile</Typography>
-            <Typography sx={{ fontSize: '0.78rem', color: T.muted, mb: 3 }}>Manage your account settings</Typography>
+            <Typography sx={{ fontSize: '0.78rem', color: T.muted, mb: 3 }}>Manage your personal information and account security</Typography>
 
             <Grid container spacing={2.5}>
-                {/* User info card */}
+                {/* Personal info card */}
                 <Grid item xs={12} md={5}>
                     <Paper elevation={0} sx={{ p: 3, borderRadius: '14px', border: `1px solid ${T.border}`, bgcolor: T.surface }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5, pb: 2.5, borderBottom: `1px solid ${T.border}` }}>
-                            <Avatar sx={{ width: 52, height: 52, bgcolor: T.accentSoft, color: T.accent, fontSize: '1.2rem', fontWeight: 700 }}>
-                                {user.first_name?.[0]}{user.last_name?.[0]}
-                            </Avatar>
-                            <Box>
-                                <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: T.text }}>{user.first_name} {user.last_name}</Typography>
-                                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, px: 1.2, py: 0.3, borderRadius: '20px', bgcolor: T.accentSoft, border: `1px solid ${T.accent}22`, mt: 0.3 }}>
-                                    <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: T.accent }}>Manager · Approver 1</Typography>
+                        {/* Header */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5, pb: 2.5, borderBottom: `1px solid ${T.border}` }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <Avatar sx={{ width: 48, height: 48, bgcolor: T.purpleSoft, color: T.purple, fontSize: '1.1rem', fontWeight: 700 }}>
+                                    {(form.first_name?.[0] || '').toUpperCase()}{(form.last_name?.[0] || '').toUpperCase()}
+                                </Avatar>
+                                <Box>
+                                    <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: T.text }}>{displayName}</Typography>
+                                    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, px: 1.2, py: 0.3, borderRadius: '20px', bgcolor: T.purpleSoft, mt: 0.3 }}>
+                                        <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: T.purple }} />
+                                        <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: T.purple }}>{(profile || initialUser).user_role || 'Manager'}</Typography>
+                                    </Box>
                                 </Box>
                             </Box>
+                            <IconButton size="small" onClick={() => setEditing(e => !e)}
+                                        sx={{ bgcolor: editing ? T.roseSoft : T.accentSoft, color: editing ? T.rose : T.accent, '&:hover': { opacity: 0.8 } }}>
+                                {editing ? <CloseIcon sx={{ fontSize: 16 }} /> : <EditIcon sx={{ fontSize: 16 }} />}
+                            </IconButton>
                         </Box>
-                        {[
-                            { label: 'Email', value: user.email || '—' },
-                            { label: 'User ID', value: `#${user.op_user_id}` },
-                            { label: 'Role', value: user.user_role || 'Manager' },
-                        ].map(({ label, value }) => (
-                            <Box key={label} sx={{ display: 'flex', py: 1.2, borderBottom: `1px solid ${T.border}`, '&:last-child': { borderBottom: 'none' } }}>
-                                <Typography sx={{ fontSize: '0.76rem', fontWeight: 600, color: T.muted, width: 80, flexShrink: 0 }}>{label}</Typography>
-                                <Typography className={label === 'User ID' ? 'mono' : ''} sx={{ fontSize: '0.83rem', color: T.text }}>{value}</Typography>
+
+                        {editing ? (
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                                <Box>
+                                    <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.6 }}>Title</Typography>
+                                    <Box sx={{ borderRadius: '9px', border: `1.5px solid ${T.accent}50`, overflow: 'hidden', bgcolor: T.surface }}>
+                                        <select value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                                                style={{ width: '100%', border: 'none', outline: 'none', padding: '9px 12px', background: 'transparent', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem', color: T.text }}>
+                                            {['', 'Mr', 'Ms', 'Mrs', 'Dr', 'Prof'].map(t => <option key={t} value={t}>{t || '—'}</option>)}
+                                        </select>
+                                    </Box>
+                                </Box>
+                                {[
+                                    { label: 'First Name', key: 'first_name' },
+                                    { label: 'Last Name',  key: 'last_name'  },
+                                    { label: 'Email',      key: 'email', type: 'email' },
+                                ].map(({ label, key, type = 'text' }) => (
+                                    <Box key={key}>
+                                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.6 }}>{label}</Typography>
+                                        <Box sx={{ borderRadius: '9px', border: `1.5px solid ${T.accent}50`, bgcolor: T.surface, '&:focus-within': { borderColor: T.accent } }}>
+                                            <input type={type} value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                                                   style={{ width: '100%', border: 'none', outline: 'none', padding: '9px 12px', background: 'transparent', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem', color: T.text, boxSizing: 'border-box' }} />
+                                        </Box>
+                                    </Box>
+                                ))}
+                                <Button onClick={handleSaveInfo} disabled={savingInfo} variant="contained"
+                                        sx={{ mt: 0.5, borderRadius: '9px', textTransform: 'none', fontWeight: 700, fontFamily: 'Plus Jakarta Sans', fontSize: '0.83rem', boxShadow: 'none', bgcolor: T.accent, '&:hover': { opacity: 0.9 } }}>
+                                    {savingInfo ? <CircularProgress size={14} sx={{ color: '#fff' }} /> : 'Save Changes'}
+                                </Button>
                             </Box>
-                        ))}
+                        ) : (
+                            <>
+                                {[
+                                    { label: 'Email',  value: (profile || initialUser).email || '—' },
+                                    { label: 'User ID',value: `#${(profile || initialUser).op_user_id}`, mono: true },
+                                    { label: 'Role',   value: (profile || initialUser).user_role || 'Manager' },
+                                    { label: 'Dept',   value: (profile || initialUser).department_id || '—' },
+                                ].map(({ label, value, mono }) => (
+                                    <Box key={label} sx={{ display: 'flex', py: 1.2, borderBottom: `1px solid ${T.border}`, '&:last-child': { borderBottom: 'none' } }}>
+                                        <Typography sx={{ fontSize: '0.76rem', fontWeight: 600, color: T.muted, width: 70, flexShrink: 0 }}>{label}</Typography>
+                                        <Typography className={mono ? 'mono' : ''} sx={{ fontSize: '0.83rem', color: T.text }}>{value}</Typography>
+                                    </Box>
+                                ))}
+                            </>
+                        )}
                     </Paper>
                 </Grid>
 
@@ -351,8 +440,8 @@ const ProfileView = ({ user }) => {
                         <PasswordField label="Confirm New Password" value={confirm} onChange={setConfirm} show={showCon} onToggle={() => setShowCon(p => !p)} />
 
                         <Box sx={{ mt: 1 }}>
-                            <Typography sx={{ fontSize: '0.72rem', color: T.muted, mb: 2 }}>Password must be at least 8 characters and include an uppercase letter, lowercase letter, number, and special character.</Typography>
-                            <Button onClick={handleSave} disabled={saving} variant="contained"
+                            <Typography sx={{ fontSize: '0.72rem', color: T.muted, mb: 2 }}>Minimum 8 characters. Your session stays active — use the new password on next login.</Typography>
+                            <Button onClick={handleSavePassword} disabled={saving} variant="contained"
                                     sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700, fontFamily: 'Plus Jakarta Sans', fontSize: '0.85rem', px: 3, boxShadow: 'none', bgcolor: T.accent, '&:hover': { bgcolor: '#1641B8', boxShadow: `0 4px 14px ${T.accent}44` }, '&.Mui-disabled': { bgcolor: T.border, color: T.muted } }}>
                                 {saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : 'Update Password'}
                             </Button>
@@ -980,6 +1069,29 @@ const ManagerDashboard = () => {
                     ))}
                 </Grid>
             )}
+
+            {/* Department scope indicator */}
+            {(() => {
+                const hasGlobal = user.has_global_access;
+                const dept      = user.department_id;
+                const scopeColor = hasGlobal ? T.purple : T.accent;
+                const scopeSoft  = hasGlobal ? T.purpleSoft : T.accentSoft;
+                return (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, px: 1.5, py: 1, borderRadius: '10px', bgcolor: scopeSoft, border: `1px solid ${scopeColor}28` }}>
+                        {hasGlobal
+                            ? <GlobalIcon sx={{ fontSize: 14, color: scopeColor }} />
+                            : <DeptIcon   sx={{ fontSize: 14, color: scopeColor }} />}
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: scopeColor }}>
+                            {hasGlobal ? 'Viewing: All Departments' : dept ? `Viewing: ${dept}` : 'Viewing: All Departments'}
+                        </Typography>
+                        {!hasGlobal && dept && (
+                            <Typography sx={{ fontSize: '0.68rem', color: scopeColor, opacity: 0.7, ml: 0.5 }}>
+                                · Contact Admin to enable cross-department access
+                            </Typography>
+                        )}
+                    </Box>
+                );
+            })()}
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5, p: 1.5, bgcolor: T.surface, borderRadius: '12px', border: `1px solid ${T.border}` }}>
                 <SearchIcon sx={{ fontSize: 18, color: T.muted, flexShrink: 0 }} />

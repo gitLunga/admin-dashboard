@@ -34,6 +34,8 @@ import {
     VisibilityOff as EyeOffIcon,
     AccountCircle as ProfileIcon,
     MarkEmailRead as MarkReadIcon,
+    Public as GlobalIcon,
+    Domain as DeptIcon,
 } from '@mui/icons-material';
 import { approverAPI } from '../../services/approverApi';
 import { useToast } from '../../hooks/useToast';
@@ -711,6 +713,29 @@ const FinanceDashboard = () => {
                     <Typography sx={{ fontSize: '0.76rem', color: T.muted, ml: 'auto' }}>{filtered.length} application{filtered.length !== 1 ? 's' : ''}</Typography>
                 </Paper>
             )}
+
+            {/* Department scope indicator */}
+            {(() => {
+                const hasGlobal = user.has_global_access;
+                const dept      = user.department_id;
+                const scopeColor = hasGlobal ? T.purple : T.green;
+                const scopeSoft  = hasGlobal ? T.purpleSoft : T.greenSoft;
+                return (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, px: 1.5, py: 1, borderRadius: '10px', bgcolor: scopeSoft, border: `1px solid ${scopeColor}28` }}>
+                        {hasGlobal
+                            ? <GlobalIcon sx={{ fontSize: 14, color: scopeColor }} />
+                            : <DeptIcon   sx={{ fontSize: 14, color: scopeColor }} />}
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: scopeColor }}>
+                            {hasGlobal ? 'Viewing: All Departments' : dept ? `Viewing: ${dept}` : 'Viewing: All Departments'}
+                        </Typography>
+                        {!hasGlobal && dept && (
+                            <Typography sx={{ fontSize: '0.68rem', color: scopeColor, opacity: 0.7, ml: 0.5 }}>
+                                · Contact Admin to enable cross-department access
+                            </Typography>
+                        )}
+                    </Box>
+                );
+            })()}
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5, p: 1.5, bgcolor: T.surface, borderRadius: '12px', border: `1px solid ${T.border}` }}>
                 <SearchIcon sx={{ fontSize: 18, color: T.muted, flexShrink: 0 }} />

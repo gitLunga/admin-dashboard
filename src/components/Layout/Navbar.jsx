@@ -151,8 +151,10 @@ const Navbar = ({ onDrawerToggle }) => {
     const getNotificationIcon = (title) => {
         if (!title) return <InfoIcon sx={{ fontSize: 16, color: T.accent }} />;
         const t = title.toLowerCase();
-        if (t.includes('warning') || t.includes('alert'))    return <WarningIcon sx={{ fontSize: 16, color: T.amber }} />;
-        if (t.includes('error')   || t.includes('failed'))   return <ErrorIcon   sx={{ fontSize: 16, color: T.rose  }} />;
+        if (t.includes('breach') || t.includes('overdue'))   return <ErrorIcon      sx={{ fontSize: 16, color: T.rose  }} />;
+        if (t.includes('warning') || t.includes('sla warn')) return <WarningIcon    sx={{ fontSize: 16, color: T.amber }} />;
+        if (t.includes('alert'))                              return <WarningIcon    sx={{ fontSize: 16, color: T.amber }} />;
+        if (t.includes('error')   || t.includes('failed'))   return <ErrorIcon      sx={{ fontSize: 16, color: T.rose  }} />;
         if (t.includes('success') || t.includes('completed'))return <CheckCircleIcon sx={{ fontSize: 16, color: T.green }} />;
         return <InfoIcon sx={{ fontSize: 16, color: T.accent }} />;
     };

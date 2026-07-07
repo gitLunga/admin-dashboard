@@ -25,6 +25,7 @@ import DeviceCatalogManagement from './components/Dashboard/DeviceManagement';
 
 import AdminApplications from './components/Users/AdminApplications';
 import SLAMonitor from './components/SLA/SLAMonitor';
+import ProfileSettings from './components/Settings/ProfileSettings';
 
 import ManagerDashboard from './components/approver/ManagerDashboard';
 import FinanceDashboard from './components/approver/FinanceDashboard';
@@ -147,6 +148,15 @@ function App() {
                                 element={
                                     <MainLayout>
                                         <SLAMonitor/>
+                                    </MainLayout>
+                                }
+                            />
+
+                            <Route
+                                path="/settings/profile"
+                                element={
+                                    <MainLayout>
+                                        <ProfileSettings/>
                                     </MainLayout>
                                 }
                             />
