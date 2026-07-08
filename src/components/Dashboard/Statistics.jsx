@@ -17,8 +17,10 @@ import {
     Warning as WarningIcon, Insights as InsightsIcon,
     GroupWork as GroupWorkIcon, PhoneAndroid as DeviceIcon,
     Assignment as AppIcon, Receipt as ContractIcon,
+    Speed as SlaIcon, AssignmentReturn as ReturnIcon,
+    AttachMoney as MoneyIcon,
 } from '@mui/icons-material';
-import {adminAPI} from '../../services/api';
+import {adminAPI, slaAPI, contractsAPI, budgetAPI, returnsAPI} from '../../services/api';
 import StatsCard from './StatsCard';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -40,6 +42,12 @@ const COLORS = [T.accent, T.green, T.amber, T.rose, T.purple, T.cyan, T.indigo, 
 const STATUS_COLOR = {
     Verified: T.green, Pending: T.amber,
     Rejected: T.rose, Profile_Completed: T.accent,
+};
+
+const RETURN_COLOR = {
+    Completed: T.green, Cancelled: T.muted,
+    Pending: T.amber, 'In Progress': T.accent,
+    Returned: T.cyan, Assessed: T.purple,
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -183,24 +191,36 @@ const Statistics = () => {
     const [basicStats,    setBasicStats]    = useState(null);
     const [enhancedStats, setEnhancedStats] = useState(null);
     const [dashMetrics,   setDashMetrics]   = useState(null);
+    const [slaData,       setSlaData]       = useState(null);
+    const [returnsData,   setReturnsData]   = useState(null);
+    const [contractsData, setContractsData] = useState(null);
+    const [budgetData,    setBudgetData]    = useState(null);
     const [loading,       setLoading]       = useState(true);
     const [error,         setError]         = useState(null);
     const [activeTab,     setActiveTab]     = useState(0);
     const [exporting,     setExporting]     = useState(false);
 
-    // ── 3 API calls only ──────────────────────────────────────────────────────
     const fetchAll = async () => {
         try {
             setLoading(true);
             setError(null);
-            const [basicRes, enhRes, dashRes] = await Promise.allSettled([
+            const yr = new Date().getFullYear();
+            const [basicRes, enhRes, dashRes, slaRes, returnsRes, contractsRes, budgetRes] = await Promise.allSettled([
                 adminAPI.getStatistics(),
                 adminAPI.getEnhancedStatistics(),
                 adminAPI.getDashboardMetrics(),
+                slaAPI.getDashboard(),
+                returnsAPI.summary(),
+                contractsAPI.getSummary(),
+                budgetAPI.spend(yr),
             ]);
-            if (basicRes.status === 'fulfilled') setBasicStats(basicRes.value.data.data.statistics);
-            if (enhRes.status   === 'fulfilled') setEnhancedStats(enhRes.value.data.data.statistics);
-            if (dashRes.status  === 'fulfilled') setDashMetrics(dashRes.value.data.data.metrics);
+            if (basicRes.status     === 'fulfilled') setBasicStats(basicRes.value.data.data.statistics);
+            if (enhRes.status       === 'fulfilled') setEnhancedStats(enhRes.value.data.data.statistics);
+            if (dashRes.status      === 'fulfilled') setDashMetrics(dashRes.value.data.data.metrics);
+            if (slaRes.status       === 'fulfilled') setSlaData(slaRes.value.data.data);
+            if (returnsRes.status   === 'fulfilled') setReturnsData(returnsRes.value.data.data || []);
+            if (contractsRes.status === 'fulfilled') setContractsData(contractsRes.value.data.data);
+            if (budgetRes.status    === 'fulfilled') setBudgetData(budgetRes.value.data.data);
         } catch (err) {
             setError(err.message || 'Failed to fetch statistics');
         } finally {
@@ -210,10 +230,10 @@ const Statistics = () => {
 
     useEffect(() => { fetchAll(); }, []); // eslint-disable-line
 
-    // ── All analytics derived from the 3 responses ────────────────────────────
     const A = useMemo(() => {
         if (!basicStats || !enhancedStats) return null;
 
+        // ── User stats ────────────────────────────────────────────────────────
         const clientStats  = basicStats.client_users?.stats   || [];
         const totalClients = basicStats.client_users?.total   || 0;
         const totalOp      = basicStats.operational_users?.total || 0;
@@ -238,6 +258,7 @@ const Statistics = () => {
             name: s.user_role, value: parseInt(s.count),
         }));
 
+        // ── Growth ────────────────────────────────────────────────────────────
         const gm = enhancedStats.growth_metrics || {};
         const clientGrowth    = gm.client_growth_percentage      || 0;
         const opGrowth        = gm.operational_growth_percentage || 0;
@@ -251,6 +272,7 @@ const Statistics = () => {
 
         const trends = enhancedStats.monthly_trends || [];
 
+        // ── Applications ──────────────────────────────────────────────────────
         const appStats        = enhancedStats.application_stats || {};
         const appTotal        = appStats.total          || 0;
         const appByStatus     = (appStats.by_status || []).map(s => ({
@@ -261,12 +283,14 @@ const Statistics = () => {
         const activeContracts = appStats.active_contracts || 0;
         const contractRate    = appTotal > 0 ? ((activeContracts / appTotal) * 100).toFixed(0) : 0;
 
+        // ── Devices ───────────────────────────────────────────────────────────
         const ds            = enhancedStats.device_stats || {};
         const totalDevices  = ds.total            || 0;
         const activeDevices = ds.active           || 0;
         const avgCost       = ds.avg_monthly_cost || '0.00';
         const deviceMfrData = (ds.by_manufacturer || []).map(r => ({name: r.manufacturer, value: r.count}));
 
+        // ── Recent ────────────────────────────────────────────────────────────
         const recentAll     = enhancedStats.recent_registrations || [];
         const recentClients = recentAll.filter(r => r.user_type === 'client').slice(0, 5);
         const recentOp      = recentAll.filter(r => r.user_type === 'operational').slice(0, 5);
@@ -279,6 +303,39 @@ const Statistics = () => {
 
         const dm = dashMetrics || {};
 
+        // ── SLA ───────────────────────────────────────────────────────────────
+        const slaOverall    = slaData?.overall  || {};
+        const slaStages     = slaData?.stages   || [];
+        const slaCompliance = slaOverall.compliance_pct ?? null;
+        const slaBreached   = slaOverall.breached ?? 0;
+
+        // ── Returns ───────────────────────────────────────────────────────────
+        const returnsArr = returnsData || [];
+        const openReturns = returnsArr
+            .filter(r => !['Completed', 'Cancelled'].includes(r.return_status))
+            .reduce((s, r) => s + parseInt(r.total || 0), 0);
+        const totalReturns = returnsArr.reduce((s, r) => s + parseInt(r.total || 0), 0);
+        const returnsByStatus = returnsArr.map(r => ({
+            name:  r.return_status,
+            value: parseInt(r.total || 0),
+            color: RETURN_COLOR[r.return_status] || T.muted,
+        }));
+
+        // ── Contracts ─────────────────────────────────────────────────────────
+        const contractsTotal   = contractsData?.total       || 0;
+        const contractsActive  = contractsData?.active      || activeContracts;
+        const contractsExp30   = contractsData?.expiring_30 || 0;
+        const contractsExp60   = contractsData?.expiring_60 || 0;
+        const contractsExp90   = contractsData?.expiring_90 || 0;
+        const contractsExpired = contractsData?.expired     || 0;
+
+        // ── Budget ────────────────────────────────────────────────────────────
+        const budgetDepts  = budgetData?.departments || [];
+        const overBudget   = budgetData?.over_budget  || 0;
+        const nearLimit    = budgetData?.near_limit   || 0;
+        const fiscalYear   = budgetData?.fiscal_year;
+
+        // ── Insights ──────────────────────────────────────────────────────────
         const insights = [];
         if (parseFloat(pendingRate) > 30)
             insights.push({type: 'warning', color: T.amber, soft: T.amberSoft, title: 'High Pending Rate', message: `${pendingRate}% of registrations are pending. Verification backlog is ${dm.pending_approvals || 0} clients. Avg turnaround: ${dm.avg_verification_days || '—'} days.`, value: `${pendingRate}%`});
@@ -296,6 +353,16 @@ const Statistics = () => {
             insights.push({type: 'warning', color: T.orange, soft: T.orangeSoft, title: 'Low Active Device Ratio', message: `Only ${activeDevices} of ${totalDevices} catalog devices are active. Review inactive/discontinued devices.`, value: `${activeDevices}/${totalDevices}`});
         if (appTotal > 0 && parseFloat(contractRate) > 50)
             insights.push({type: 'positive', color: T.indigo, soft: T.indigoSoft, title: 'Strong Contract Conversion', message: `${contractRate}% of applications have resulted in active contracts. Fulfilment pipeline is healthy.`, value: `${contractRate}%`});
+        if (slaCompliance != null && slaCompliance < 80)
+            insights.push({type: 'warning', color: T.rose, soft: T.roseSoft, title: 'SLA Compliance Below Target', message: `SLA compliance is at ${slaCompliance}% — target is 80%. ${slaBreached} stage${slaBreached !== 1 ? 's' : ''} currently breached. Review processing times per stage.`, value: `${slaCompliance}%`});
+        if (slaCompliance != null && slaCompliance >= 80)
+            insights.push({type: 'positive', color: T.green, soft: T.greenSoft, title: 'SLA Compliance On Track', message: `SLA compliance is ${slaCompliance}% — meeting the 80% benchmark. Continue monitoring stage processing times.`, value: `${slaCompliance}%`});
+        if (openReturns > 5)
+            insights.push({type: 'warning', color: T.orange, soft: T.orangeSoft, title: 'Open Device Returns', message: `${openReturns} device return${openReturns !== 1 ? 's' : ''} awaiting collection or assessment. Delays here can block device reallocation.`, value: openReturns});
+        if (overBudget > 0)
+            insights.push({type: 'warning', color: T.rose, soft: T.roseSoft, title: 'Departments Over Budget', message: `${overBudget} department${overBudget > 1 ? 's are' : ' is'} over monthly spending ceiling. Immediate review and approval required.`, value: overBudget});
+        if (contractsExp30 > 5)
+            insights.push({type: 'warning', color: T.amber, soft: T.amberSoft, title: 'Contracts Expiring Soon', message: `${contractsExp30} contract${contractsExp30 > 1 ? 's expire' : ' expires'} within 30 days. Coordinate renewals to avoid service gaps.`, value: contractsExp30});
 
         return {
             totalUsers, totalClients, totalOp,
@@ -308,213 +375,147 @@ const Statistics = () => {
             totalDevices, activeDevices, avgCost, deviceMfrData,
             recentClients, recentOp,
             funnel, insights, dm,
+            slaCompliance, slaBreached, slaStages,
+            openReturns, totalReturns, returnsByStatus,
+            contractsTotal, contractsActive, contractsExp30, contractsExp60, contractsExp90, contractsExpired,
+            budgetDepts, overBudget, nearLimit, fiscalYear,
         };
-    }, [basicStats, enhancedStats, dashMetrics]);
+    }, [basicStats, enhancedStats, dashMetrics, slaData, returnsData, contractsData, budgetData]);
 
-    // ── Excel export — all 8 sheets ───────────────────────────────────────────
+    // ── Excel export ──────────────────────────────────────────────────────────
     const handleExport = () => {
         if (!A) return;
         setExporting(true);
-
         try {
             const wb  = XLSX.utils.book_new();
             const now = new Date();
             const dateStr = now.toLocaleDateString('en-ZA');
             const timeStr = now.toLocaleTimeString('en-ZA');
-
             const addSheet = (name, rows) => {
                 const ws = XLSX.utils.aoa_to_sheet(rows);
                 ws['!cols'] = Array(10).fill({wch: 28});
                 XLSX.utils.book_append_sheet(wb, ws, name);
             };
 
-            // Sheet 1 — Executive Summary
             addSheet('Executive Summary', [
                 ['JUDICIAL ADMIN PORTAL — ANALYTICS REPORT'],
                 [`Generated: ${dateStr} at ${timeStr}`],
                 [],
                 ['SECTION', 'METRIC', 'VALUE'],
-                ['Users', 'Total Users',              A.totalUsers],
-                ['Users', 'Client Users',             A.totalClients],
-                ['Users', 'Staff Members',            A.totalOp],
-                ['Users', 'Verified Clients',         A.verified],
-                ['Users', 'Pending Clients',          A.pending],
-                ['Users', 'Rejected Clients',         A.rejected],
-                ['Users', 'Profile Completed',        A.completed],
+                ['Users', 'Total Users', A.totalUsers], ['Users', 'Client Users', A.totalClients], ['Users', 'Staff Members', A.totalOp],
+                ['Users', 'Verified', A.verified], ['Users', 'Pending', A.pending], ['Users', 'Rejected', A.rejected],
                 [],
-                ['Rates', 'Verification Rate (%)',    parseFloat(A.verificationRate)],
-                ['Rates', 'Pending Rate (%)',          parseFloat(A.pendingRate)],
-                ['Rates', 'Rejection Rate (%)',        parseFloat(A.rejectionRate)],
+                ['Rates', 'Verification Rate (%)', parseFloat(A.verificationRate)],
+                ['Rates', 'Pending Rate (%)', parseFloat(A.pendingRate)],
+                ['Rates', 'Rejection Rate (%)', parseFloat(A.rejectionRate)],
                 [],
-                ['Growth', 'Client Growth MoM (%)',   A.clientGrowth],
-                ['Growth', 'Staff Growth MoM (%)',    A.opGrowth],
-                ['Growth', 'Total Growth MoM (%)',    A.totalGrowth],
-                ['Growth', 'New Clients This Month',  A.newClientsMonth],
-                ['Growth', 'New Staff This Month',    A.newOpMonth],
+                ['Growth', 'Client Growth MoM (%)', A.clientGrowth], ['Growth', 'Staff Growth MoM (%)', A.opGrowth],
+                ['Growth', 'New Clients This Month', A.newClientsMonth], ['Growth', 'New Staff This Month', A.newOpMonth],
                 [],
-                ['Applications', 'Total Applications',    A.appTotal],
-                ['Applications', 'Active Contracts',       A.activeContracts],
-                ['Applications', 'Contract Rate (%)',      parseFloat(A.contractRate)],
+                ['Applications', 'Total', A.appTotal], ['Applications', 'Active Contracts', A.contractsActive], ['Applications', 'Contract Rate (%)', parseFloat(A.contractRate)],
                 [],
-                ['Devices', 'Total Devices',           A.totalDevices],
-                ['Devices', 'Active Devices',          A.activeDevices],
-                ['Devices', 'Inactive / Discontinued', A.totalDevices - A.activeDevices],
-                ['Devices', 'Avg Monthly Cost (R)',    parseFloat(A.avgCost)],
+                ['Contracts', 'Total', A.contractsTotal], ['Contracts', 'Active', A.contractsActive],
+                ['Contracts', 'Expiring 30d', A.contractsExp30], ['Contracts', 'Expiring 60d', A.contractsExp60], ['Contracts', 'Expired', A.contractsExpired],
                 [],
-                ['Live — Today', "Today's Registrations",    A.dm.todays_registrations   ?? 0],
-                ['Live — Today', 'Pending Approvals',         A.dm.pending_approvals      ?? 0],
-                ['Live — Today', 'Verified This Week',        A.dm.recently_verified      ?? 0],
-                ['Live — Today', "Today's Applications",      A.dm.todays_applications    ?? 0],
-                ['Live — Today', 'Active Contracts (Live)',   A.dm.active_contracts       ?? 0],
-                ['Live — Today', 'Contract Fulfilment (%)',   A.dm.contract_fulfilment_rate ?? 0],
-                ['Live — Today', 'Avg Verification (days)',   parseFloat(A.dm.avg_verification_days ?? 0)],
-                ['Live — Today', 'Most Active Region',        A.dm.most_active_region     ?? 'N/A'],
+                ['SLA', 'Overall Compliance (%)', A.slaCompliance ?? 'N/A'], ['SLA', 'Stages Breached', A.slaBreached],
+                [],
+                ['Returns', 'Total', A.totalReturns], ['Returns', 'Open', A.openReturns],
+                [],
+                ['Devices', 'Total', A.totalDevices], ['Devices', 'Active', A.activeDevices], ['Devices', 'Avg Cost (R)', parseFloat(A.avgCost)],
+                [],
+                ['Live', "Today's Registrations", A.dm.todays_registrations ?? 0],
+                ['Live', 'Pending Approvals', A.dm.pending_approvals ?? 0],
+                ['Live', 'Verified This Week', A.dm.recently_verified ?? 0],
+                ['Live', "Today's Applications", A.dm.todays_applications ?? 0],
             ]);
 
-            // Sheet 2 — Client Status & Roles
             addSheet('Client Status & Roles', [
-                ['CLIENT USER STATUS BREAKDOWN'],
-                [`Total Clients: ${A.totalClients}`],
-                [],
-                ['Status', 'Count', 'Percentage (%)'],
-                ...A.statusData.map(s => [
-                    s.name, s.value,
-                    A.totalClients > 0 ? parseFloat(((s.value / A.totalClients) * 100).toFixed(2)) : 0,
-                ]),
-                [],
-                ['OPERATIONAL USER ROLES'],
-                [`Total Staff: ${A.totalOp}`],
-                [],
-                ['Role', 'Count', 'Percentage (%)'],
-                ...A.roleData.map(r => [
-                    r.name, r.value,
-                    A.totalOp > 0 ? parseFloat(((r.value / A.totalOp) * 100).toFixed(2)) : 0,
-                ]),
+                ['CLIENT STATUS'], [], ['Status', 'Count', 'Percentage (%)'],
+                ...A.statusData.map(s => [s.name, s.value, A.totalClients > 0 ? parseFloat(((s.value / A.totalClients) * 100).toFixed(2)) : 0]),
+                [], ['OPERATIONAL ROLES'], [], ['Role', 'Count', 'Percentage (%)'],
+                ...A.roleData.map(r => [r.name, r.value, A.totalOp > 0 ? parseFloat(((r.value / A.totalOp) * 100).toFixed(2)) : 0]),
             ]);
 
-            // Sheet 3 — Applications & Contracts
             addSheet('Applications & Contracts', [
-                ['APPLICATIONS & CONTRACTS'],
-                [],
-                ['SUMMARY'],
-                ['Metric', 'Value'],
-                ['Total Applications',   A.appTotal],
-                ['Active Contracts',     A.activeContracts],
-                ['Contract Rate (%)',    parseFloat(A.contractRate)],
-                [],
-                ['APPLICATION STATUS BREAKDOWN'],
-                ['Status', 'Count', 'Percentage (%)'],
-                ...A.appByStatus.map(s => [
-                    s.name, s.value,
-                    A.appTotal > 0 ? parseFloat(((s.value / A.appTotal) * 100).toFixed(2)) : 0,
-                ]),
-                [],
-                ['TOP APPLICANTS'],
-                ['Rank', 'Full Name', 'Client ID', 'Application Count'],
-                ...A.topApplicants.map((u, i) => [
-                    i + 1,
-                    `${u.first_name} ${u.last_name}`,
-                    u.client_user_id,
-                    u.application_count,
-                ]),
+                ['APPLICATIONS'], [], ['Metric', 'Value'],
+                ['Total', A.appTotal], ['Active Contracts', A.contractsActive], ['Contract Rate (%)', parseFloat(A.contractRate)],
+                [], ['APPLICATION STATUS'], ['Status', 'Count', '%'],
+                ...A.appByStatus.map(s => [s.name, s.value, A.appTotal > 0 ? parseFloat(((s.value / A.appTotal) * 100).toFixed(2)) : 0]),
+                [], ['CONTRACT LIFECYCLE'], ['Metric', 'Value'],
+                ['Total', A.contractsTotal], ['Active', A.contractsActive], ['Expiring 30d', A.contractsExp30],
+                ['Expiring 60d', A.contractsExp60], ['Expiring 90d', A.contractsExp90], ['Expired', A.contractsExpired],
+                [], ['TOP APPLICANTS'], ['Rank', 'Name', 'Client ID', 'Count'],
+                ...A.topApplicants.map((u, i) => [i + 1, `${u.first_name} ${u.last_name}`, u.client_user_id, u.application_count]),
             ]);
 
-            // Sheet 4 — Device Catalog
             addSheet('Device Catalog', [
-                ['DEVICE CATALOG STATISTICS'],
-                [],
-                ['SUMMARY'],
-                ['Metric', 'Value'],
-                ['Total Devices',              A.totalDevices],
-                ['Active',                     A.activeDevices],
-                ['Inactive / Discontinued',    A.totalDevices - A.activeDevices],
-                ['Active Ratio (%)',            A.totalDevices > 0 ? parseFloat(((A.activeDevices / A.totalDevices) * 100).toFixed(1)) : 0],
-                ['Avg Monthly Cost (R)',        parseFloat(A.avgCost)],
-                [],
-                ['BY MANUFACTURER'],
-                ['Manufacturer', 'Count', 'Share (%)'],
-                ...A.deviceMfrData.map(d => [
-                    d.name, d.value,
-                    A.totalDevices > 0 ? parseFloat(((d.value / A.totalDevices) * 100).toFixed(2)) : 0,
-                ]),
+                ['DEVICE SUMMARY'], [], ['Metric', 'Value'],
+                ['Total', A.totalDevices], ['Active', A.activeDevices], ['Inactive/Disc', A.totalDevices - A.activeDevices],
+                ['Active Ratio (%)', A.totalDevices > 0 ? parseFloat(((A.activeDevices / A.totalDevices) * 100).toFixed(1)) : 0],
+                ['Avg Cost (R)', parseFloat(A.avgCost)],
+                [], ['BY MANUFACTURER'], ['Manufacturer', 'Count', 'Share (%)'],
+                ...A.deviceMfrData.map(d => [d.name, d.value, A.totalDevices > 0 ? parseFloat(((d.value / A.totalDevices) * 100).toFixed(2)) : 0]),
             ]);
 
-            // Sheet 5 — Growth & Monthly Trends
             addSheet('Growth & Trends', [
-                ['MONTHLY REGISTRATION TRENDS (Last 6 Months)'],
-                [],
-                ['Month', 'New Clients', 'New Staff', 'Total'],
+                ['MONTHLY TRENDS'], [], ['Month', 'New Clients', 'New Staff', 'Total'],
                 ...A.trends.map(t => [t.month, t.clients, t.operational, t.total]),
-                [],
-                ['GROWTH SUMMARY'],
-                ['Metric', 'Value'],
-                ['Client Growth MoM (%)',   A.clientGrowth],
-                ['Staff Growth MoM (%)',    A.opGrowth],
-                ['Total Growth MoM (%)',    A.totalGrowth],
-                ['New Clients This Month',  A.newClientsMonth],
-                ['New Staff This Month',    A.newOpMonth],
-                ['Verified Last 7 Days',    A.dm.recently_verified ?? 0],
+                [], ['GROWTH SUMMARY'], ['Metric', 'Value'],
+                ['Client Growth MoM (%)', A.clientGrowth], ['Staff Growth MoM (%)', A.opGrowth],
+                ['Total Growth MoM (%)', A.totalGrowth], ['New Clients', A.newClientsMonth], ['New Staff', A.newOpMonth],
             ]);
 
-            // Sheet 6 — Regional Breakdown
             addSheet('Regional Breakdown', [
-                ['CLIENT USERS BY REGION'],
-                [`Total Clients: ${A.totalClients}`],
-                [],
-                ['Rank', 'Region', 'User Count', 'Share (%)'],
-                ...A.regionData.map((r, i) => [
-                    i + 1, r.name, r.value,
-                    A.totalClients > 0 ? parseFloat(((r.value / A.totalClients) * 100).toFixed(2)) : 0,
-                ]),
-                [],
-                ['Most Active Region Today', A.dm.most_active_region ?? 'N/A'],
-                ['Users in That Region',     A.dm.region_user_count  ?? 0],
+                ['CLIENT USERS BY REGION'], [`Total: ${A.totalClients}`], [],
+                ['Rank', 'Region', 'Count', 'Share (%)'],
+                ...A.regionData.map((r, i) => [i + 1, r.name, r.value, A.totalClients > 0 ? parseFloat(((r.value / A.totalClients) * 100).toFixed(2)) : 0]),
+                [], ['Most Active Today', A.dm.most_active_region ?? 'N/A'],
             ]);
 
-            // Sheet 7 — Recent Registrations
             addSheet('Recent Registrations', [
-                ['RECENT REGISTRATIONS (Last 7 Days)'],
-                [],
-                ['RECENT CLIENTS'],
-                ['Full Name', 'Email', 'Status', 'Date Registered'],
-                ...A.recentClients.map(r => [
-                    `${r.first_name} ${r.last_name}`,
-                    r.email,
-                    r.registration_status,
-                    new Date(r.created_at).toLocaleDateString('en-ZA'),
-                ]),
-                [],
-                ['RECENT STAFF ADDED'],
-                ['Full Name', 'Email', 'Date Added'],
-                ...A.recentOp.map(r => [
-                    `${r.first_name} ${r.last_name}`,
-                    r.email,
-                    new Date(r.created_at).toLocaleDateString('en-ZA'),
-                ]),
+                ['RECENT CLIENTS'], [], ['Full Name', 'Email', 'Status', 'Date'],
+                ...A.recentClients.map(r => [`${r.first_name} ${r.last_name}`, r.email, r.registration_status, new Date(r.created_at).toLocaleDateString('en-ZA')]),
+                [], ['RECENT STAFF'], [], ['Full Name', 'Email', 'Date'],
+                ...A.recentOp.map(r => [`${r.first_name} ${r.last_name}`, r.email, new Date(r.created_at).toLocaleDateString('en-ZA')]),
             ]);
 
-            // Sheet 8 — System Health & Insights
+            addSheet('SLA & Returns', [
+                ['SLA COMPLIANCE'], [], ['Metric', 'Value'],
+                ['Overall Compliance (%)', A.slaCompliance ?? 'N/A'], ['Stages Breached', A.slaBreached],
+                [], ['SLA BY STAGE'], ['Stage', 'Total', 'Within SLA', 'Approaching', 'Breached', 'Avg Days', 'SLA Days', 'Compliance (%)'],
+                ...A.slaStages.map(s => {
+                    const total = parseInt(s.total) || 1;
+                    return [s.stage_name, s.total, s.within_sla, s.approaching_sla, s.breached_sla, s.avg_days_in_stage, s.sla_threshold_days, Math.round((parseInt(s.within_sla) / total) * 100)];
+                }),
+                [], ['DEVICE RETURNS'], ['Status', 'Total', 'Completed Count'],
+                ...(returnsData || []).map(r => [r.return_status, r.total, r.completed_count || 0]),
+                [], ['Open Returns', A.openReturns], ['Total Returns', A.totalReturns],
+            ]);
+
+            addSheet('Budget', [
+                [`DEPARTMENTAL BUDGET — FY ${A.fiscalYear || new Date().getFullYear()}`], [],
+                ['Departments Over Budget', A.overBudget], ['Departments Near Limit', A.nearLimit],
+                [], ['SPEND BY DEPARTMENT'], ['Department', 'Contracts', 'Monthly Spend (R)', 'Ceiling (R)', 'Utilisation (%)', 'Status'],
+                ...A.budgetDepts.map(d => [d.department_id, d.active_contracts, parseFloat(d.monthly_spend || 0), d.monthly_ceiling ? parseFloat(d.monthly_ceiling) : 'None', d.utilisation_pct ?? 'N/A', d.status || 'ok']),
+            ]);
+
             addSheet('System Health & Insights', [
-                ['SYSTEM HEALTH KPIs'],
-                [],
-                ['KPI', 'Value', 'Status', 'Note'],
-                ['Verification Rate',   `${A.verificationRate}%`,  parseFloat(A.verificationRate) >= 60 ? 'PASS' : 'WARN', parseFloat(A.verificationRate) >= 60 ? 'Above 60% threshold'   : 'Below 60% — needs attention'],
-                ['Rejection Rate',      `${A.rejectionRate}%`,     parseFloat(A.rejectionRate) <= 15    ? 'PASS' : 'WARN', parseFloat(A.rejectionRate) <= 15    ? 'Within normal range'    : 'Above 15% — investigate causes'],
-                ['Client Growth MoM',  `${A.clientGrowth}%`,       A.clientGrowth >= 0                  ? 'PASS' : 'WARN', A.clientGrowth >= 0 ? 'Positive momentum'                    : 'Declining — review acquisition'],
-                ['Pending Backlog',    `${A.pendingRate}%`,         parseFloat(A.pendingRate) <= 25      ? 'PASS' : 'WARN', parseFloat(A.pendingRate) <= 25 ? 'Manageable queue'          : 'High — increase capacity'],
-                ['Avg Verify Time',    `${A.dm.avg_verification_days ?? '—'}d`, parseFloat(A.dm.avg_verification_days) <= 3 ? 'PASS' : 'WARN', 'Target: ≤ 3 days'],
-                ['Device Catalog',     `${A.activeDevices}/${A.totalDevices}`, A.totalDevices === 0 || A.activeDevices >= A.totalDevices * 0.6 ? 'PASS' : 'WARN', 'Target: ≥ 60% active'],
-                ['Contract Fulfilment',`${A.contractRate}%`,        parseFloat(A.contractRate) >= 30     ? 'PASS' : 'WARN', 'Target: ≥ 30%'],
-                [],
-                ['ACTIONABLE INSIGHTS'],
-                A.insights.length === 0 ? ['No insights — all metrics healthy'] : ['Type', 'Title', 'Detail', 'Value'],
-                ...A.insights.map(ins => [
-                    ins.type.toUpperCase(), ins.title, ins.message, ins.value ?? '',
-                ]),
+                ['SYSTEM HEALTH KPIs'], [], ['KPI', 'Value', 'Status', 'Note'],
+                ['Verification Rate', `${A.verificationRate}%`, parseFloat(A.verificationRate) >= 60 ? 'PASS' : 'WARN', 'Target: ≥ 60%'],
+                ['Rejection Rate', `${A.rejectionRate}%`, parseFloat(A.rejectionRate) <= 15 ? 'PASS' : 'WARN', 'Target: ≤ 15%'],
+                ['Client Growth MoM', `${A.clientGrowth}%`, A.clientGrowth >= 0 ? 'PASS' : 'WARN', 'Positive is good'],
+                ['Pending Backlog', `${A.pendingRate}%`, parseFloat(A.pendingRate) <= 25 ? 'PASS' : 'WARN', 'Target: ≤ 25%'],
+                ['Avg Verify Time', `${A.dm.avg_verification_days ?? '—'}d`, parseFloat(A.dm.avg_verification_days) <= 3 ? 'PASS' : 'WARN', 'Target: ≤ 3 days'],
+                ['SLA Compliance', A.slaCompliance != null ? `${A.slaCompliance}%` : 'N/A', A.slaCompliance == null || A.slaCompliance >= 80 ? 'PASS' : 'WARN', 'Target: ≥ 80%'],
+                ['Open Returns', A.openReturns, A.openReturns <= 5 ? 'PASS' : 'WARN', 'Target: ≤ 5'],
+                ['Over-budget Depts', A.overBudget, A.overBudget === 0 ? 'PASS' : 'WARN', 'Target: 0'],
+                ['Device Catalog', `${A.activeDevices}/${A.totalDevices}`, A.totalDevices === 0 || A.activeDevices >= A.totalDevices * 0.6 ? 'PASS' : 'WARN', 'Target: ≥ 60% active'],
+                ['Contract Fulfilment', `${A.contractRate}%`, parseFloat(A.contractRate) >= 30 ? 'PASS' : 'WARN', 'Target: ≥ 30%'],
+                [], ['INSIGHTS'], A.insights.length === 0 ? ['All metrics healthy'] : ['Type', 'Title', 'Detail', 'Value'],
+                ...A.insights.map(ins => [ins.type.toUpperCase(), ins.title, ins.message, ins.value ?? '']),
             ]);
 
-            const filename = `judicial-analytics-${now.toISOString().split('T')[0]}.xlsx`;
-            XLSX.writeFile(wb, filename);
+            XLSX.writeFile(wb, `judicial-analytics-${now.toISOString().split('T')[0]}.xlsx`);
         } finally {
             setExporting(false);
         }
@@ -528,6 +529,8 @@ const Statistics = () => {
         {label: 'Growth & Trends'},
         {label: 'Regional Breakdown'},
         {label: 'Recent Activity'},
+        {label: 'SLA & Returns'},
+        {label: 'Budget'},
         {label: 'Insights', count: A?.insights?.length || 0},
     ];
 
@@ -541,9 +544,7 @@ const Statistics = () => {
         <Box sx={{p: 3, bgcolor: T.bg}}>
             <Box sx={{borderRadius: '10px', p: 2.5, bgcolor: T.roseSoft, border: `1px solid ${T.rose}28`}}>
                 <Typography sx={{fontSize: '0.85rem', color: T.rose, fontWeight: 600}}>{error}</Typography>
-                <Button onClick={fetchAll} size="small" sx={{mt: 1, borderRadius: '8px', textTransform: 'none', fontWeight: 700, color: T.rose, fontFamily: 'Plus Jakarta Sans, sans-serif'}}>
-                    Retry
-                </Button>
+                <Button onClick={fetchAll} size="small" sx={{mt: 1, borderRadius: '8px', textTransform: 'none', fontWeight: 700, color: T.rose}}>Retry</Button>
             </Box>
         </Box>
     );
@@ -552,7 +553,7 @@ const Statistics = () => {
         <Box sx={{p: {xs: 2, md: 3.5}, bgcolor: T.bg, minHeight: '100vh'}}>
             <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
-            {/* ── Header ─────────────────────────────────────────────────── */}
+            {/* ── Header ────────────────────────────────────────────────── */}
             <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2, animation: 'fadeUp 0.4s ease-out'}}>
                 <Box>
                     <Box sx={{display: 'flex', alignItems: 'center', gap: 1.2, mb: 0.3}}>
@@ -564,35 +565,22 @@ const Statistics = () => {
                         </Typography>
                     </Box>
                     <Typography sx={{fontSize: '0.75rem', color: T.muted, ml: 0.5}}>
-                        Full-system decision-support · Users · Applications · Devices · Contracts
+                        Full-system decision-support · Users · Applications · Devices · Contracts · SLA · Returns · Budget
                         {A?.dm?.timestamp && ` · Updated ${new Date(A.dm.timestamp).toLocaleTimeString()}`}
                     </Typography>
                 </Box>
                 <Box sx={{display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center'}}>
-                    <Button
-                        onClick={handleExport}
-                        disabled={!A || exporting}
-                        startIcon={<DownloadIcon sx={{fontSize: '16px !important'}}/>}
-                        variant="outlined" size="small"
-                        sx={{
-                            borderRadius: '10px', textTransform: 'none', fontWeight: 600,
-                            fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.81rem',
+                    <Button onClick={handleExport} disabled={!A || exporting}
+                        startIcon={<DownloadIcon sx={{fontSize: '16px !important'}}/>} variant="outlined" size="small"
+                        sx={{borderRadius: '10px', textTransform: 'none', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.81rem',
                             color: T.green, borderColor: T.green, bgcolor: T.surface,
-                            '&:hover': {bgcolor: T.greenSoft, borderColor: T.green},
-                            '&:disabled': {opacity: 0.5},
-                        }}>
+                            '&:hover': {bgcolor: T.greenSoft, borderColor: T.green}, '&:disabled': {opacity: 0.5}}}>
                         {exporting ? 'Exporting…' : 'Export Excel'}
                     </Button>
-                    <Button
-                        onClick={fetchAll}
-                        startIcon={<RefreshIcon sx={{fontSize: '16px !important'}}/>}
-                        variant="outlined" size="small"
-                        sx={{
-                            borderRadius: '10px', textTransform: 'none', fontWeight: 600,
-                            fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.81rem',
+                    <Button onClick={fetchAll} startIcon={<RefreshIcon sx={{fontSize: '16px !important'}}/>} variant="outlined" size="small"
+                        sx={{borderRadius: '10px', textTransform: 'none', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.81rem',
                             color: T.muted, borderColor: T.border, bgcolor: T.surface,
-                            '&:hover': {bgcolor: T.bg, borderColor: T.accent, color: T.accent},
-                        }}>
+                            '&:hover': {bgcolor: T.bg, borderColor: T.accent, color: T.accent}}}>
                         Refresh
                     </Button>
                 </Box>
@@ -602,18 +590,21 @@ const Statistics = () => {
             {A && (
                 <Grid container spacing={2} sx={{mb: 3}}>
                     {[
-                        {title: 'Total Users',       value: A.totalUsers,       icon: PeopleIcon,    color: T.accent, soft: T.accentSoft, change: A.totalGrowth,  delay: 0.06},
-                        {title: 'Client Users',      value: A.totalClients,     icon: PersonIcon,    color: T.green,  soft: T.greenSoft,  change: A.clientGrowth, description: `${A.newClientsMonth} new this month`, delay: 0.12},
-                        {title: 'Verification Rate', value: `${A.verificationRate}%`, icon: CheckCircleIcon, color: T.cyan, soft: T.cyanSoft, description: `${A.verified} of ${A.totalClients}`, delay: 0.18},
-                        {title: 'Pending Queue',     value: A.pending,          icon: PendingIcon,   color: T.amber,  soft: T.amberSoft,  description: `${A.pendingRate}% of registrations`, delay: 0.24},
-                        {title: 'Applications',      value: A.appTotal || '—',  icon: AppIcon,       color: T.orange, soft: T.orangeSoft, description: 'total submitted', delay: 0.30},
-                        {title: 'Active Contracts',  value: A.activeContracts,  icon: ContractIcon,  color: T.indigo, soft: T.indigoSoft, description: `${A.contractRate}% fulfilment rate`, delay: 0.36},
-                        {title: 'Active Devices',    value: A.activeDevices,    icon: DeviceIcon,    color: T.purple, soft: T.purpleSoft, description: `of ${A.totalDevices} in catalog`, delay: 0.42},
-                        {title: 'Staff Members',     value: A.totalOp,          icon: GroupWorkIcon, color: T.rose,   soft: T.roseSoft,   change: A.opGrowth, description: `${A.newOpMonth} added this month`, delay: 0.48},
+                        {title: 'Total Users',       value: A.totalUsers,       icon: PeopleIcon,    color: T.accent, soft: T.accentSoft, change: A.totalGrowth},
+                        {title: 'Client Users',      value: A.totalClients,     icon: PersonIcon,    color: T.green,  soft: T.greenSoft,  change: A.clientGrowth, description: `${A.newClientsMonth} new this month`},
+                        {title: 'Verification Rate', value: `${A.verificationRate}%`, icon: CheckCircleIcon, color: T.cyan, soft: T.cyanSoft, description: `${A.verified} of ${A.totalClients}`},
+                        {title: 'SLA Compliance',    value: A.slaCompliance != null ? `${A.slaCompliance}%` : '—', icon: SlaIcon,
+                            color: A.slaCompliance == null ? T.muted : A.slaCompliance >= 80 ? T.green : A.slaCompliance >= 60 ? T.amber : T.rose,
+                            soft: A.slaCompliance == null ? T.bg : A.slaCompliance >= 80 ? T.greenSoft : A.slaCompliance >= 60 ? T.amberSoft : T.roseSoft,
+                            description: `${A.slaBreached} stages breached`},
+                        {title: 'Applications',      value: A.appTotal || '—',  icon: AppIcon,       color: T.orange, soft: T.orangeSoft, description: 'total submitted'},
+                        {title: 'Active Contracts',  value: A.contractsActive || A.activeContracts, icon: ContractIcon, color: T.indigo, soft: T.indigoSoft,
+                            description: `${A.contractsExp30 > 0 ? A.contractsExp30 + ' expiring 30d' : 'none expiring soon'}`},
+                        {title: 'Open Returns',      value: A.openReturns,      icon: ReturnIcon,
+                            color: A.openReturns > 0 ? T.rose : T.green, soft: A.openReturns > 0 ? T.roseSoft : T.greenSoft, description: `of ${A.totalReturns} total`},
+                        {title: 'Staff Members',     value: A.totalOp,          icon: GroupWorkIcon, color: T.purple, soft: T.purpleSoft, change: A.opGrowth, description: `${A.newOpMonth} added this month`},
                     ].map(s => (
-                        <Grid item xs={6} sm={4} md={3} key={s.title}>
-                            <StatsCard {...s}/>
-                        </Grid>
+                        <Grid item xs={6} sm={4} md={3} key={s.title}><StatsCard {...s}/></Grid>
                     ))}
                 </Grid>
             )}
@@ -625,9 +616,7 @@ const Statistics = () => {
                 ))}
             </Paper>
 
-            {/* ════════════════════════════════════════════════════════════
-                TAB 0 — EXECUTIVE SUMMARY
-            ════════════════════════════════════════════════════════════ */}
+            {/* ════════ TAB 0 — EXECUTIVE SUMMARY ════════ */}
             {activeTab === 0 && A && (
                 <Grid container spacing={2.5}>
                     <Grid item xs={12} md={4}>
@@ -667,13 +656,14 @@ const Statistics = () => {
                     </Grid>
 
                     <Grid item xs={12} md={4}>
-                        <SectionCard title="System-Wide Activity" subtitle="Applications, contracts, devices, staff" accent={T.purple}>
+                        <SectionCard title="System-Wide Activity" subtitle="Applications · contracts · SLA · devices · returns" accent={T.purple}>
                             <Box sx={{display: 'flex', flexDirection: 'column', gap: 1}}>
                                 {[
-                                    {label: 'Total Applications', value: A.appTotal,       max: A.appTotal || 1,     color: T.orange},
-                                    {label: 'Active Contracts',   value: A.activeContracts, max: A.appTotal || 1,     color: T.indigo},
-                                    {label: 'Active Devices',     value: A.activeDevices,   max: A.totalDevices || 1, color: T.purple},
-                                    {label: 'Staff Members',      value: A.totalOp,         max: A.totalUsers,        color: T.rose},
+                                    {label: 'Total Applications',   value: A.appTotal,                              max: A.appTotal || 1,      color: T.orange},
+                                    {label: 'Active Contracts',     value: A.contractsActive || A.activeContracts,  max: A.appTotal || 1,      color: T.indigo},
+                                    {label: 'Active Devices',       value: A.activeDevices,                         max: A.totalDevices || 1,  color: T.purple},
+                                    {label: 'SLA Compliance',       value: A.slaCompliance != null ? `${A.slaCompliance}%` : '—', max: 100,   color: A.slaCompliance >= 80 ? T.green : T.amber},
+                                    {label: 'Open Returns',         value: A.openReturns,                           max: Math.max(A.totalReturns, 1), color: A.openReturns > 0 ? T.rose : T.green},
                                 ].map(r => <KpiRow key={r.label} {...r}/>)}
                             </Box>
                         </SectionCard>
@@ -685,16 +675,16 @@ const Statistics = () => {
                                          accent={T.cyan} badge={{label: 'LIVE', color: T.green, soft: T.greenSoft}}>
                                 <Grid container spacing={2}>
                                     {[
-                                        {label: "Today's Registrations", value: A.dm.todays_registrations, color: T.accent, sub: `${A.dm.daily_growth > 0 ? '+' : ''}${A.dm.daily_growth}% vs yesterday`},
-                                        {label: 'Pending Approvals',     value: A.dm.pending_approvals,    color: T.amber,  sub: 'awaiting review'},
-                                        {label: 'Verified This Week',    value: A.dm.recently_verified,    color: T.green,  sub: 'last 7 days'},
-                                        {label: "Today's Applications",  value: A.dm.todays_applications,  color: T.orange, sub: 'submitted today'},
-                                        {label: 'Active Contracts',      value: A.dm.active_contracts,     color: T.indigo, sub: `${A.dm.contract_fulfilment_rate}% fulfilment`},
+                                        {label: "Today's Registrations", value: A.dm.todays_registrations,  color: T.accent, sub: `${A.dm.daily_growth > 0 ? '+' : ''}${A.dm.daily_growth}% vs yesterday`},
+                                        {label: 'Pending Approvals',     value: A.dm.pending_approvals,     color: T.amber,  sub: 'awaiting review'},
+                                        {label: 'Verified This Week',    value: A.dm.recently_verified,     color: T.green,  sub: 'last 7 days'},
+                                        {label: "Today's Applications",  value: A.dm.todays_applications,   color: T.orange, sub: 'submitted today'},
+                                        {label: 'Active Contracts',      value: A.dm.active_contracts,      color: T.indigo, sub: `${A.dm.contract_fulfilment_rate}% fulfilment`},
+                                        {label: 'SLA Compliance',        value: A.slaCompliance != null ? `${A.slaCompliance}%` : '—', color: A.slaCompliance >= 80 ? T.green : T.amber, sub: `${A.slaBreached} breached`},
+                                        {label: 'Open Returns',          value: A.openReturns,              color: A.openReturns > 0 ? T.rose : T.green, sub: 'pending action'},
                                         {label: 'Avg. Verify Time',      value: `${A.dm.avg_verification_days}d`, color: T.purple, sub: 'days per client'},
                                     ].map(m => (
-                                        <Grid item xs={6} sm={4} md={2} key={m.label}>
-                                            <SnapTile {...m}/>
-                                        </Grid>
+                                        <Grid item xs={6} sm={4} md={3} key={m.label}><SnapTile {...m}/></Grid>
                                     ))}
                                 </Grid>
                             </SectionCard>
@@ -703,9 +693,7 @@ const Statistics = () => {
                 </Grid>
             )}
 
-            {/* ════════════════════════════════════════════════════════════
-                TAB 1 — REGISTRATION HEALTH
-            ════════════════════════════════════════════════════════════ */}
+            {/* ════════ TAB 1 — REGISTRATION HEALTH ════════ */}
             {activeTab === 1 && A && (
                 <Grid container spacing={2.5}>
                     <Grid item xs={12} md={4}>
@@ -725,15 +713,14 @@ const Statistics = () => {
                             </Box>
                         </SectionCard>
                     </Grid>
-
                     <Grid item xs={12} md={8}>
                         <SectionCard title="Status Breakdown" subtitle="Volume per registration status" accent={T.accent}>
                             <Box sx={{height: 300}}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={A.statusData} barSize={44}>
                                         <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false}/>
-                                        <XAxis dataKey="name" tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
-                                        <YAxis tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
+                                        <XAxis dataKey="name" tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
+                                        <YAxis tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
                                         <RechartsTooltip content={<Tt/>}/>
                                         <Bar dataKey="value" name="Clients" radius={[7, 7, 0, 0]}>
                                             {A.statusData.map((e, i) => <Cell key={i} fill={e.color || COLORS[i % COLORS.length]}/>)}
@@ -743,7 +730,6 @@ const Statistics = () => {
                             </Box>
                         </SectionCard>
                     </Grid>
-
                     <Grid item xs={12} md={5}>
                         <SectionCard title="Operational User Roles" subtitle={`${A.totalOp} staff members`} accent={T.purple}>
                             <Box sx={{height: 220}}>
@@ -759,15 +745,14 @@ const Statistics = () => {
                             </Box>
                         </SectionCard>
                     </Grid>
-
                     <Grid item xs={12} md={7}>
                         <SectionCard title="Role Headcount" subtitle="Staff per role" accent={T.indigo}>
                             <Box sx={{height: 220}}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={A.roleData} barSize={40} layout="vertical">
                                         <CartesianGrid strokeDasharray="3 3" stroke={T.border} horizontal={false}/>
-                                        <XAxis type="number" tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
-                                        <YAxis type="category" dataKey="name" tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false} width={70}/>
+                                        <XAxis type="number" tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
+                                        <YAxis type="category" dataKey="name" tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false} width={70}/>
                                         <RechartsTooltip content={<Tt/>}/>
                                         <Bar dataKey="value" name="Staff" radius={[0, 7, 7, 0]}>
                                             {A.roleData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]}/>)}
@@ -780,22 +765,20 @@ const Statistics = () => {
                 </Grid>
             )}
 
-            {/* ════════════════════════════════════════════════════════════
-                TAB 2 — APPLICATIONS & CONTRACTS
-            ════════════════════════════════════════════════════════════ */}
+            {/* ════════ TAB 2 — APPLICATIONS & CONTRACTS ════════ */}
             {activeTab === 2 && A && (
                 <Grid container spacing={2.5}>
                     <Grid item xs={12}>
                         <Grid container spacing={2}>
                             {[
-                                {label: 'Total Applications', value: A.appTotal,         color: T.orange, soft: T.orangeSoft, sub: 'ever submitted'},
-                                {label: 'Active Contracts',   value: A.activeContracts,   color: T.indigo, soft: T.indigoSoft, sub: 'delivered orders'},
-                                {label: 'Contract Rate',      value: `${A.contractRate}%`, color: T.green,  soft: T.greenSoft,  sub: 'of applications fulfilled'},
-                                {label: 'Top Applicant',      value: A.topApplicants[0]?.application_count ?? '—', color: T.accent, soft: T.accentSoft, sub: A.topApplicants[0] ? `${A.topApplicants[0].first_name} ${A.topApplicants[0].last_name}` : 'no data'},
+                                {label: 'Total Applications', value: A.appTotal,                              color: T.orange, soft: T.orangeSoft, sub: 'ever submitted'},
+                                {label: 'Active Contracts',   value: A.contractsActive || A.activeContracts,  color: T.green,  soft: T.greenSoft,  sub: 'delivered orders'},
+                                {label: 'Expiring 30 days',  value: A.contractsExp30,                         color: A.contractsExp30 > 5 ? T.rose : T.amber, soft: A.contractsExp30 > 5 ? T.roseSoft : T.amberSoft, sub: 'need renewal soon'},
+                                {label: 'Total Contracts',   value: A.contractsTotal,                         color: T.indigo, soft: T.indigoSoft, sub: 'in system'},
                             ].map(m => (
                                 <Grid item xs={6} sm={3} key={m.label}>
                                     <Box sx={{p: 2, borderRadius: '12px', bgcolor: m.soft, border: `1px solid ${m.color}28`, textAlign: 'center'}}>
-                                        <Typography sx={{fontFamily: 'JetBrains Mono, monospace', fontSize: '1.6rem', fontWeight: 500, color: m.color, lineHeight: 1.1, mb: 0.4}}>{m.value}</Typography>
+                                        <Typography sx={{fontFamily: 'JetBrains Mono, monospace', fontSize: '1.6rem', fontWeight: 500, color: m.color, lineHeight: 1.1, mb: 0.4}}>{m.value ?? '—'}</Typography>
                                         <Typography sx={{fontSize: '0.72rem', fontWeight: 700, color: T.text}}>{m.label}</Typography>
                                         <Typography sx={{fontSize: '0.67rem', color: T.muted, mt: 0.2}}>{m.sub}</Typography>
                                     </Box>
@@ -803,7 +786,27 @@ const Statistics = () => {
                             ))}
                         </Grid>
                     </Grid>
-
+                    <Grid item xs={12}>
+                        <SectionCard title="Contract Lifecycle" subtitle="Full status breakdown across all contracts" accent={T.indigo}>
+                            <Grid container spacing={2}>
+                                {[
+                                    {label: 'Total',        value: A.contractsTotal,    color: T.accent},
+                                    {label: 'Active',       value: A.contractsActive,   color: T.green},
+                                    {label: 'Expiring 30d', value: A.contractsExp30,    color: A.contractsExp30 > 0 ? T.rose : T.muted},
+                                    {label: 'Expiring 60d', value: A.contractsExp60,    color: T.amber},
+                                    {label: 'Expiring 90d', value: A.contractsExp90,    color: T.amber},
+                                    {label: 'Expired',      value: A.contractsExpired,  color: T.muted},
+                                ].map(m => (
+                                    <Grid item xs={6} sm={2} key={m.label}>
+                                        <Box sx={{p: 1.5, borderRadius: '10px', bgcolor: T.bg, border: `1px solid ${T.border}`, textAlign: 'center'}}>
+                                            <Typography sx={{fontFamily: 'JetBrains Mono, monospace', fontSize: '1.4rem', fontWeight: 500, color: m.color, lineHeight: 1.1, mb: 0.3}}>{m.value ?? '—'}</Typography>
+                                            <Typography sx={{fontSize: '0.68rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.04em'}}>{m.label}</Typography>
+                                        </Box>
+                                    </Grid>
+                                ))}
+                            </Grid>
+                        </SectionCard>
+                    </Grid>
                     {A.appByStatus.length > 0 ? (
                         <>
                             <Grid item xs={12} md={5}>
@@ -822,13 +825,13 @@ const Statistics = () => {
                                 </SectionCard>
                             </Grid>
                             <Grid item xs={12} md={7}>
-                                <SectionCard title="Status Volume" subtitle="Applications per status" accent={T.indigo}>
+                                <SectionCard title="Status Volume" subtitle="Applications per status" accent={T.orange}>
                                     <Box sx={{height: 260}}>
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={A.appByStatus} barSize={36}>
                                                 <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false}/>
-                                                <XAxis dataKey="name" tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
-                                                <YAxis tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
+                                                <XAxis dataKey="name" tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
+                                                <YAxis tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
                                                 <RechartsTooltip content={<Tt/>}/>
                                                 <Bar dataKey="value" name="Applications" radius={[6, 6, 0, 0]}>
                                                     {A.appByStatus.map((e, i) => <Cell key={i} fill={e.color || COLORS[i % COLORS.length]}/>)}
@@ -847,21 +850,16 @@ const Statistics = () => {
                             </Paper>
                         </Grid>
                     )}
-
                     {A.topApplicants.length > 0 && (
                         <Grid item xs={12} md={6}>
-                            <SectionCard title="Top Applicants" subtitle="Clients with the most applications submitted" accent={T.accent}>
+                            <SectionCard title="Top Applicants" subtitle="Clients with the most applications" accent={T.accent}>
                                 {A.topApplicants.map((u, i) => (
                                     <Box key={u.client_user_id} sx={{display: 'flex', alignItems: 'center', gap: 1.5, py: 1.3, borderBottom: i < A.topApplicants.length - 1 ? `1px solid ${T.border}` : 'none'}}>
                                         <Box sx={{width: 24, height: 24, borderRadius: '7px', bgcolor: i === 0 ? T.amberSoft : T.bg, border: `1px solid ${i === 0 ? T.amber : T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
                                             <Typography sx={{fontSize: '0.65rem', fontWeight: 800, color: i === 0 ? T.amber : T.muted, fontFamily: 'JetBrains Mono, monospace'}}>{i + 1}</Typography>
                                         </Box>
-                                        <Typography sx={{flex: 1, fontSize: '0.8rem', fontWeight: 600, color: T.text}}>
-                                            {u.first_name} {u.last_name}
-                                        </Typography>
-                                        <Typography sx={{fontFamily: 'JetBrains Mono, monospace', fontSize: '0.82rem', fontWeight: 700, color: T.accent}}>
-                                            {u.application_count} apps
-                                        </Typography>
+                                        <Typography sx={{flex: 1, fontSize: '0.8rem', fontWeight: 600, color: T.text}}>{u.first_name} {u.last_name}</Typography>
+                                        <Typography sx={{fontFamily: 'JetBrains Mono, monospace', fontSize: '0.82rem', fontWeight: 700, color: T.accent}}>{u.application_count} apps</Typography>
                                     </Box>
                                 ))}
                             </SectionCard>
@@ -870,18 +868,16 @@ const Statistics = () => {
                 </Grid>
             )}
 
-            {/* ════════════════════════════════════════════════════════════
-                TAB 3 — DEVICE CATALOG
-            ════════════════════════════════════════════════════════════ */}
+            {/* ════════ TAB 3 — DEVICE CATALOG ════════ */}
             {activeTab === 3 && A && (
                 <Grid container spacing={2.5}>
                     <Grid item xs={12}>
                         <Grid container spacing={2}>
                             {[
-                                {label: 'Total Devices',      value: A.totalDevices,               color: T.accent, soft: T.accentSoft, sub: 'in catalog'},
-                                {label: 'Active Devices',     value: A.activeDevices,              color: T.green,  soft: T.greenSoft,  sub: 'available to clients'},
-                                {label: 'Inactive / Disc.',   value: A.totalDevices - A.activeDevices, color: T.amber, soft: T.amberSoft, sub: 'not available'},
-                                {label: 'Avg. Monthly Cost',  value: `R${A.avgCost}`,              color: T.indigo, soft: T.indigoSoft, sub: 'across catalog'},
+                                {label: 'Total Devices',     value: A.totalDevices,               color: T.accent, soft: T.accentSoft, sub: 'in catalog'},
+                                {label: 'Active Devices',    value: A.activeDevices,              color: T.green,  soft: T.greenSoft,  sub: 'available'},
+                                {label: 'Inactive / Disc.',  value: A.totalDevices - A.activeDevices, color: T.amber, soft: T.amberSoft, sub: 'not available'},
+                                {label: 'Avg. Monthly Cost', value: `R${A.avgCost}`,              color: T.indigo, soft: T.indigoSoft, sub: 'across catalog'},
                             ].map(m => (
                                 <Grid item xs={6} sm={3} key={m.label}>
                                     <Box sx={{p: 2, borderRadius: '12px', bgcolor: m.soft, border: `1px solid ${m.color}28`, textAlign: 'center'}}>
@@ -893,7 +889,6 @@ const Statistics = () => {
                             ))}
                         </Grid>
                     </Grid>
-
                     {A.deviceMfrData.length > 0 ? (
                         <>
                             <Grid item xs={12} md={7}>
@@ -902,8 +897,8 @@ const Statistics = () => {
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={A.deviceMfrData} barSize={36}>
                                                 <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false}/>
-                                                <XAxis dataKey="name" tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
-                                                <YAxis tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
+                                                <XAxis dataKey="name" tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
+                                                <YAxis tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
                                                 <RechartsTooltip content={<Tt/>}/>
                                                 <Bar dataKey="value" name="Devices" radius={[6, 6, 0, 0]}>
                                                     {A.deviceMfrData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]}/>)}
@@ -940,26 +935,19 @@ const Statistics = () => {
                 </Grid>
             )}
 
-            {/* ════════════════════════════════════════════════════════════
-                TAB 4 — GROWTH & TRENDS
-            ════════════════════════════════════════════════════════════ */}
+            {/* ════════ TAB 4 — GROWTH & TRENDS ════════ */}
             {activeTab === 4 && A && (
                 <Grid container spacing={2.5}>
                     <Grid item xs={12}>
                         <Grid container spacing={2}>
                             {[
-                                {label: 'Client Growth MoM',     value: A.clientGrowth, color: A.clientGrowth >= 0 ? T.green : T.rose,  soft: A.clientGrowth >= 0 ? T.greenSoft : T.roseSoft,  sub: `${A.newClientsMonth} new clients`},
-                                {label: 'Staff Growth MoM',      value: A.opGrowth,     color: A.opGrowth >= 0 ? T.green : T.rose,      soft: A.opGrowth >= 0 ? T.greenSoft : T.roseSoft,      sub: `${A.newOpMonth} new staff`},
-                                {label: 'Total Growth MoM',      value: A.totalGrowth,  color: A.totalGrowth >= 0 ? T.accent : T.rose,  soft: A.totalGrowth >= 0 ? T.accentSoft : T.roseSoft,  sub: 'across all users'},
+                                {label: 'Client Growth MoM',     value: A.clientGrowth, color: A.clientGrowth >= 0 ? T.green : T.rose, soft: A.clientGrowth >= 0 ? T.greenSoft : T.roseSoft, sub: `${A.newClientsMonth} new clients`},
+                                {label: 'Staff Growth MoM',      value: A.opGrowth,     color: A.opGrowth >= 0 ? T.green : T.rose,     soft: A.opGrowth >= 0 ? T.greenSoft : T.roseSoft,     sub: `${A.newOpMonth} new staff`},
+                                {label: 'Total Growth MoM',      value: A.totalGrowth,  color: A.totalGrowth >= 0 ? T.accent : T.rose, soft: A.totalGrowth >= 0 ? T.accentSoft : T.roseSoft, sub: 'across all users'},
                                 {label: 'Verification Velocity', value: `${A.dm.recently_verified || 0}`, color: T.cyan, soft: T.cyanSoft, sub: 'verified last 7 days'},
-                            ].map(m => (
-                                <Grid item xs={6} sm={3} key={m.label}>
-                                    <GrowthTile {...m}/>
-                                </Grid>
-                            ))}
+                            ].map(m => (<Grid item xs={6} sm={3} key={m.label}><GrowthTile {...m}/></Grid>))}
                         </Grid>
                     </Grid>
-
                     {A.trends.length > 0 ? (
                         <>
                             <Grid item xs={12}>
@@ -968,19 +956,13 @@ const Statistics = () => {
                                         <ResponsiveContainer width="100%" height="100%">
                                             <AreaChart data={A.trends}>
                                                 <defs>
-                                                    <linearGradient id="gcl" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor={T.accent} stopOpacity={0.2}/><stop offset="95%" stopColor={T.accent} stopOpacity={0.01}/>
-                                                    </linearGradient>
-                                                    <linearGradient id="gop" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor={T.green} stopOpacity={0.2}/><stop offset="95%" stopColor={T.green} stopOpacity={0.01}/>
-                                                    </linearGradient>
-                                                    <linearGradient id="gtot" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor={T.purple} stopOpacity={0.15}/><stop offset="95%" stopColor={T.purple} stopOpacity={0.01}/>
-                                                    </linearGradient>
+                                                    <linearGradient id="gcl" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.accent} stopOpacity={0.2}/><stop offset="95%" stopColor={T.accent} stopOpacity={0.01}/></linearGradient>
+                                                    <linearGradient id="gop" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.green} stopOpacity={0.2}/><stop offset="95%" stopColor={T.green} stopOpacity={0.01}/></linearGradient>
+                                                    <linearGradient id="gtot" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.purple} stopOpacity={0.15}/><stop offset="95%" stopColor={T.purple} stopOpacity={0.01}/></linearGradient>
                                                 </defs>
                                                 <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false}/>
-                                                <XAxis dataKey="month" tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
-                                                <YAxis tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
+                                                <XAxis dataKey="month" tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
+                                                <YAxis tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
                                                 <RechartsTooltip content={<Tt/>}/>
                                                 <Legend iconType="circle" iconSize={8} formatter={LegendLabel}/>
                                                 <Area type="monotone" dataKey="total"       stroke={T.purple} strokeWidth={1.5} fill="url(#gtot)" name="Total"  dot={false} strokeDasharray="4 2"/>
@@ -991,15 +973,14 @@ const Statistics = () => {
                                     </Box>
                                 </SectionCard>
                             </Grid>
-
                             <Grid item xs={12} md={6}>
                                 <SectionCard title="Month-on-Month Totals" subtitle="Total new users per month" accent={T.purple}>
                                     <Box sx={{height: 240}}>
                                         <ResponsiveContainer width="100%" height="100%">
                                             <LineChart data={A.trends}>
                                                 <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false}/>
-                                                <XAxis dataKey="month" tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
-                                                <YAxis tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
+                                                <XAxis dataKey="month" tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
+                                                <YAxis tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
                                                 <RechartsTooltip content={<Tt/>}/>
                                                 <Line type="monotone" dataKey="total" stroke={T.purple} strokeWidth={2.5} dot={{r: 4, fill: T.purple, strokeWidth: 0}} activeDot={{r: 6}} name="Total"/>
                                             </LineChart>
@@ -1007,15 +988,14 @@ const Statistics = () => {
                                     </Box>
                                 </SectionCard>
                             </Grid>
-
                             <Grid item xs={12} md={6}>
                                 <SectionCard title="Clients vs Staff" subtitle="Side-by-side monthly comparison" accent={T.cyan}>
                                     <Box sx={{height: 240}}>
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={A.trends} barSize={16}>
                                                 <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false}/>
-                                                <XAxis dataKey="month" tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
-                                                <YAxis tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
+                                                <XAxis dataKey="month" tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
+                                                <YAxis tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
                                                 <RechartsTooltip content={<Tt/>}/>
                                                 <Legend iconType="circle" iconSize={7} formatter={LegendLabel}/>
                                                 <Bar dataKey="clients"     name="Clients" fill={T.accent} radius={[4, 4, 0, 0]}/>
@@ -1037,9 +1017,7 @@ const Statistics = () => {
                 </Grid>
             )}
 
-            {/* ════════════════════════════════════════════════════════════
-                TAB 5 — REGIONAL BREAKDOWN
-            ════════════════════════════════════════════════════════════ */}
+            {/* ════════ TAB 5 — REGIONAL BREAKDOWN ════════ */}
             {activeTab === 5 && A && (
                 <Grid container spacing={2.5}>
                     {A.regionData.length > 0 ? (
@@ -1050,8 +1028,8 @@ const Statistics = () => {
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={A.regionData.slice(0, 12)} barSize={28}>
                                                 <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false}/>
-                                                <XAxis dataKey="name" tick={{fontSize: 10, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false} interval={0} angle={-30} textAnchor="end" height={50}/>
-                                                <YAxis tick={{fontSize: 11, fill: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif'}} axisLine={false} tickLine={false}/>
+                                                <XAxis dataKey="name" tick={{fontSize: 10, fill: T.muted}} axisLine={false} tickLine={false} interval={0} angle={-30} textAnchor="end" height={50}/>
+                                                <YAxis tick={{fontSize: 11, fill: T.muted}} axisLine={false} tickLine={false}/>
                                                 <RechartsTooltip content={<Tt/>}/>
                                                 <Bar dataKey="value" name="Users" radius={[6, 6, 0, 0]}>
                                                     {A.regionData.slice(0, 12).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]}/>)}
@@ -1061,7 +1039,6 @@ const Statistics = () => {
                                     </Box>
                                 </SectionCard>
                             </Grid>
-
                             <Grid item xs={12} md={4}>
                                 <SectionCard title="Top 5 Regions" subtitle="Ranked by user count" accent={T.purple}>
                                     {A.regionData.slice(0, 5).map((r, i) => (
@@ -1083,7 +1060,7 @@ const Statistics = () => {
                                     {A.dm.most_active_region && (
                                         <Box sx={{mt: 2, p: 1.5, borderRadius: '8px', bgcolor: T.accentSoft, border: `1px solid ${T.accent}28`}}>
                                             <Typography sx={{fontSize: '0.7rem', color: T.accent, fontWeight: 600}}>
-                                                📍 Most active today: {A.dm.most_active_region} ({A.dm.region_user_count} users)
+                                                Most active today: {A.dm.most_active_region} ({A.dm.region_user_count} users)
                                             </Typography>
                                         </Box>
                                     )}
@@ -1101,9 +1078,7 @@ const Statistics = () => {
                 </Grid>
             )}
 
-            {/* ════════════════════════════════════════════════════════════
-                TAB 6 — RECENT ACTIVITY
-            ════════════════════════════════════════════════════════════ */}
+            {/* ════════ TAB 6 — RECENT ACTIVITY ════════ */}
             {activeTab === 6 && A && (
                 <Grid container spacing={2.5}>
                     {[
@@ -1116,9 +1091,7 @@ const Statistics = () => {
                                 {A[col.key].length > 0 ? A[col.key].map((r, i) => (
                                     <Box key={r.id} sx={{display: 'flex', alignItems: 'center', gap: 1.5, py: 1.3, borderBottom: i < A[col.key].length - 1 ? `1px solid ${T.border}` : 'none'}}>
                                         <Box sx={{width: 32, height: 32, borderRadius: '10px', bgcolor: col.soft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                                            <Typography sx={{fontSize: '0.7rem', fontWeight: 800, color: col.color}}>
-                                                {r.first_name?.[0]}{r.last_name?.[0]}
-                                            </Typography>
+                                            <Typography sx={{fontSize: '0.7rem', fontWeight: 800, color: col.color}}>{r.first_name?.[0]}{r.last_name?.[0]}</Typography>
                                         </Box>
                                         <Box sx={{flex: 1, minWidth: 0}}>
                                             <Typography sx={{fontSize: '0.8rem', fontWeight: 600, color: T.text}}>{r.first_name} {r.last_name}</Typography>
@@ -1126,13 +1099,9 @@ const Statistics = () => {
                                         </Box>
                                         <Box sx={{textAlign: 'right', flexShrink: 0}}>
                                             <Box sx={{px: 1, py: 0.2, borderRadius: '20px', bgcolor: col.soft, border: `1px solid ${col.color}28`}}>
-                                                <Typography sx={{fontSize: '0.65rem', fontWeight: 700, color: col.color}}>
-                                                    {r.registration_status || 'Verified'}
-                                                </Typography>
+                                                <Typography sx={{fontSize: '0.65rem', fontWeight: 700, color: col.color}}>{r.registration_status || 'Verified'}</Typography>
                                             </Box>
-                                            <Typography sx={{fontSize: '0.65rem', color: T.muted, mt: 0.3}}>
-                                                {new Date(r.created_at).toLocaleDateString('en-ZA')}
-                                            </Typography>
+                                            <Typography sx={{fontSize: '0.65rem', color: T.muted, mt: 0.3}}>{new Date(r.created_at).toLocaleDateString('en-ZA')}</Typography>
                                         </Box>
                                     </Box>
                                 )) : (
@@ -1144,13 +1113,230 @@ const Statistics = () => {
                 </Grid>
             )}
 
-            {/* ════════════════════════════════════════════════════════════
-                TAB 7 — INSIGHTS
-            ════════════════════════════════════════════════════════════ */}
+            {/* ════════ TAB 7 — SLA & RETURNS ════════ */}
             {activeTab === 7 && A && (
                 <Grid container spacing={2.5}>
+                    <Grid item xs={12} md={4}>
+                        <SectionCard title="SLA Overall Compliance" subtitle="Application processing vs. time thresholds"
+                            accent={A.slaCompliance == null ? T.muted : A.slaCompliance >= 80 ? T.green : A.slaCompliance >= 60 ? T.amber : T.rose}>
+                            {A.slaCompliance != null ? (
+                                <>
+                                    <Box sx={{textAlign: 'center', py: 2.5}}>
+                                        <Typography sx={{fontFamily: 'JetBrains Mono, monospace', fontSize: '3.5rem', fontWeight: 500, lineHeight: 1,
+                                            color: A.slaCompliance >= 80 ? T.green : A.slaCompliance >= 60 ? T.amber : T.rose}}>
+                                            {A.slaCompliance}%
+                                        </Typography>
+                                        <Typography sx={{fontSize: '0.75rem', color: T.muted, mt: 1}}>overall compliance rate</Typography>
+                                    </Box>
+                                    <Box sx={{height: 8, bgcolor: T.bg, borderRadius: 4, overflow: 'hidden', border: `1px solid ${T.border}`}}>
+                                        <Box sx={{height: '100%', width: `${A.slaCompliance}%`, bgcolor: A.slaCompliance >= 80 ? T.green : A.slaCompliance >= 60 ? T.amber : T.rose, borderRadius: 4, transition: 'width 0.7s ease'}}/>
+                                    </Box>
+                                    <Box sx={{display: 'flex', justifyContent: 'space-between', mt: 1}}>
+                                        <Typography sx={{fontSize: '0.7rem', color: T.muted}}>Target: 80%</Typography>
+                                        <Typography sx={{fontSize: '0.7rem', fontWeight: 700, color: A.slaBreached > 0 ? T.rose : T.green}}>
+                                            {A.slaBreached} stage{A.slaBreached !== 1 ? 's' : ''} breached
+                                        </Typography>
+                                    </Box>
+                                </>
+                            ) : (
+                                <Box sx={{py: 5, textAlign: 'center'}}>
+                                    <SlaIcon sx={{fontSize: 40, color: T.border, mb: 1}}/>
+                                    <Typography sx={{fontSize: '0.83rem', color: T.muted}}>No SLA data available</Typography>
+                                    <Typography sx={{fontSize: '0.72rem', color: T.muted, mt: 0.5}}>Tracking starts once applications are in progress</Typography>
+                                </Box>
+                            )}
+                        </SectionCard>
+                    </Grid>
+
+                    <Grid item xs={12} md={8}>
+                        <SectionCard title="Device Returns Overview" subtitle={`${A.totalReturns} total returns tracked`} accent={T.orange}
+                            badge={A.openReturns > 0 ? {label: `${A.openReturns} OPEN`, color: T.rose, soft: T.roseSoft} : {label: 'ALL CLOSED', color: T.green, soft: T.greenSoft}}>
+                            {A.returnsByStatus.length > 0 ? (
+                                <>
+                                    <Grid container spacing={1.5} sx={{mb: 2}}>
+                                        {A.returnsByStatus.map(r => (
+                                            <Grid item xs={6} sm={4} key={r.name}>
+                                                <Box sx={{p: 1.5, borderRadius: '10px', bgcolor: T.bg, border: `1px solid ${T.border}`, textAlign: 'center'}}>
+                                                    <Typography sx={{fontFamily: 'JetBrains Mono, monospace', fontSize: '1.5rem', fontWeight: 500, color: r.color, lineHeight: 1, mb: 0.3}}>{r.value}</Typography>
+                                                    <Typography sx={{fontSize: '0.7rem', fontWeight: 700, color: T.text}}>{r.name}</Typography>
+                                                </Box>
+                                            </Grid>
+                                        ))}
+                                    </Grid>
+                                    <Box sx={{p: 1.5, borderRadius: '10px', bgcolor: A.openReturns > 0 ? T.roseSoft : T.greenSoft, border: `1px solid ${A.openReturns > 0 ? T.rose : T.green}28`, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                        <Box>
+                                            <Typography sx={{fontSize: '0.8rem', fontWeight: 700, color: A.openReturns > 0 ? T.rose : T.green}}>Open Returns (pending action)</Typography>
+                                            <Typography sx={{fontSize: '0.68rem', color: T.muted}}>Excludes Completed and Cancelled</Typography>
+                                        </Box>
+                                        <Typography sx={{fontFamily: 'JetBrains Mono, monospace', fontSize: '1.4rem', fontWeight: 700, color: A.openReturns > 0 ? T.rose : T.green}}>{A.openReturns}</Typography>
+                                    </Box>
+                                </>
+                            ) : (
+                                <Box sx={{py: 5, textAlign: 'center'}}>
+                                    <ReturnIcon sx={{fontSize: 40, color: T.border, mb: 1}}/>
+                                    <Typography sx={{fontSize: '0.83rem', color: T.muted}}>No returns recorded yet</Typography>
+                                </Box>
+                            )}
+                        </SectionCard>
+                    </Grid>
+
+                    {A.slaStages.length > 0 ? (
+                        <Grid item xs={12}>
+                            <SectionCard title="SLA Status by Processing Stage" subtitle="Compliance, approaching, and breached counts per workflow stage" accent={T.purple}>
+                                <Grid container spacing={2}>
+                                    {A.slaStages.map(stage => {
+                                        const total     = parseInt(stage.total) || 1;
+                                        const withinPct = Math.round((parseInt(stage.within_sla) / total) * 100);
+                                        const c         = withinPct >= 80 ? T.green : withinPct >= 60 ? T.amber : T.rose;
+                                        return (
+                                            <Grid item xs={12} sm={6} md={4} key={stage.application_status}>
+                                                <Box sx={{p: 2, borderRadius: '12px', bgcolor: T.bg, border: `1px solid ${T.border}`}}>
+                                                    <Typography sx={{fontWeight: 700, fontSize: '0.85rem', color: T.text, mb: 1.5}}>{stage.stage_name}</Typography>
+                                                    <Grid container spacing={1} sx={{mb: 1.5}}>
+                                                        {[
+                                                            {label: 'Total',       value: stage.total,           color: T.text},
+                                                            {label: 'Approaching', value: stage.approaching_sla, color: T.amber},
+                                                            {label: 'Breached',    value: stage.breached_sla,    color: T.rose},
+                                                        ].map(s => (
+                                                            <Grid item xs={4} key={s.label}>
+                                                                <Typography sx={{fontSize: '0.63rem', color: s.color === T.text ? T.muted : s.color, fontWeight: 600}}>{s.label}</Typography>
+                                                                <Typography sx={{fontWeight: 800, fontSize: '1.1rem', color: s.color}}>{s.value}</Typography>
+                                                            </Grid>
+                                                        ))}
+                                                    </Grid>
+                                                    <Box sx={{display: 'flex', justifyContent: 'space-between', mb: 0.5}}>
+                                                        <Typography sx={{fontSize: '0.72rem', color: T.muted}}>Compliance</Typography>
+                                                        <Typography sx={{fontSize: '0.72rem', fontWeight: 700, color: c}}>{withinPct}%</Typography>
+                                                    </Box>
+                                                    <Box sx={{height: 6, bgcolor: T.border, borderRadius: 3, overflow: 'hidden'}}>
+                                                        <Box sx={{height: '100%', width: `${withinPct}%`, bgcolor: c, borderRadius: 3, transition: 'width 0.6s ease'}}/>
+                                                    </Box>
+                                                    <Typography sx={{fontSize: '0.7rem', color: T.muted, mt: 0.8}}>
+                                                        Avg {stage.avg_days_in_stage} days in stage · SLA: {stage.sla_threshold_days} days
+                                                    </Typography>
+                                                </Box>
+                                            </Grid>
+                                        );
+                                    })}
+                                </Grid>
+                            </SectionCard>
+                        </Grid>
+                    ) : (
+                        <Grid item xs={12}>
+                            <Paper elevation={0} sx={{p: 5, textAlign: 'center', borderRadius: '14px', border: `1px solid ${T.border}`}}>
+                                <SlaIcon sx={{fontSize: 44, color: T.border, mb: 1.5}}/>
+                                <Typography sx={{fontSize: '0.88rem', color: T.muted}}>No SLA stage data — tracking begins once applications enter processing</Typography>
+                            </Paper>
+                        </Grid>
+                    )}
+
+                    {A.returnsByStatus.length > 0 && (
+                        <Grid item xs={12} md={5}>
+                            <SectionCard title="Returns Distribution" subtitle="By status" accent={T.cyan}>
+                                <Box sx={{height: 220}}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie data={A.returnsByStatus} cx="50%" cy="50%" outerRadius={80} innerRadius={45} dataKey="value" paddingAngle={3}>
+                                                {A.returnsByStatus.map((e, i) => <Cell key={i} fill={e.color || COLORS[i % COLORS.length]}/>)}
+                                            </Pie>
+                                            <RechartsTooltip content={<Tt/>}/>
+                                            <Legend iconType="circle" iconSize={7} formatter={LegendLabel}/>
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </Box>
+                            </SectionCard>
+                        </Grid>
+                    )}
+                </Grid>
+            )}
+
+            {/* ════════ TAB 8 — BUDGET ════════ */}
+            {activeTab === 8 && A && (
+                <Grid container spacing={2.5}>
+                    {(A.overBudget > 0 || A.nearLimit > 0) && (
+                        <Grid item xs={12}>
+                            <Box sx={{p: 2, borderRadius: '12px', bgcolor: A.overBudget > 0 ? T.roseSoft : T.amberSoft, border: `1px solid ${A.overBudget > 0 ? T.rose : T.amber}28`, display: 'flex', alignItems: 'center', gap: 1.5}}>
+                                <WarningIcon sx={{fontSize: 20, color: A.overBudget > 0 ? T.rose : T.amber}}/>
+                                <Typography sx={{fontSize: '0.83rem', fontWeight: 600, color: A.overBudget > 0 ? T.rose : T.amber}}>
+                                    {A.overBudget > 0 && `${A.overBudget} department${A.overBudget > 1 ? 's are' : ' is'} over budget. `}
+                                    {A.nearLimit > 0 && `${A.nearLimit} department${A.nearLimit > 1 ? 's are' : ' is'} nearing the monthly ceiling.`}
+                                </Typography>
+                            </Box>
+                        </Grid>
+                    )}
+                    <Grid item xs={12}>
+                        <Grid container spacing={2}>
+                            {[
+                                {label: 'Departments',  value: A.budgetDepts.length, color: T.accent, soft: T.accentSoft, sub: 'with budget data'},
+                                {label: 'Over Budget',  value: A.overBudget, color: A.overBudget > 0 ? T.rose : T.green, soft: A.overBudget > 0 ? T.roseSoft : T.greenSoft, sub: A.overBudget > 0 ? 'need review' : 'all within limit'},
+                                {label: 'Near Limit',   value: A.nearLimit,  color: A.nearLimit > 0 ? T.amber : T.green, soft: A.nearLimit > 0 ? T.amberSoft : T.greenSoft, sub: 'within 10% of ceiling'},
+                                {label: 'Fiscal Year',  value: A.fiscalYear || new Date().getFullYear(), color: T.indigo, soft: T.indigoSoft, sub: 'current period'},
+                            ].map(m => (
+                                <Grid item xs={6} sm={3} key={m.label}>
+                                    <Box sx={{p: 2, borderRadius: '12px', bgcolor: m.soft, border: `1px solid ${m.color}28`, textAlign: 'center'}}>
+                                        <Typography sx={{fontFamily: 'JetBrains Mono, monospace', fontSize: '1.6rem', fontWeight: 500, color: m.color, lineHeight: 1.1, mb: 0.4}}>{m.value}</Typography>
+                                        <Typography sx={{fontSize: '0.72rem', fontWeight: 700, color: T.text}}>{m.label}</Typography>
+                                        <Typography sx={{fontSize: '0.67rem', color: T.muted, mt: 0.2}}>{m.sub}</Typography>
+                                    </Box>
+                                </Grid>
+                            ))}
+                        </Grid>
+                    </Grid>
+                    {A.budgetDepts.length > 0 ? (
+                        <Grid item xs={12}>
+                            <SectionCard title={`Departmental Spend — FY ${A.fiscalYear || new Date().getFullYear()}`} subtitle="Monthly spend vs. ceiling per department" accent={A.overBudget > 0 ? T.rose : T.green}>
+                                {A.budgetDepts.map(d => {
+                                    const c   = d.status === 'over' ? T.rose : d.status === 'warning' ? T.amber : T.green;
+                                    const pct = Math.min(d.utilisation_pct || 0, 100);
+                                    return (
+                                        <Box key={d.department_id} sx={{display: 'flex', alignItems: 'center', gap: 2, py: 1.8, borderBottom: `1px solid ${T.border}`, '&:last-child': {borderBottom: 'none'}}}>
+                                            <Box sx={{flex: 1, minWidth: 0}}>
+                                                <Box sx={{display: 'flex', alignItems: 'center', gap: 0.6}}>
+                                                    {d.status === 'over' && <WarningIcon sx={{fontSize: 13, color: T.rose}}/>}
+                                                    <Typography sx={{fontSize: '0.82rem', fontWeight: 600, color: T.text}}>{d.department_id}</Typography>
+                                                </Box>
+                                                <Typography sx={{fontSize: '0.68rem', color: T.muted}}>{d.active_contracts} active contract{d.active_contracts !== 1 ? 's' : ''}</Typography>
+                                            </Box>
+                                            <Box sx={{textAlign: 'right', flexShrink: 0}}>
+                                                <Typography sx={{fontFamily: 'JetBrains Mono, monospace', fontSize: '0.88rem', fontWeight: 700, color: c}}>
+                                                    R {Number(d.monthly_spend || 0).toLocaleString('en-ZA', {minimumFractionDigits: 2})}
+                                                </Typography>
+                                                {d.monthly_ceiling ? (
+                                                    <Typography sx={{fontSize: '0.67rem', color: T.muted}}>of R {Number(d.monthly_ceiling).toLocaleString('en-ZA', {minimumFractionDigits: 2})}</Typography>
+                                                ) : (
+                                                    <Typography sx={{fontSize: '0.67rem', color: T.muted}}>no ceiling set</Typography>
+                                                )}
+                                            </Box>
+                                            {d.utilisation_pct != null ? (
+                                                <Box sx={{width: 120, flexShrink: 0}}>
+                                                    <Box sx={{height: 5, bgcolor: T.bg, borderRadius: 3, overflow: 'hidden', border: `1px solid ${T.border}`}}>
+                                                        <Box sx={{height: '100%', width: `${pct}%`, bgcolor: c, borderRadius: 3, transition: 'width 0.6s ease'}}/>
+                                                    </Box>
+                                                    <Typography sx={{fontSize: '0.68rem', fontWeight: 700, color: c, mt: 0.3, textAlign: 'right'}}>{d.utilisation_pct}%</Typography>
+                                                </Box>
+                                            ) : <Box sx={{width: 80}}/>}
+                                        </Box>
+                                    );
+                                })}
+                            </SectionCard>
+                        </Grid>
+                    ) : (
+                        <Grid item xs={12}>
+                            <Paper elevation={0} sx={{p: 5, textAlign: 'center', borderRadius: '14px', border: `1px solid ${T.border}`}}>
+                                <MoneyIcon sx={{fontSize: 44, color: T.border, mb: 1.5}}/>
+                                <Typography sx={{fontSize: '0.88rem', color: T.muted}}>No budget data for this fiscal year</Typography>
+                                <Typography sx={{fontSize: '0.78rem', color: T.muted, mt: 0.5}}>Configure department budgets in the Budget Tracker to see spend here</Typography>
+                            </Paper>
+                        </Grid>
+                    )}
+                </Grid>
+            )}
+
+            {/* ════════ TAB 9 — INSIGHTS ════════ */}
+            {activeTab === 9 && A && (
+                <Grid container spacing={2.5}>
                     <Grid item xs={12} md={7}>
-                        <SectionCard title="Actionable Insights" subtitle="Cross-system analysis: users · applications · devices · contracts" accent={T.amber}>
+                        <SectionCard title="Actionable Insights" subtitle="Cross-system analysis: users · applications · SLA · returns · devices · contracts · budget" accent={T.amber}>
                             {A.insights.length > 0 ? (
                                 <Box sx={{display: 'flex', flexDirection: 'column', gap: 1.5}}>
                                     {A.insights.map((ins, i) => <InsightCard key={i} {...ins}/>)}
@@ -1164,18 +1350,20 @@ const Statistics = () => {
                             )}
                         </SectionCard>
                     </Grid>
-
                     <Grid item xs={12} md={5}>
                         <SectionCard title="System Health Summary" subtitle="KPIs with pass/fail thresholds" accent={T.green}>
                             <Box sx={{display: 'flex', flexDirection: 'column', gap: 1.5}}>
                                 {[
-                                    {label: 'Verification Rate',   value: `${A.verificationRate}%`,  status: parseFloat(A.verificationRate) >= 60 ? 'good' : 'warn', note: parseFloat(A.verificationRate) >= 60 ? 'Above 60% threshold'  : 'Below 60% — needs attention'},
-                                    {label: 'Rejection Rate',      value: `${A.rejectionRate}%`,     status: parseFloat(A.rejectionRate) <= 15    ? 'good' : 'warn', note: parseFloat(A.rejectionRate) <= 15    ? 'Within normal range'   : 'Above 15% — investigate causes'},
-                                    {label: 'Client Growth MoM',   value: `${A.clientGrowth > 0 ? '+' : ''}${A.clientGrowth}%`, status: A.clientGrowth >= 0 ? 'good' : 'warn', note: A.clientGrowth >= 0 ? 'Positive momentum' : 'Declining — review acquisition'},
-                                    {label: 'Pending Backlog',     value: A.pending.toLocaleString(), status: parseFloat(A.pendingRate) <= 25 ? 'good' : 'warn', note: parseFloat(A.pendingRate) <= 25 ? 'Manageable queue' : `${A.pendingRate}% — increase capacity`},
-                                    {label: 'Avg. Verify Time',    value: `${A.dm.avg_verification_days || '—'}d`, status: parseFloat(A.dm.avg_verification_days) <= 3 ? 'good' : 'warn', note: parseFloat(A.dm.avg_verification_days) <= 3 ? 'Fast turnaround' : 'Over 3 days — review process'},
-                                    {label: 'Device Catalog',      value: `${A.activeDevices}/${A.totalDevices}`, status: A.totalDevices === 0 || A.activeDevices >= A.totalDevices * 0.6 ? 'good' : 'warn', note: A.totalDevices === 0 || A.activeDevices >= A.totalDevices * 0.6 ? 'Majority active' : 'Many devices inactive'},
-                                    {label: 'Contract Fulfilment', value: `${A.contractRate}%`, status: A.appTotal === 0 || parseFloat(A.contractRate) >= 30 ? 'good' : 'warn', note: A.appTotal === 0 || parseFloat(A.contractRate) >= 30 ? 'Healthy fulfilment rate' : 'Low — investigate pipeline'},
+                                    {label: 'Verification Rate',   value: `${A.verificationRate}%`,  status: parseFloat(A.verificationRate) >= 60 ? 'good' : 'warn', note: 'Target: ≥ 60%'},
+                                    {label: 'Rejection Rate',      value: `${A.rejectionRate}%`,     status: parseFloat(A.rejectionRate) <= 15 ? 'good' : 'warn',    note: 'Target: ≤ 15%'},
+                                    {label: 'Client Growth MoM',   value: `${A.clientGrowth > 0 ? '+' : ''}${A.clientGrowth}%`, status: A.clientGrowth >= 0 ? 'good' : 'warn', note: 'Positive is good'},
+                                    {label: 'Pending Backlog',     value: A.pending.toLocaleString(), status: parseFloat(A.pendingRate) <= 25 ? 'good' : 'warn',     note: `${A.pendingRate}% of clients`},
+                                    {label: 'Avg. Verify Time',    value: `${A.dm.avg_verification_days || '—'}d`, status: parseFloat(A.dm.avg_verification_days) <= 3 ? 'good' : 'warn', note: 'Target: ≤ 3 days'},
+                                    {label: 'SLA Compliance',      value: A.slaCompliance != null ? `${A.slaCompliance}%` : 'N/A', status: A.slaCompliance == null || A.slaCompliance >= 80 ? 'good' : 'warn', note: 'Target: ≥ 80%'},
+                                    {label: 'Open Returns',        value: A.openReturns,              status: A.openReturns <= 5 ? 'good' : 'warn',                  note: 'Target: ≤ 5'},
+                                    {label: 'Over-budget Depts',   value: A.overBudget,               status: A.overBudget === 0 ? 'good' : 'warn',                  note: 'Target: 0'},
+                                    {label: 'Device Catalog',      value: `${A.activeDevices}/${A.totalDevices}`, status: A.totalDevices === 0 || A.activeDevices >= A.totalDevices * 0.6 ? 'good' : 'warn', note: 'Target: ≥ 60% active'},
+                                    {label: 'Contract Fulfilment', value: `${A.contractRate}%`,       status: A.appTotal === 0 || parseFloat(A.contractRate) >= 30 ? 'good' : 'warn', note: 'Target: ≥ 30%'},
                                 ].map(item => (
                                     <Box key={item.label} sx={{p: 1.5, borderRadius: '8px', bgcolor: item.status === 'good' ? T.greenSoft : T.amberSoft, border: `1px solid ${item.status === 'good' ? T.green : T.amber}28`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1}}>
                                         <Box>
