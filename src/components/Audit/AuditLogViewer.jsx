@@ -184,7 +184,10 @@ function AuditLogsTab() {
                         {rows.map(r => (
                             <TableRow key={r.log_id} hover sx={{ '&:last-child td': { border: 0 } }}>
                                 <TableCell sx={{ fontSize: '0.75rem', color: T.muted }}>{r.log_id}</TableCell>
-                                <TableCell sx={{ fontSize: '0.8rem' }}>{r.actor_id ?? '—'}</TableCell>
+                                <TableCell sx={{ fontSize: '0.8rem' }}>
+                                    {r.actor_name ?? '—'}
+                                    <Typography component="span" sx={{ fontSize: '0.68rem', color: T.muted, ml: 0.5 }}>#{r.actor_id}</Typography>
+                                </TableCell>
                                 <TableCell><Chip label={r.actor_type} size="small" sx={{ fontSize: '0.68rem', fontWeight: 600 }} /></TableCell>
                                 <TableCell>{actionChip(r.action)}</TableCell>
                                 <TableCell sx={{ fontSize: '0.8rem', color: T.muted }}>{r.entity_type ?? '—'}</TableCell>

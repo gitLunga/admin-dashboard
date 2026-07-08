@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-    Box, Paper, Typography,  IconButton, Chip, Alert,
+    Box, Paper, Typography, IconButton, Chip, Alert,
     CircularProgress, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, TablePagination, Avatar, FormControl,
-     Select, MenuItem,  Button, useMediaQuery, useTheme,
+    Select, MenuItem, Button, useMediaQuery, useTheme,
+    Dialog, DialogTitle, DialogContent, DialogActions,
+    TextField, Grid,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -11,9 +13,10 @@ import {
     Visibility as ViewIcon,
     Clear as ClearIcon,
     People as PeopleIcon,
+    Delete as DeleteIcon,
+    Warning as WarningIcon,
 } from '@mui/icons-material';
 import { adminAPI } from '../../services/api';
-import StatusUpdateModal from './StatusUpdateModal';
 
 /* ── Shared design tokens ── */
 const T = {
@@ -31,6 +34,18 @@ const STATUS_META = {
     Pending:           { color: T.amber,  soft: T.amberSoft,  dot: '#D97706' },
     Rejected:          { color: T.rose,   soft: T.roseSoft,   dot: '#DC2626' },
     Profile_Completed: { color: T.purple, soft: T.purpleSoft, dot: '#7C3AED' },
+    Deactivated:       { color: T.muted,  soft: '#F1F5F9',    dot: T.muted   },
+};
+
+const FIELD_SX = {
+    '& .MuiOutlinedInput-root': {
+        borderRadius: '10px', fontSize: '0.83rem',
+        '& fieldset': { borderColor: T.border },
+        '&:hover fieldset': { borderColor: T.accent },
+        '&.Mui-focused fieldset': { borderColor: T.accent },
+    },
+    '& .MuiInputLabel-root': { fontSize: '0.83rem', color: T.muted },
+    '& .MuiInputLabel-root.Mui-focused': { color: T.accent },
 };
 
 const StatusChip = ({ status }) => {
@@ -40,13 +55,229 @@ const StatusChip = ({ status }) => {
             px: 1.2, py: 0.4, borderRadius: '20px',
             bgcolor: meta.soft, border: `1px solid ${meta.color}28` }}>
             <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: meta.dot, flexShrink: 0 }} />
-            <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: meta.color }}>{status}</Typography>
+            <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: meta.color }}>{status?.replace('_', ' ')}</Typography>
         </Box>
     );
 };
 
+/* ── Edit dialog ─────────────────────────────────────────────────────────── */
+const TITLES       = ['Mr', 'Mrs', 'Ms', 'Dr', 'Prof', 'Adv', 'Mag'];
+const USER_TYPES   = ['Magistrate', 'Advocate', 'Prosecutor', 'Clerk', 'Other'];
+const VALID_STATUS = ['Pending', 'Verified', 'Rejected', 'Profile_Completed', 'Deactivated'];
+
+function EditDialog({ open, user, onClose, onSaved, showToast }) {
+    const [form, setForm]     = useState({});
+    const [saving, setSaving] = useState(false);
+    const [err, setErr]       = useState(null);
+
+    useEffect(() => {
+        if (open && user) {
+            setForm({
+                title:        user.title        || '',
+                first_name:   user.first_name   || '',
+                last_name:    user.last_name    || '',
+                email:        user.email        || '',
+                phone_number: user.phone_number || '',
+                persal_id:    user.persal_id    || '',
+                region:       user.region       || '',
+                user_type:    user.user_type    || '',
+                department_id:user.department_id != null ? String(user.department_id) : '',
+                registration_status: user.registration_status || '',
+            });
+            setErr(null);
+        }
+    }, [open, user]);
+
+    const set = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
+
+    const handleSave = async () => {
+        if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
+            setErr('First name, last name and email are required.');
+            return;
+        }
+        setSaving(true);
+        setErr(null);
+        try {
+            const payload = {
+                ...form,
+                department_id: form.department_id ? parseInt(form.department_id, 10) : null,
+            };
+            await adminAPI.updateClientUser(user.client_user_id, payload);
+
+            if (form.registration_status !== user.registration_status) {
+                await adminAPI.updateUserStatus(user.client_user_id, { status: form.registration_status, notes: '' });
+            }
+
+            onSaved();
+            onClose();
+        } catch (e) {
+            setErr(e.response?.data?.message || e.message || 'Failed to save changes.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
+            PaperProps={{ sx: { borderRadius: '16px', border: `1px solid ${T.border}` } }}>
+            <DialogTitle sx={{ fontWeight: 800, fontSize: '1rem', color: T.text, pb: 1 }}>
+                Edit Client User
+                {user && (
+                    <Typography sx={{ fontSize: '0.75rem', color: T.muted, fontWeight: 400 }}>
+                        #{user.client_user_id} · {user.email}
+                    </Typography>
+                )}
+            </DialogTitle>
+
+            <DialogContent dividers>
+                {err && (
+                    <Alert severity="error" sx={{ mb: 2, borderRadius: '10px', fontSize: '0.8rem' }} onClose={() => setErr(null)}>
+                        {err}
+                    </Alert>
+                )}
+
+                <Grid container spacing={2}>
+                    <Grid item xs={12} sm={4}>
+                        <FormControl fullWidth size="small" sx={FIELD_SX}>
+                            <Select value={form.title || ''} onChange={set('title')} displayEmpty
+                                renderValue={v => v || <span style={{ color: T.muted }}>Title</span>}
+                                sx={{ borderRadius: '10px', fontSize: '0.83rem', '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border } }}>
+                                <MenuItem value=""><em>None</em></MenuItem>
+                                {TITLES.map(t => <MenuItem key={t} value={t} sx={{ fontSize: '0.83rem' }}>{t}</MenuItem>)}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                        <TextField fullWidth size="small" label="First Name" value={form.first_name || ''} onChange={set('first_name')} sx={FIELD_SX} />
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                        <TextField fullWidth size="small" label="Last Name" value={form.last_name || ''} onChange={set('last_name')} sx={FIELD_SX} />
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                        <TextField fullWidth size="small" label="Email" value={form.email || ''} onChange={set('email')} sx={FIELD_SX} />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                        <TextField fullWidth size="small" label="Phone Number" value={form.phone_number || ''} onChange={set('phone_number')} sx={FIELD_SX} />
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                        <TextField fullWidth size="small" label="PERSAL ID" value={form.persal_id || ''} onChange={set('persal_id')} sx={FIELD_SX} />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                        <TextField fullWidth size="small" label="Department ID" value={form.department_id || ''} onChange={set('department_id')} type="number" sx={FIELD_SX} />
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                        <TextField fullWidth size="small" label="Region" value={form.region || ''} onChange={set('region')} sx={FIELD_SX} />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                        <FormControl fullWidth size="small" sx={FIELD_SX}>
+                            <Select value={form.user_type || ''} onChange={set('user_type')} displayEmpty
+                                renderValue={v => v || <span style={{ color: T.muted }}>User Type</span>}
+                                sx={{ borderRadius: '10px', fontSize: '0.83rem', '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border } }}>
+                                <MenuItem value=""><em>Not set</em></MenuItem>
+                                {USER_TYPES.map(t => <MenuItem key={t} value={t} sx={{ fontSize: '0.83rem' }}>{t}</MenuItem>)}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+
+                    <Grid item xs={12}>
+                        <FormControl fullWidth size="small" sx={FIELD_SX}>
+                            <Select value={form.registration_status || ''} onChange={set('registration_status')} displayEmpty
+                                renderValue={v => v || <span style={{ color: T.muted }}>Status</span>}
+                                sx={{ borderRadius: '10px', fontSize: '0.83rem', '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border } }}>
+                                {VALID_STATUS.map(s => (
+                                    <MenuItem key={s} value={s} sx={{ fontSize: '0.83rem' }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: STATUS_META[s]?.dot || T.muted }} />
+                                            {s.replace('_', ' ')}
+                                        </Box>
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                </Grid>
+            </DialogContent>
+
+            <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+                <Button onClick={onClose} disabled={saving}
+                    sx={{ borderRadius: '10px', textTransform: 'none', color: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem' }}>
+                    Cancel
+                </Button>
+                <Button onClick={handleSave} disabled={saving} variant="contained"
+                    sx={{ borderRadius: '10px', textTransform: 'none', bgcolor: T.accent, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem',
+                        boxShadow: 'none', '&:hover': { bgcolor: '#1840C0', boxShadow: 'none' } }}>
+                    {saving ? 'Saving…' : 'Save Changes'}
+                </Button>
+            </DialogActions>
+        </Dialog>
+    );
+}
+
+/* ── Delete confirmation dialog ──────────────────────────────────────────── */
+function DeleteDialog({ open, user, onClose, onDeleted }) {
+    const [deleting, setDeleting] = useState(false);
+    const [err, setErr]           = useState(null);
+
+    const handleDelete = async () => {
+        setDeleting(true);
+        setErr(null);
+        try {
+            await adminAPI.deleteClientUser(user.client_user_id);
+            onDeleted();
+            onClose();
+        } catch (e) {
+            setErr(e.response?.data?.message || e.message || 'Failed to deactivate user.');
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth
+            PaperProps={{ sx: { borderRadius: '16px', border: `1px solid ${T.border}` } }}>
+            <DialogTitle sx={{ fontWeight: 800, fontSize: '1rem', color: T.text, pb: 1 }}>
+                Deactivate User?
+            </DialogTitle>
+            <DialogContent>
+                {err && (
+                    <Alert severity="error" sx={{ mb: 2, borderRadius: '10px', fontSize: '0.8rem' }}>{err}</Alert>
+                )}
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mt: 0.5 }}>
+                    <Box sx={{ p: 1, borderRadius: '10px', bgcolor: T.roseSoft, flexShrink: 0 }}>
+                        <WarningIcon sx={{ fontSize: 22, color: T.rose }} />
+                    </Box>
+                    <Box>
+                        <Typography sx={{ fontSize: '0.85rem', color: T.text, fontWeight: 600, mb: 0.5 }}>
+                            {user?.first_name} {user?.last_name}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.8rem', color: T.muted }}>
+                            This will set the account status to <strong>Deactivated</strong> and block the user from logging in.
+                            This action can be reversed by editing the user's status.
+                        </Typography>
+                    </Box>
+                </Box>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+                <Button onClick={onClose} disabled={deleting}
+                    sx={{ borderRadius: '10px', textTransform: 'none', color: T.muted, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem' }}>
+                    Cancel
+                </Button>
+                <Button onClick={handleDelete} disabled={deleting} variant="contained"
+                    sx={{ borderRadius: '10px', textTransform: 'none', bgcolor: T.rose, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem',
+                        boxShadow: 'none', '&:hover': { bgcolor: '#B91C1C', boxShadow: 'none' } }}>
+                    {deleting ? 'Deactivating…' : 'Deactivate'}
+                </Button>
+            </DialogActions>
+        </Dialog>
+    );
+}
+
+/* ── Main component ──────────────────────────────────────────────────────── */
 const ClientUsers = () => {
-    const theme = useTheme();
+    const theme   = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
     const [users, setUsers]               = useState([]);
@@ -55,10 +286,11 @@ const ClientUsers = () => {
     const [searchTerm, setSearchTerm]     = useState('');
     const [page, setPage]                 = useState(0);
     const [rowsPerPage, setRowsPerPage]   = useState(10);
-    const [selectedUser, setSelectedUser] = useState(null);
-    const [modalOpen, setModalOpen]       = useState(false);
     const [selectedRegion, setSelectedRegion] = useState('all');
     const [selectedStatus, setSelectedStatus] = useState('all');
+
+    const [editUser, setEditUser]         = useState(null);
+    const [deleteUser, setDeleteUser]     = useState(null);
 
     const fetchClientUsers = useCallback(async () => {
         try {
@@ -79,23 +311,11 @@ const ClientUsers = () => {
         try {
             setLoading(true);
             const response = await adminAPI.searchUsers(searchTerm);
-            setUsers(response.data.data.users.filter(u => u.user_type === 'client'));
+            setUsers(response.data.data.users.filter(u => u.user_type === 'client' || !u.user_role));
         } catch (err) {
             setError(err.message || 'Search failed');
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleStatusUpdate = async (status, notes) => {
-        if (!selectedUser) return;
-        try {
-            await adminAPI.updateUserStatus(selectedUser.client_user_id, { status, notes });
-            fetchClientUsers();
-            setModalOpen(false);
-            setSelectedUser(null);
-        } catch (err) {
-            setError(err.message || 'Failed to update status');
         }
     };
 
@@ -175,17 +395,14 @@ const ClientUsers = () => {
 
                     {/* Region Filter */}
                     <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 160 } }}>
-                        <Select
-                            value={selectedRegion}
-                            displayEmpty
+                        <Select value={selectedRegion} displayEmpty
                             onChange={e => { setSelectedRegion(e.target.value); setPage(0); }}
                             sx={{ borderRadius: '10px', fontSize: '0.83rem', bgcolor: T.bg,
                                 '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border },
                                 '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.accent },
                                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: T.accent },
                             }}
-                            renderValue={v => v === 'all' ? 'All Regions' : v}
-                        >
+                            renderValue={v => v === 'all' ? 'All Regions' : v}>
                             <MenuItem value="all" sx={{ fontSize: '0.83rem' }}>All Regions</MenuItem>
                             {uniqueRegions.map(r => <MenuItem key={r} value={r} sx={{ fontSize: '0.83rem' }}>{r}</MenuItem>)}
                         </Select>
@@ -193,19 +410,16 @@ const ClientUsers = () => {
 
                     {/* Status Filter */}
                     <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 160 } }}>
-                        <Select
-                            value={selectedStatus}
-                            displayEmpty
+                        <Select value={selectedStatus} displayEmpty
                             onChange={e => { setSelectedStatus(e.target.value); setPage(0); }}
                             sx={{ borderRadius: '10px', fontSize: '0.83rem', bgcolor: T.bg,
                                 '& .MuiOutlinedInput-notchedOutline': { borderColor: T.border },
                                 '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: T.accent },
                                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: T.accent },
                             }}
-                            renderValue={v => v === 'all' ? 'All Statuses' : v}
-                        >
+                            renderValue={v => v === 'all' ? 'All Statuses' : v}>
                             <MenuItem value="all" sx={{ fontSize: '0.83rem' }}>All Statuses</MenuItem>
-                            {['Verified','Pending','Profile_Completed','Rejected'].map(s => (
+                            {['Verified','Pending','Profile_Completed','Rejected','Deactivated'].map(s => (
                                 <MenuItem key={s} value={s} sx={{ fontSize: '0.83rem' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                         <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: STATUS_META[s]?.dot || T.muted }} />
@@ -281,6 +495,7 @@ const ClientUsers = () => {
                                         '&:hover': { bgcolor: T.bg },
                                         transition: 'background-color 0.15s ease',
                                         animation: `fadeUp 0.35s ease-out ${i * 0.03}s both`,
+                                        opacity: user.registration_status === 'Deactivated' ? 0.6 : 1,
                                     }}>
                                         <TableCell sx={{ py: 1.8, borderBottom: `1px solid ${T.border}` }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -316,11 +531,21 @@ const ClientUsers = () => {
                                         </TableCell>
                                         <TableCell sx={{ py: 1.8, borderBottom: `1px solid ${T.border}` }}>
                                             <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                                <IconButton size="small" onClick={() => { setSelectedUser(user); setModalOpen(true); }}
+                                                <IconButton size="small" onClick={() => setEditUser(user)}
+                                                            title="Edit user details"
                                                             sx={{ width: 30, height: 30, borderRadius: '8px', bgcolor: T.amberSoft, color: T.amber, '&:hover': { bgcolor: '#FDE68A' } }}>
                                                     <EditIcon sx={{ fontSize: 15 }} />
                                                 </IconButton>
+                                                <IconButton size="small" onClick={() => setDeleteUser(user)}
+                                                            title="Deactivate user"
+                                                            disabled={user.registration_status === 'Deactivated'}
+                                                            sx={{ width: 30, height: 30, borderRadius: '8px', bgcolor: T.roseSoft, color: T.rose,
+                                                                '&:hover': { bgcolor: '#FECACA' },
+                                                                '&.Mui-disabled': { bgcolor: '#F1F5F9', color: T.muted } }}>
+                                                    <DeleteIcon sx={{ fontSize: 15 }} />
+                                                </IconButton>
                                                 <IconButton size="small" onClick={() => window.location.href = `/client-users/${user.client_user_id}`}
+                                                            title="View full profile"
                                                             sx={{ width: 30, height: 30, borderRadius: '8px', bgcolor: T.accentSoft, color: T.accent, '&:hover': { bgcolor: '#DBEAFE' } }}>
                                                     <ViewIcon sx={{ fontSize: 15 }} />
                                                 </IconButton>
@@ -346,12 +571,19 @@ const ClientUsers = () => {
                 )}
             </Paper>
 
-            {selectedUser && (
-                <StatusUpdateModal open={modalOpen} user={selectedUser}
-                                   onClose={() => { setModalOpen(false); setSelectedUser(null); }}
-                                   onSubmit={handleStatusUpdate}
-                />
-            )}
+            <EditDialog
+                open={!!editUser}
+                user={editUser}
+                onClose={() => setEditUser(null)}
+                onSaved={fetchClientUsers}
+            />
+
+            <DeleteDialog
+                open={!!deleteUser}
+                user={deleteUser}
+                onClose={() => setDeleteUser(null)}
+                onDeleted={fetchClientUsers}
+            />
         </Box>
     );
 };

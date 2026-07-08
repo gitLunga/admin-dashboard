@@ -99,9 +99,9 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
 
     const handleView = useCallback(() => {
         if (!invoiceInfo?.url) return;
-        // ✅ Backend returns full absolute URL now
-        console.log('📂 [DocumentViewer] Opening URL:', invoiceInfo.url);
-        window.open(invoiceInfo.url, '_blank');  // ← No need to prepend API base
+        const apiBase = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://api.malcam.co.za';
+        const fullUrl = invoiceInfo.url.startsWith('http') ? invoiceInfo.url : `${apiBase}${invoiceInfo.url}`;
+        window.open(fullUrl, '_blank');
     }, [invoiceInfo]);
 
 

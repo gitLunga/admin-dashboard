@@ -77,17 +77,18 @@ function DataTable({ columns, rows }) {
 
 // ── Applications tab ──────────────────────────────────────────────────────────
 function ApplicationsReport() {
-    const [data,    setData]    = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [error,   setError]   = useState(null);
-    const [status,  setStatus]  = useState('');
-    const [exporting, setExp]   = useState(false);
+    const [data,      setData]    = useState(null);
+    const [loading,   setLoading] = useState(false);
+    const [error,     setError]   = useState(null);
+    const [exporting, setExp]     = useState(false);
+    const [filters,   setFilters] = useState({ status: '', department_id: '', date_from: '', date_to: '' });
+
+    const buildQs = () => new URLSearchParams(Object.fromEntries(Object.entries(filters).filter(([,v]) => v))).toString();
 
     const load = async () => {
         setLoading(true); setError(null);
         try {
-            const qs  = status ? `status=${status}` : '';
-            const res = await reportsAPI.getApplications(qs);
+            const res = await reportsAPI.getApplications(buildQs());
             setData(res.data.data);
         } catch (e) { setError(e.response?.data?.message || e.message); }
         finally { setLoading(false); }
@@ -96,8 +97,7 @@ function ApplicationsReport() {
     const exportCsv = async () => {
         setExp(true);
         try {
-            const qs  = status ? `status=${status}` : '';
-            const res = await reportsAPI.exportApplications(qs);
+            const res = await reportsAPI.exportApplications(buildQs());
             downloadBlob(res.data, `applications_report_${Date.now()}.csv`);
         } catch (e) { setError('Export failed.'); }
         finally { setExp(false); }
@@ -115,22 +115,38 @@ function ApplicationsReport() {
 
     return (
         <Box>
-            <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
-                <TextField select label="Status Filter" size="small" value={status} onChange={e => setStatus(e.target.value)} sx={{ minWidth: 160 }}>
-                    <MenuItem value="">All Statuses</MenuItem>
-                    {['Pending','Pending_Finance','Approved','Rejected','Cancelled'].map(s => (
-                        <MenuItem key={s} value={s}>{s}</MenuItem>
-                    ))}
-                </TextField>
-                <Button variant="contained" onClick={load} disabled={loading} startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
-                    sx={{ bgcolor: T.accent, '&:hover': { bgcolor: T.accentMid }, borderRadius: '8px', textTransform: 'none', fontWeight: 700 }}>
-                    {loading ? 'Loading…' : 'Generate Report'}
-                </Button>
-                <Button variant="outlined" onClick={exportCsv} disabled={exporting || !data} startIcon={<DownloadIcon />}
-                    sx={{ borderColor: T.accent, color: T.accent, borderRadius: '8px', textTransform: 'none', fontWeight: 700 }}>
-                    {exporting ? 'Exporting…' : 'Export CSV'}
-                </Button>
-            </Box>
+            <Grid container spacing={2} sx={{ mb: 2, alignItems: 'center' }}>
+                <Grid item xs={6} sm={2}>
+                    <TextField select fullWidth label="Status" size="small" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
+                        <MenuItem value="">All</MenuItem>
+                        {['Pending','Pending_Finance','Approved','Rejected','Cancelled'].map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                    </TextField>
+                </Grid>
+                <Grid item xs={6} sm={2}>
+                    <TextField fullWidth size="small" label="Department ID" value={filters.department_id}
+                        onChange={e => setFilters(f => ({ ...f, department_id: e.target.value }))} />
+                </Grid>
+                <Grid item xs={6} sm={2}>
+                    <TextField fullWidth size="small" type="date" label="From" InputLabelProps={{ shrink: true }}
+                        value={filters.date_from} onChange={e => setFilters(f => ({ ...f, date_from: e.target.value }))} />
+                </Grid>
+                <Grid item xs={6} sm={2}>
+                    <TextField fullWidth size="small" type="date" label="To" InputLabelProps={{ shrink: true }}
+                        value={filters.date_to} onChange={e => setFilters(f => ({ ...f, date_to: e.target.value }))} />
+                </Grid>
+                <Grid item xs={12} sm="auto">
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button variant="contained" onClick={load} disabled={loading} startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
+                            sx={{ bgcolor: T.accent, '&:hover': { bgcolor: T.accentMid }, borderRadius: '8px', textTransform: 'none', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            {loading ? 'Loading…' : 'Generate'}
+                        </Button>
+                        <Button variant="outlined" onClick={exportCsv} disabled={exporting || !data} startIcon={<DownloadIcon />}
+                            sx={{ borderColor: T.accent, color: T.accent, borderRadius: '8px', textTransform: 'none', fontWeight: 700 }}>
+                            {exporting ? 'Exporting…' : 'CSV'}
+                        </Button>
+                    </Box>
+                </Grid>
+            </Grid>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
             {data && (
                 <>
@@ -149,15 +165,18 @@ function ApplicationsReport() {
 
 // ── Users tab ─────────────────────────────────────────────────────────────────
 function UsersReport() {
-    const [data, setData]       = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError]     = useState(null);
-    const [exporting, setExp]   = useState(false);
+    const [data,      setData]    = useState(null);
+    const [loading,   setLoading] = useState(false);
+    const [error,     setError]   = useState(null);
+    const [exporting, setExp]     = useState(false);
+    const [filters,   setFilters] = useState({ user_type: '', registration_status: '', region: '' });
+
+    const buildQs = () => new URLSearchParams(Object.fromEntries(Object.entries(filters).filter(([,v]) => v))).toString();
 
     const load = async () => {
         setLoading(true); setError(null);
         try {
-            const res = await reportsAPI.getUsers();
+            const res = await reportsAPI.getUsers(buildQs());
             setData(res.data.data);
         } catch (e) { setError(e.response?.data?.message || e.message); }
         finally { setLoading(false); }
@@ -166,34 +185,55 @@ function UsersReport() {
     const exportCsv = async () => {
         setExp(true);
         try {
-            const res = await reportsAPI.exportUsers();
+            const res = await reportsAPI.exportUsers(buildQs());
             downloadBlob(res.data, `users_report_${Date.now()}.csv`);
         } catch (e) { setError('Export failed.'); }
         finally { setExp(false); }
     };
 
     const COLS = [
-        { key: 'client_user_id', label: 'ID' },
-        { key: 'full_name',      label: 'Name' },
-        { key: 'email',          label: 'Email' },
-        { key: 'user_type',      label: 'Type' },
-        { key: 'department_id',  label: 'Department' },
-        { key: 'region',         label: 'Region' },
-        { key: 'persal_id',      label: 'PERSAL' },
+        { key: 'client_user_id',     label: 'ID' },
+        { key: 'full_name',          label: 'Name' },
+        { key: 'email',              label: 'Email' },
+        { key: 'user_type',          label: 'Type' },
+        { key: 'department_id',      label: 'Department' },
+        { key: 'region',             label: 'Region' },
+        { key: 'persal_id',          label: 'PERSAL' },
+        { key: 'registration_status',label: 'Reg. Status' },
     ];
 
     return (
         <Box>
-            <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-                <Button variant="contained" onClick={load} disabled={loading} startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
-                    sx={{ bgcolor: T.accent, '&:hover': { bgcolor: T.accentMid }, borderRadius: '8px', textTransform: 'none', fontWeight: 700 }}>
-                    {loading ? 'Loading…' : 'Generate Report'}
-                </Button>
-                <Button variant="outlined" onClick={exportCsv} disabled={exporting || !data} startIcon={<DownloadIcon />}
-                    sx={{ borderColor: T.accent, color: T.accent, borderRadius: '8px', textTransform: 'none', fontWeight: 700 }}>
-                    {exporting ? 'Exporting…' : 'Export CSV'}
-                </Button>
-            </Box>
+            <Grid container spacing={2} sx={{ mb: 2, alignItems: 'center' }}>
+                <Grid item xs={6} sm={2}>
+                    <TextField select fullWidth size="small" label="User Type" value={filters.user_type} onChange={e => setFilters(f => ({ ...f, user_type: e.target.value }))}>
+                        <MenuItem value="">All</MenuItem>
+                        {['Permanent','Contract','Casual'].map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                    </TextField>
+                </Grid>
+                <Grid item xs={6} sm={2}>
+                    <TextField select fullWidth size="small" label="Reg. Status" value={filters.registration_status} onChange={e => setFilters(f => ({ ...f, registration_status: e.target.value }))}>
+                        <MenuItem value="">All</MenuItem>
+                        {['Pending','Approved','Rejected','Suspended'].map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                    </TextField>
+                </Grid>
+                <Grid item xs={6} sm={2}>
+                    <TextField fullWidth size="small" label="Region" value={filters.region}
+                        onChange={e => setFilters(f => ({ ...f, region: e.target.value }))} placeholder="e.g. Gauteng" />
+                </Grid>
+                <Grid item xs={12} sm="auto">
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button variant="contained" onClick={load} disabled={loading} startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
+                            sx={{ bgcolor: T.accent, '&:hover': { bgcolor: T.accentMid }, borderRadius: '8px', textTransform: 'none', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            {loading ? 'Loading…' : 'Generate'}
+                        </Button>
+                        <Button variant="outlined" onClick={exportCsv} disabled={exporting || !data} startIcon={<DownloadIcon />}
+                            sx={{ borderColor: T.accent, color: T.accent, borderRadius: '8px', textTransform: 'none', fontWeight: 700 }}>
+                            {exporting ? 'Exporting…' : 'CSV'}
+                        </Button>
+                    </Box>
+                </Grid>
+            </Grid>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
             {data && (
                 <>

@@ -13,6 +13,8 @@ const attachToken = (config) => {
 
 const handle401 = (error) => {
     if (error.response?.status === 401) {
+        const msg = error.response?.data?.message || 'Your session has expired. Please sign in again.';
+        sessionStorage.setItem('auth_flash', JSON.stringify({ type: 'warning', text: msg }));
         localStorage.removeItem('adminToken');
         localStorage.removeItem('adminRefreshToken');
         localStorage.removeItem('adminUser');
@@ -100,6 +102,8 @@ export const adminAPI = {
     getClientUsers:        ()               => api.get('/client-users'),
     getClientUserById:     (id)             => api.get(`/client-users/${id}`),
     updateUserStatus:      (id, data)       => api.patch(`/client-users/${id}/status`, data),
+    updateClientUser:      (id, data)       => api.put(`/client-users/${id}`, data),
+    deleteClientUser:      (id)             => api.delete(`/client-users/${id}`),
 
     // Operational users
     getOperationalUsers:            ()          => api.get('/operational-users'),

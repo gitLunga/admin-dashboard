@@ -527,9 +527,11 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
         setViewerMime('');
         setViewerOpen(true);
         try {
-            const res  = await approverAPI.viewDocument(docId);
-            const url  = res.data?.url  || res.data?.data?.url;
-            const mime = res.data?.mimeType || res.data?.data?.mimeType || 'application/pdf';
+            const res    = await approverAPI.viewDocument(docId);
+            const rawUrl = res.data?.url || res.data?.data?.url;
+            const mime   = res.data?.mimeType || res.data?.data?.mimeType || 'application/pdf';
+            const apiBase = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://api.malcam.co.za';
+            const url = rawUrl?.startsWith('http') ? rawUrl : `${apiBase}${rawUrl}`;
             setViewerUrl(url);
             setViewerMime(mime);
         } catch {

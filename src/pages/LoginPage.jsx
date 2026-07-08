@@ -73,6 +73,16 @@ const LoginPage = () => {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
+        const flash = sessionStorage.getItem('auth_flash');
+        if (flash) {
+            try {
+                const { type, text } = JSON.parse(flash);
+                if (type === 'warning') warning(text, 'Session Ended');
+                else toastError(text, 'Session Ended');
+            } catch (_) {}
+            sessionStorage.removeItem('auth_flash');
+        }
+
         const remembered = localStorage.getItem('remember_email');
         if (remembered) setFormData(prev => ({...prev, email: remembered, rememberMe: true}));
     }, []);

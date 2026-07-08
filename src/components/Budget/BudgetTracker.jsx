@@ -9,7 +9,7 @@ import {
 import {
     Add as AddIcon, Delete as DeleteIcon, Refresh as RefreshIcon,
 } from '@mui/icons-material';
-import { budgetAPI } from '../../services/api';
+import { budgetAPI, adminAPI } from '../../services/api';
 import { T } from '../Layout/Sidebar';
 
 const STATUS_COLOR = {
@@ -41,6 +41,7 @@ function StatusChip({ status }) {
 // ── Upsert dialog ─────────────────────────────────────────────────────────────
 function UpsertBudgetDialog({ open, onClose, onSave }) {
     const [deptId,   setDeptId]   = useState('');
+    const [depts,    setDepts]    = useState([]);
     const [year,     setYear]     = useState(new Date().getFullYear().toString());
     const [ceiling,  setCeiling]  = useState('');
     const [notes,    setNotes]    = useState('');
@@ -48,7 +49,9 @@ function UpsertBudgetDialog({ open, onClose, onSave }) {
     const [error,    setError]    = useState(null);
 
     useEffect(() => {
-        if (open) { setDeptId(''); setYear(new Date().getFullYear().toString()); setCeiling(''); setNotes(''); setError(null); }
+        if (!open) return;
+        setDeptId(''); setYear(new Date().getFullYear().toString()); setCeiling(''); setNotes(''); setError(null);
+        adminAPI.getDepartments().then(res => setDepts(res.data.data || [])).catch(() => {});
     }, [open]);
 
     const save = async () => {
@@ -70,8 +73,15 @@ function UpsertBudgetDialog({ open, onClose, onSave }) {
                 </Typography>
                 <Grid container spacing={2}>
                     <Grid item xs={12}>
-                        <TextField fullWidth size="small" label="Department ID" value={deptId}
-                            onChange={e => setDeptId(e.target.value)} placeholder="e.g. DOJ-CPT-001" />
+                        <TextField select fullWidth size="small" label="Department" value={deptId}
+                            onChange={e => setDeptId(e.target.value)}>
+                            <MenuItem value="">— Select department —</MenuItem>
+                            {depts.map(d => (
+                                <MenuItem key={d.id} value={d.code || d.name}>
+                                    {d.name}{d.code ? ` (${d.code})` : ''}
+                                </MenuItem>
+                            ))}
+                        </TextField>
                     </Grid>
                     <Grid item xs={6}>
                         <TextField fullWidth size="small" label="Fiscal Year" type="number" value={year}

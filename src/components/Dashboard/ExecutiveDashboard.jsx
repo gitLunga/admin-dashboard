@@ -82,7 +82,7 @@ export default function ExecutiveDashboard() {
                 budgetAPI.spend(yr)
                     .then(res => setBudget(res.data.data))
                     .catch(() => {});
-            } catch (e) { setError(e.message); }
+            } catch (e) { setError(e.response?.data?.message || 'Failed to load dashboard data. Please try again.'); }
             finally { setLoading(false); }
         };
         load();

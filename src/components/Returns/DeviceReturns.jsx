@@ -9,7 +9,7 @@ import {
     Refresh as RefreshIcon,
     Add as AddIcon,
 } from '@mui/icons-material';
-import { returnsAPI } from '../../services/api';
+import { returnsAPI, contractsAPI } from '../../services/api';
 import { T } from '../Layout/Sidebar';
 
 const STATUSES = ['Requested', 'Approved', 'Collected', 'Assessed', 'Completed', 'Cancelled'];
@@ -118,10 +118,20 @@ function UpdateStatusDialog({ open, row, onClose, onSave }) {
 
 // ── Initiate return dialog ─────────────────────────────────────────────────────
 function InitiateReturnDialog({ open, onClose, onSave }) {
+    const [contracts,  setContracts]  = useState([]);
     const [contractId, setContractId] = useState('');
+    const [search,     setSearch]     = useState('');
     const [reason,     setReason]     = useState('');
     const [loading,    setLoading]    = useState(false);
     const [error,      setError]      = useState(null);
+
+    useEffect(() => {
+        if (!open) return;
+        setContractId(''); setSearch(''); setReason(''); setError(null);
+        contractsAPI.getList('limit=200').then(res => {
+            setContracts((res.data.data.contracts || []).filter(c => c.contract_id));
+        }).catch(() => {});
+    }, [open]);
 
     const save = async () => {
         setLoading(true); setError(null);
@@ -132,16 +142,46 @@ function InitiateReturnDialog({ open, onClose, onSave }) {
         finally { setLoading(false); }
     };
 
+    const filtered = search
+        ? contracts.filter(c => `${c.first_name} ${c.last_name} ${c.persal_id ?? ''} ${c.device_name ?? ''}`.toLowerCase().includes(search.toLowerCase()))
+        : contracts;
+
+    const selected = contracts.find(c => String(c.contract_id) === String(contractId));
+
     return (
-        <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+        <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
             <DialogTitle sx={{ fontWeight: 700 }}>Initiate Device Return</DialogTitle>
             <DialogContent>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
                 <Grid container spacing={2} sx={{ mt: 0 }}>
                     <Grid item xs={12}>
-                        <TextField fullWidth size="small" label="Contract ID" type="number" value={contractId}
-                            onChange={e => setContractId(e.target.value)} helperText="Find the contract ID from the Contract Management page." />
+                        <TextField fullWidth size="small" label="Search by name, PERSAL or device"
+                            value={search} onChange={e => setSearch(e.target.value)} />
                     </Grid>
+                    <Grid item xs={12}>
+                        <TextField select fullWidth size="small" label="Select Contract" value={contractId}
+                            onChange={e => setContractId(e.target.value)}>
+                            <MenuItem value="">— Select a contract —</MenuItem>
+                            {filtered.map(c => (
+                                <MenuItem key={c.contract_id} value={String(c.contract_id)}>
+                                    {c.first_name} {c.last_name} — {c.persal_id ?? 'No PERSAL'} — {c.device_name ?? 'No device'} (ends {c.contract_end_date ? new Date(c.contract_end_date).toLocaleDateString('en-ZA') : '—'})
+                                </MenuItem>
+                            ))}
+                            {filtered.length === 0 && <MenuItem disabled>No contracts found</MenuItem>}
+                        </TextField>
+                    </Grid>
+                    {selected && (
+                        <Grid item xs={12}>
+                            <Box sx={{ p: 1.5, borderRadius: '8px', bgcolor: T.accentSoft, border: `1px solid ${T.accent}22` }}>
+                                <Typography sx={{ fontSize: '0.8rem', color: T.accent, fontWeight: 600 }}>
+                                    Contract #{selected.contract_id} — {selected.device_name ?? 'No device linked'}
+                                </Typography>
+                                <Typography sx={{ fontSize: '0.75rem', color: T.muted, mt: 0.3 }}>
+                                    IMEI: {selected.imei ?? '—'} · Ends: {selected.contract_end_date ? new Date(selected.contract_end_date).toLocaleDateString('en-ZA') : '—'}
+                                </Typography>
+                            </Box>
+                        </Grid>
+                    )}
                     <Grid item xs={12}>
                         <TextField fullWidth multiline rows={3} size="small" label="Return Reason" value={reason}
                             onChange={e => setReason(e.target.value)} />
