@@ -168,6 +168,8 @@ export const deviceAPI = {
     getApplicationDetails:    (id)           => deviceApi.get(`/applications/admin/applications/${id}`),
     updateApplicationStatus:  (id, data)     => deviceApi.put(`/applications/admin/applications/${id}/status`, data),
     placeOrder:               (id, data)     => deviceApi.post(`/applications/admin/applications/${id}/place-order`, data),
+    dispatchOrder:            (orderId, data) => deviceApi.post(`/applications/admin/orders/${orderId}/dispatch`, data),
+    deliverOrder:             (orderId, data) => deviceApi.post(`/applications/admin/orders/${orderId}/deliver`, data),
 
     // Device catalog
     getAllDevices:             ()             => deviceApi.get('/devices'),

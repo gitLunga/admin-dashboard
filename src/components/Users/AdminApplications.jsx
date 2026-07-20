@@ -16,6 +16,8 @@ import {
     BarChart as ChartIcon,
     Clear as ClearIcon,
     ShoppingCart as OrderIcon,
+    LocalShipping as DispatchIcon,
+    TaskAlt as DeliverIcon,
 } from '@mui/icons-material';
 import {deviceAPI} from '../../services/api';
 import {useNavigate} from 'react-router-dom';
@@ -204,6 +206,181 @@ const PlaceOrderDialog = ({open, application, onClose, onConfirm, submitting}) =
     );
 };
 
+// ── Dispatch Order Dialog ─────────────────────────────────────────────────────
+const DispatchOrderDialog = ({open, application, onClose, onConfirm, submitting}) => {
+    const [form, setForm] = useState({courierName: '', trackingNumber: '', deliveryAddress: '', estimatedDeliveryDate: ''});
+
+    useEffect(() => {
+        if (open) setForm({courierName: '', trackingNumber: '', deliveryAddress: '', estimatedDeliveryDate: ''});
+    }, [open]);
+
+    if (!application) return null;
+    const set = (field) => (e) => setForm(prev => ({...prev, [field]: e.target.value}));
+    const canSubmit = form.deliveryAddress.trim().length > 0;
+
+    return (
+        <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
+                PaperProps={{sx: {borderRadius: '16px', border: `1px solid ${T.border}`, boxShadow: '0 24px 60px rgba(15,31,61,0.14)', bgcolor: T.bg}}}>
+            <DialogTitle sx={{p: 0}}>
+                <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 3, py: 2.2, bgcolor: T.surface, borderBottom: `1px solid ${T.border}`}}>
+                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1.2}}>
+                        <Box sx={{width: 30, height: 30, borderRadius: '9px', bgcolor: T.purpleSoft, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                            <DispatchIcon sx={{fontSize: 16, color: T.purple}}/>
+                        </Box>
+                        <Box>
+                            <Typography sx={{fontWeight: 700, fontSize: '0.95rem', color: T.text}}>Mark Order Dispatched</Typography>
+                            <Typography className="mono" sx={{fontSize: '0.68rem', color: T.muted}}>Order #{application.order_id}</Typography>
+                        </Box>
+                    </Box>
+                    <IconButton onClick={onClose} size="small" disabled={submitting}
+                                sx={{color: T.muted, '&:hover': {bgcolor: T.roseSoft, color: T.rose}}}>
+                        <ClearIcon sx={{fontSize: 17}}/>
+                    </IconButton>
+                </Box>
+            </DialogTitle>
+
+            <DialogContent sx={{p: 3, bgcolor: T.bg}}>
+                <Box sx={{mb: 2.5, px: 2, py: 1.5, borderRadius: '10px', bgcolor: T.purpleSoft, border: `1px solid ${T.purple}33`}}>
+                    <Typography sx={{fontSize: '0.82rem', color: T.purple, fontWeight: 600}}>
+                        This creates the delivery record and notifies the applicant. A delivery address is required.
+                    </Typography>
+                </Box>
+
+                <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                        <Typography sx={{fontSize: '0.72rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.8, mb: 1}}>
+                            Delivery Address *
+                        </Typography>
+                        <TextField fullWidth multiline rows={2} placeholder="Where the device should be delivered"
+                                   value={form.deliveryAddress} onChange={set('deliveryAddress')}
+                                   sx={{'& .MuiOutlinedInput-root': {borderRadius: '10px', bgcolor: T.surface, fontSize: '0.83rem'}}}/>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                        <Typography sx={{fontSize: '0.72rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.8, mb: 1}}>
+                            Courier <span style={{fontWeight: 400, textTransform: 'none'}}>(optional)</span>
+                        </Typography>
+                        <TextField fullWidth placeholder="e.g. Courier Guy" value={form.courierName} onChange={set('courierName')}
+                                   sx={{'& .MuiOutlinedInput-root': {borderRadius: '10px', bgcolor: T.surface, fontSize: '0.83rem'}}}/>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                        <Typography sx={{fontSize: '0.72rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.8, mb: 1}}>
+                            Tracking Number <span style={{fontWeight: 400, textTransform: 'none'}}>(optional)</span>
+                        </Typography>
+                        <TextField fullWidth placeholder="Tracking reference" value={form.trackingNumber} onChange={set('trackingNumber')}
+                                   sx={{'& .MuiOutlinedInput-root': {borderRadius: '10px', bgcolor: T.surface, fontSize: '0.83rem'}}}/>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                        <Typography sx={{fontSize: '0.72rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.8, mb: 1}}>
+                            Est. Delivery Date <span style={{fontWeight: 400, textTransform: 'none'}}>(optional)</span>
+                        </Typography>
+                        <TextField fullWidth type="date" value={form.estimatedDeliveryDate} onChange={set('estimatedDeliveryDate')}
+                                   sx={{'& .MuiOutlinedInput-root': {borderRadius: '10px', bgcolor: T.surface, fontSize: '0.83rem'}}}/>
+                    </Grid>
+                </Grid>
+            </DialogContent>
+
+            <DialogActions sx={{px: 3, py: 2.2, bgcolor: T.surface, borderTop: `1px solid ${T.border}`, gap: 1.5}}>
+                <Button onClick={onClose} disabled={submitting}
+                        sx={{borderRadius: '10px', textTransform: 'none', fontWeight: 600, fontSize: '0.83rem', color: T.muted, border: `1px solid ${T.border}`, bgcolor: T.bg, px: 2.5, '&:hover': {bgcolor: T.border}}}>
+                    Cancel
+                </Button>
+                <Button onClick={() => onConfirm(application.order_id, form)} disabled={submitting || !canSubmit} variant="contained"
+                        sx={{borderRadius: '10px', textTransform: 'none', fontWeight: 700, fontSize: '0.83rem', px: 2.5, boxShadow: 'none',
+                            bgcolor: T.purple, '&:hover': {bgcolor: '#6D28D9'}, '&.Mui-disabled': {bgcolor: T.border, color: T.muted}}}>
+                    {submitting ? 'Dispatching…' : 'Confirm Dispatch'}
+                </Button>
+            </DialogActions>
+        </Dialog>
+    );
+};
+
+// ── Deliver Order Dialog ──────────────────────────────────────────────────────
+const DeliverOrderDialog = ({open, application, onClose, onConfirm, submitting}) => {
+    const [form, setForm] = useState({imei: '', simNumber: '', mtnContractRef: '', billingPlanRef: ''});
+
+    useEffect(() => {
+        if (open) setForm({imei: '', simNumber: '', mtnContractRef: '', billingPlanRef: ''});
+    }, [open]);
+
+    if (!application) return null;
+    const set = (field) => (e) => setForm(prev => ({...prev, [field]: e.target.value}));
+    const canSubmit = form.imei.trim().length > 0 && form.simNumber.trim().length > 0;
+
+    return (
+        <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
+                PaperProps={{sx: {borderRadius: '16px', border: `1px solid ${T.border}`, boxShadow: '0 24px 60px rgba(15,31,61,0.14)', bgcolor: T.bg}}}>
+            <DialogTitle sx={{p: 0}}>
+                <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 3, py: 2.2, bgcolor: T.surface, borderBottom: `1px solid ${T.border}`}}>
+                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1.2}}>
+                        <Box sx={{width: 30, height: 30, borderRadius: '9px', bgcolor: T.greenSoft, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                            <DeliverIcon sx={{fontSize: 16, color: T.green}}/>
+                        </Box>
+                        <Box>
+                            <Typography sx={{fontWeight: 700, fontSize: '0.95rem', color: T.text}}>Mark Order Delivered</Typography>
+                            <Typography className="mono" sx={{fontSize: '0.68rem', color: T.muted}}>Order #{application.order_id}</Typography>
+                        </Box>
+                    </Box>
+                    <IconButton onClick={onClose} size="small" disabled={submitting}
+                                sx={{color: T.muted, '&:hover': {bgcolor: T.roseSoft, color: T.rose}}}>
+                        <ClearIcon sx={{fontSize: 17}}/>
+                    </IconButton>
+                </Box>
+            </DialogTitle>
+
+            <DialogContent sx={{p: 3, bgcolor: T.bg}}>
+                <Box sx={{mb: 2.5, px: 2, py: 1.5, borderRadius: '10px', bgcolor: T.greenSoft, border: `1px solid ${T.green}33`}}>
+                    <Typography sx={{fontSize: '0.82rem', color: T.green, fontWeight: 600}}>
+                        This activates the contract for this device. IMEI and SIM number are required and cannot be reused.
+                    </Typography>
+                </Box>
+
+                <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                        <Typography sx={{fontSize: '0.72rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.8, mb: 1}}>
+                            IMEI *
+                        </Typography>
+                        <TextField fullWidth placeholder="Device IMEI" value={form.imei} onChange={set('imei')}
+                                   sx={{'& .MuiOutlinedInput-root': {borderRadius: '10px', bgcolor: T.surface, fontSize: '0.83rem'}}}/>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                        <Typography sx={{fontSize: '0.72rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.8, mb: 1}}>
+                            SIM Number *
+                        </Typography>
+                        <TextField fullWidth placeholder="SIM number" value={form.simNumber} onChange={set('simNumber')}
+                                   sx={{'& .MuiOutlinedInput-root': {borderRadius: '10px', bgcolor: T.surface, fontSize: '0.83rem'}}}/>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                        <Typography sx={{fontSize: '0.72rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.8, mb: 1}}>
+                            MTN Contract Ref <span style={{fontWeight: 400, textTransform: 'none'}}>(optional)</span>
+                        </Typography>
+                        <TextField fullWidth placeholder="MTN reference" value={form.mtnContractRef} onChange={set('mtnContractRef')}
+                                   sx={{'& .MuiOutlinedInput-root': {borderRadius: '10px', bgcolor: T.surface, fontSize: '0.83rem'}}}/>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                        <Typography sx={{fontSize: '0.72rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.8, mb: 1}}>
+                            Billing Plan Ref <span style={{fontWeight: 400, textTransform: 'none'}}>(optional)</span>
+                        </Typography>
+                        <TextField fullWidth placeholder="Billing plan reference" value={form.billingPlanRef} onChange={set('billingPlanRef')}
+                                   sx={{'& .MuiOutlinedInput-root': {borderRadius: '10px', bgcolor: T.surface, fontSize: '0.83rem'}}}/>
+                    </Grid>
+                </Grid>
+            </DialogContent>
+
+            <DialogActions sx={{px: 3, py: 2.2, bgcolor: T.surface, borderTop: `1px solid ${T.border}`, gap: 1.5}}>
+                <Button onClick={onClose} disabled={submitting}
+                        sx={{borderRadius: '10px', textTransform: 'none', fontWeight: 600, fontSize: '0.83rem', color: T.muted, border: `1px solid ${T.border}`, bgcolor: T.bg, px: 2.5, '&:hover': {bgcolor: T.border}}}>
+                    Cancel
+                </Button>
+                <Button onClick={() => onConfirm(application.order_id, form)} disabled={submitting || !canSubmit} variant="contained"
+                        sx={{borderRadius: '10px', textTransform: 'none', fontWeight: 700, fontSize: '0.83rem', px: 2.5, boxShadow: 'none',
+                            bgcolor: T.green, '&:hover': {bgcolor: '#047857'}, '&.Mui-disabled': {bgcolor: T.border, color: T.muted}}}>
+                    {submitting ? 'Marking Delivered…' : 'Confirm Delivery'}
+                </Button>
+            </DialogActions>
+        </Dialog>
+    );
+};
+
 const getInitials = (app) => {
     const f = app.first_name?.[0] || '';
     const l = app.last_name?.[0] || '';
@@ -228,10 +405,14 @@ const AdminApplications = () => {
     const [statusDialog, setStatusDialog] = useState({open: false, application: null});
     const [detailsDialog, setDetailsDialog] = useState({open: false, application: null});
     const [orderDialog, setOrderDialog] = useState({open: false, application: null});
+    const [dispatchDialog, setDispatchDialog] = useState({open: false, application: null});
+    const [deliverDialog, setDeliverDialog] = useState({open: false, application: null});
     const [anchorEl, setAnchorEl] = useState(null);
     const [selectedApp, setSelectedApp] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [orderSubmitting, setOrderSubmitting] = useState(false);
+    const [dispatchSubmitting, setDispatchSubmitting] = useState(false);
+    const [deliverSubmitting, setDeliverSubmitting] = useState(false);
 
     const fetchApplications = useCallback(async () => {
         try {
@@ -335,6 +516,68 @@ const AdminApplications = () => {
             toastError(msg, 'Order Failed');
         } finally {
             setOrderSubmitting(false);
+        }
+    };
+
+    // ── Dispatch order handler ─────────────────────────────────────────────────
+    const handleDispatchOrder = async (orderId, form) => {
+        setDispatchSubmitting(true);
+        try {
+            const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
+            const staffId = adminUser.op_user_id || adminUser.id;
+
+            if (!staffId) {
+                toastError('Could not determine staff user ID. Please log in again.', 'Auth Error');
+                return;
+            }
+
+            await deviceAPI.dispatchOrder(orderId, {
+                staff_op_user_id: staffId,
+                courier_name: form.courierName || null,
+                tracking_number: form.trackingNumber || null,
+                delivery_address: form.deliveryAddress,
+                estimated_delivery_date: form.estimatedDeliveryDate || null,
+            });
+
+            success(`Order #${orderId} marked as dispatched. The applicant has been notified.`, 'Order Dispatched');
+            setDispatchDialog({open: false, application: null});
+            await fetchApplications();
+        } catch (err) {
+            const msg = err.response?.data?.message || 'Failed to dispatch order';
+            toastError(msg, 'Dispatch Failed');
+        } finally {
+            setDispatchSubmitting(false);
+        }
+    };
+
+    // ── Deliver order handler ──────────────────────────────────────────────────
+    const handleDeliverOrder = async (orderId, form) => {
+        setDeliverSubmitting(true);
+        try {
+            const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
+            const staffId = adminUser.op_user_id || adminUser.id;
+
+            if (!staffId) {
+                toastError('Could not determine staff user ID. Please log in again.', 'Auth Error');
+                return;
+            }
+
+            await deviceAPI.deliverOrder(orderId, {
+                staff_op_user_id: staffId,
+                imei: form.imei,
+                sim_number: form.simNumber,
+                mtn_contract_ref: form.mtnContractRef || null,
+                billing_plan_ref: form.billingPlanRef || null,
+            });
+
+            success(`Order #${orderId} marked as delivered. The contract is now active.`, 'Order Delivered');
+            setDeliverDialog({open: false, application: null});
+            await fetchApplications();
+        } catch (err) {
+            const msg = err.response?.data?.message || 'Failed to mark order as delivered';
+            toastError(msg, 'Delivery Failed');
+        } finally {
+            setDeliverSubmitting(false);
         }
     };
 
@@ -534,11 +777,13 @@ const AdminApplications = () => {
                                                 {/* Status */}
                                                 <TableCell sx={{py: 1.8, borderBottom: `1px solid ${T.border}`}}>
                                                     <StatusChip status={app.application_status}/>
-                                                    {/* Show "Order Placed" badge if order exists */}
+                                                    {/* Show order status badge if order exists */}
                                                     {hasOrder && (
                                                         <Box sx={{mt: 0.5, display: 'inline-flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.3, borderRadius: '12px', bgcolor: T.cyanSoft, border: `1px solid ${T.cyan}33`}}>
                                                             <OrderIcon sx={{fontSize: 10, color: T.cyan}}/>
-                                                            <Typography sx={{fontSize: '0.64rem', fontWeight: 700, color: T.cyan}}>Order Placed</Typography>
+                                                            <Typography sx={{fontSize: '0.64rem', fontWeight: 700, color: T.cyan}}>
+                                                                Order {app.order_status || 'Processing'}
+                                                            </Typography>
                                                         </Box>
                                                     )}
                                                     {app.rejection_reason && app.application_status === 'Rejected' && (
@@ -611,6 +856,26 @@ const AdminApplications = () => {
                                                             </Tooltip>
                                                         )}
 
+                                                        {/* ── Mark Dispatched — only while order is Processing ── */}
+                                                        {hasOrder && app.order_status === 'Processing' && (
+                                                            <Tooltip title="Mark Order Dispatched">
+                                                                <IconButton size="small" onClick={() => setDispatchDialog({open: true, application: app})}
+                                                                            sx={{width: 28, height: 28, borderRadius: '8px', bgcolor: T.purpleSoft, color: T.purple, '&:hover': {bgcolor: '#DDD6FE'}}}>
+                                                                    <DispatchIcon sx={{fontSize: 14}}/>
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        )}
+
+                                                        {/* ── Mark Delivered — only while order is Dispatched ── */}
+                                                        {hasOrder && app.order_status === 'Dispatched' && (
+                                                            <Tooltip title="Mark Order Delivered">
+                                                                <IconButton size="small" onClick={() => setDeliverDialog({open: true, application: app})}
+                                                                            sx={{width: 28, height: 28, borderRadius: '8px', bgcolor: T.greenSoft, color: T.green, '&:hover': {bgcolor: '#A7F3D0'}}}>
+                                                                    <DeliverIcon sx={{fontSize: 14}}/>
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        )}
+
                                                         {/* More */}
                                                         <Tooltip title="More">
                                                             <IconButton size="small" onClick={e => { setAnchorEl(e.currentTarget); setSelectedApp(app); }}
@@ -659,6 +924,20 @@ const AdminApplications = () => {
                 onClose={() => setOrderDialog({open: false, application: null})}
                 onConfirm={handlePlaceOrder}
             />
+            <DispatchOrderDialog
+                open={dispatchDialog.open}
+                application={dispatchDialog.application}
+                submitting={dispatchSubmitting}
+                onClose={() => setDispatchDialog({open: false, application: null})}
+                onConfirm={handleDispatchOrder}
+            />
+            <DeliverOrderDialog
+                open={deliverDialog.open}
+                application={deliverDialog.application}
+                submitting={deliverSubmitting}
+                onClose={() => setDeliverDialog({open: false, application: null})}
+                onConfirm={handleDeliverOrder}
+            />
 
             {/* ── Context Menu ── */}
             <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => { setAnchorEl(null); setSelectedApp(null); }}
@@ -674,6 +953,14 @@ const AdminApplications = () => {
                     selectedApp.application_status === 'Approved' && !selectedApp.order_id && {
                         Icon: OrderIcon, color: T.cyan, label: 'Place MTN Order',
                         action: () => setOrderDialog({open: true, application: selectedApp}),
+                    },
+                    selectedApp.order_id && selectedApp.order_status === 'Processing' && {
+                        Icon: DispatchIcon, color: T.purple, label: 'Mark Dispatched',
+                        action: () => setDispatchDialog({open: true, application: selectedApp}),
+                    },
+                    selectedApp.order_id && selectedApp.order_status === 'Dispatched' && {
+                        Icon: DeliverIcon, color: T.green, label: 'Mark Delivered',
+                        action: () => setDeliverDialog({open: true, application: selectedApp}),
                     },
                 ].filter(Boolean).map((item, i) => item === 'divider'
                     ? <Divider key={i} sx={{borderColor: T.border}}/>
