@@ -77,7 +77,8 @@ const LoginPage = () => {
         if (flash) {
             try {
                 const { type, text } = JSON.parse(flash);
-                if (type === 'warning') warning(text, 'Session Ended');
+                if (type === 'success') success(text, 'Password Updated');
+                else if (type === 'warning') warning(text, 'Session Ended');
                 else toastError(text, 'Session Ended');
             } catch (_) {}
             sessionStorage.removeItem('auth_flash');
@@ -349,21 +350,7 @@ const LoginPage = () => {
                                 color: T.muted,
                                 fontFamily: 'Plus Jakarta Sans, sans-serif'
                             }}>
-                                Need an account?{' '}
-                                <Box component="button" type="button" onClick={() => navigate('/register')}
-                                     sx={{
-                                         border: 'none',
-                                         bgcolor: 'transparent',
-                                         cursor: 'pointer',
-                                         fontFamily: 'Plus Jakarta Sans, sans-serif',
-                                         fontWeight: 700,
-                                         fontSize: '0.82rem',
-                                         color: T.accent,
-                                         p: 0,
-                                         '&:hover': {textDecoration: 'underline'}
-                                     }}>
-                                    Register here
-                                </Box>
+                                Need access? Staff accounts are created by your system administrator.
                             </Typography>
                         </Box>
                     </Box>

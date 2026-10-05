@@ -12,6 +12,11 @@ const attachToken = (config) => {
 };
 
 const handle401 = (error) => {
+    // Signed in with a temporary password: the API only allows changing it until it has been.
+    if (error.response?.status === 403 && error.response?.data?.code === 'PASSWORD_CHANGE_REQUIRED') {
+        window.location.href = '/change-password';
+        return Promise.reject(error);
+    }
     if (error.response?.status === 401) {
         const msg = error.response?.data?.message || 'Your session has expired. Please sign in again.';
         sessionStorage.setItem('auth_flash', JSON.stringify({ type: 'warning', text: msg }));
@@ -82,7 +87,6 @@ authApi.interceptors.request.use(attachToken, (err) => Promise.reject(err));
 // ── Auth API ──────────────────────────────────────────────────────────────────
 export const authAPI = {
     login:               (data)             => authApi.post('/login-operational', data),
-    registerOperational: (data)             => authApi.post('/register-operational', data),
     testConnection:      ()                 => authApi.get('/test'),
     forgotPassword:      (email)            => authApi.post('/forgot-password', { email }),
     resetPassword:       (token, newPw)     => authApi.post('/reset-password', { token, new_password: newPw }),

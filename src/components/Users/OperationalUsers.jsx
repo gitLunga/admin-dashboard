@@ -827,11 +827,7 @@ const OperationalUsers = () => {
                                 border: `1px solid ${T.accent}28`
                             }}>
                                 <Typography sx={{fontSize: '0.72rem', color: T.accent, fontWeight: 600}}>
-                                    ℹ A default password will be auto-generated as{' '}
-                                    <span style={{fontFamily: 'JetBrains Mono, monospace'}}>
-                                        firstnamelastname#123
-                                    </span>
-                                    {' '}and shown once after creation.
+                                    ℹ A random temporary password will be generated and shown once after creation. The user must change it at first sign-in.
                                 </Typography>
                             </Box>
                         )}
@@ -876,7 +872,7 @@ const OperationalUsers = () => {
                                     fontSize: '0.7rem', fontWeight: 700, color: T.green,
                                     textTransform: 'uppercase', letterSpacing: 0.8, mb: 1
                                 }}>
-                                    ✓ User Created — Default Password
+                                    ✓ User Created — Temporary Password
                                 </Typography>
                                 <Box sx={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',

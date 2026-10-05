@@ -12,7 +12,7 @@ import ErrorBoundary from './components/Common/ErrorBoundary';
 import LoginPage from './pages/LoginPage';
 import ForgotPassword from './pages/ForgotPassword';
 import Welcome from './pages/WelcomePage';
-import Register from './pages/RegisterPage';
+import ChangePassword from './pages/ChangePasswordPage';
 
 import Dashboard from './components/Dashboard/Dashboard';
 import UserList from './components/Users/UserList';
@@ -56,7 +56,7 @@ function App() {
                             <Route path="/login" element={<LoginPage/>}/>
                             <Route path="/forgot-password" element={<ForgotPassword/>}/>
                             <Route path="/welcome" element={<Welcome/>}/>
-                            <Route path="/register" element={<Register/>}/>
+                            <Route path="/change-password" element={<ChangePassword/>}/>
 
                             {/* App pages */}
                             <Route
