@@ -7,6 +7,7 @@ import {
     Receipt as ReceiptIcon,
 } from '@mui/icons-material';
 import { adminAPI } from '../../services/api';
+import { resolveServerUrl } from '../../utils/serverUrl';
 
 /* ── Design tokens ── */
 const T = {
@@ -65,11 +66,7 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
             const response = await adminAPI.downloadInvoice(userId);
 
             if (response.data.success && response.data.url) {
-                // ✅ Always point to API server
-                const apiBase = 'https://api.malcam.co.za';
-                const fullUrl = response.data.url.startsWith('http')
-                    ? response.data.url
-                    : `${apiBase}${response.data.url}`;
+                const fullUrl = resolveServerUrl(response.data.url);
 
                 console.log('⬇️ [QuickInvoiceActions] Download URL:', fullUrl);
 
@@ -98,11 +95,7 @@ const QuickInvoiceActions = ({ userId, fileName }) => {
             const response = await adminAPI.viewInvoice(userId);
 
             if (response.data.success && response.data.url) {
-                // ✅ Always point to API server
-                const apiBase = 'https://api.malcam.co.za';
-                const fullUrl = response.data.url.startsWith('http')
-                    ? response.data.url
-                    : `${apiBase}${response.data.url}`;
+                const fullUrl = resolveServerUrl(response.data.url);
 
                 console.log('🔗 [QuickInvoiceActions] Opening URL:', fullUrl);
                 window.open(fullUrl, '_blank');

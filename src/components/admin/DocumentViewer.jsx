@@ -13,6 +13,7 @@ import {
     Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import {adminAPI} from '../../services/api';
+import {resolveServerUrl} from '../../utils/serverUrl';
 
 const T = {
     bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
@@ -111,9 +112,7 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
 
     const handleView = useCallback(() => {
         if (!docInfo?.url) return;
-        const apiBase = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://api.malcam.co.za';
-        const fullUrl = docInfo.url.startsWith('http') ? docInfo.url : `${apiBase}${docInfo.url}`;
-        window.open(fullUrl, '_blank');
+        window.open(resolveServerUrl(docInfo.url), '_blank');
     }, [docInfo]);
 
 
@@ -123,9 +122,8 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
             const response = await adminAPI.downloadDocument(documentId);
             const body = response.data;
             if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
-            // ✅ Always prepend API base — body.url is a relative path like /uploads/documents/...
-            const apiBase =  'https://api.malcam.co.za';
-            const fullUrl = body.url.startsWith('http') ? body.url : `${apiBase}${body.url}`;
+            // body.url is a signed, expiring server-relative link (/api/files/...?exp=&sig=)
+            const fullUrl = resolveServerUrl(body.url);
             console.log('⬇️ [DocumentViewer] Download URL:', fullUrl);
             const link = document.createElement('a');
             link.href = fullUrl;
@@ -400,10 +398,7 @@ const DocumentViewer = ({open, documentId, documentInfo: docMeta, onClose, onSta
                                     overflow: 'auto'
                                 }}>
                                     <img
-                                        src={docInfo.url.startsWith('http')
-                                            ? docInfo.url
-                                            : `https://api.malcam.co.za${docInfo.url}`
-                                        }
+                                        src={resolveServerUrl(docInfo.url)}
                                         alt={docInfo.file_name}
                                         style={{
                                             maxWidth: '100%',
