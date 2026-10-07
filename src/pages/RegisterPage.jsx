@@ -5,7 +5,7 @@ import {Box, Container, Typography, CircularProgress} from '@mui/material';
 import {
     Person as PersonIcon, Email as EmailIcon, Lock as LockIcon,
     Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon,
-    AdminPanelSettings as AdminIcon, Build as StaffIcon,
+    AdminPanelSettings as AdminIcon,
     HowToReg as ApproverIcon, Check as CheckIcon,
     Gavel as ManagerIcon, AccountBalance as FinanceIcon,
     ExpandMore as ExpandMoreIcon,
@@ -40,14 +40,6 @@ const USER_ROLES = [
         Icon: AdminIcon,
         color: T.rose,
         soft: T.roseSoft,
-    },
-    {
-        value: 'MTN_Staff',
-        label: 'MTN Staff',
-        description: 'Device and order management',
-        Icon: StaffIcon,
-        color: T.amber,
-        soft: T.amberSoft,
     },
     {
         // Selecting 'Approver' reveals the sub-role picker below.
@@ -270,7 +262,7 @@ const RegisterPage = () => {
 
     const [formData, setFormData] = useState({
         title: '', firstName: '', lastName: '', email: '',
-        // userRole holds the top-level card selection ('Admin','MTN_Staff','Approver')
+        // userRole holds the top-level card selection ('Admin','Approver')
         userRole: 'Admin',
         // approverSubRole holds 'Manager' or 'Finance' — only used when userRole === 'Approver'
         approverSubRole: '',
@@ -348,7 +340,7 @@ const RegisterPage = () => {
                 first_name: formData.firstName,
                 last_name: formData.lastName,
                 email: formData.email,
-                user_role: resolvedRole,   // 'Manager', 'Finance', 'Admin', or 'MTN_Staff'
+                user_role: resolvedRole,   // 'Manager', 'Finance' or 'Admin'
                 password: formData.password,
             });
             if (response.data.success) {
