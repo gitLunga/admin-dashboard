@@ -44,7 +44,7 @@ function StatCard({ label, value, color = T.accent }) {
 }
 
 // ── Status update dialog ──────────────────────────────────────────────────────
-function UpdateStatusDialog({ open, row, onClose, onSave }) {
+function UpdateStatusDialog({ open, row, onClose, onSave, onStale }) {
     const [status,  setStatus]  = useState('');
     const [grade,   setGrade]   = useState('');
     const [notes,   setNotes]   = useState('');
@@ -52,7 +52,7 @@ function UpdateStatusDialog({ open, row, onClose, onSave }) {
     const [error,   setError]   = useState(null);
 
     useEffect(() => {
-        if (row) { setStatus(row.return_status); setGrade(''); setNotes(''); setError(null); }
+        if (row) { setStatus(STATUSES[STATUSES.indexOf(row.return_status) + 1] || ''); setGrade(''); setNotes(''); setError(null); }
     }, [row]);
 
     const save = async () => {
@@ -62,7 +62,11 @@ function UpdateStatusDialog({ open, row, onClose, onSave }) {
                 status, condition_grade: grade || undefined, condition_notes: notes || undefined,
             });
             onSave();
-        } catch (e) { setError(e.response?.data?.message || e.message); }
+        } catch (e) {
+            setError(e.response?.data?.message || e.message);
+            // 409: the client or another staff member changed this return first, so the row behind is stale
+            if (e.response?.status === 409) onStale?.();
+        }
         finally { setLoading(false); }
     };
 
@@ -81,13 +85,20 @@ function UpdateStatusDialog({ open, row, onClose, onSave }) {
                     <Box sx={{ mb: 2 }}>
                         <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{row.first_name} {row.last_name}</Typography>
                         <Typography sx={{ color: T.muted, fontSize: '0.8rem' }}>{row.device_name} — {row.imei}</Typography>
+                        {row.return_reason && (
+                            <Box sx={{ mt: 1.5, p: 1.5, borderRadius: '8px', bgcolor: T.bg, border: `1px solid ${T.border}` }}>
+                                <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: T.muted, textTransform: 'uppercase', letterSpacing: 0.6, mb: 0.3 }}>
+                                    Reason{row.initiated_by_type === 'Client' ? ' given by the client' : ''}
+                                </Typography>
+                                <Typography sx={{ fontSize: '0.82rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{row.return_reason}</Typography>
+                            </Box>
+                        )}
                     </Box>
                 )}
                 <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
                         <TextField select fullWidth label="New Status" size="small" value={status} onChange={e => setStatus(e.target.value)}>
                             {nextStatuses.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                            <MenuItem value="Cancelled">Cancelled</MenuItem>
                         </TextField>
                     </Grid>
                     {showGrade && (
@@ -101,7 +112,10 @@ function UpdateStatusDialog({ open, row, onClose, onSave }) {
                         </Grid>
                     )}
                     <Grid item xs={12}>
-                        <TextField fullWidth multiline rows={3} label="Notes" size="small" value={notes} onChange={e => setNotes(e.target.value)} />
+                        <TextField fullWidth multiline rows={3} label="Notes" size="small" value={notes} onChange={e => setNotes(e.target.value)}
+                            helperText={row?.visible_to_client
+                                ? 'Shown to the client in their return tracker and notification.'
+                                : 'Internal: this return predates notes being shared with clients, so the client will not see them.'} />
                     </Grid>
                 </Grid>
             </DialogContent>
@@ -312,7 +326,7 @@ export default function DeviceReturns() {
                                     <TableCell sx={{ fontSize: '0.75rem' }}>{r.department_id ?? '—'}</TableCell>
                                     <TableCell sx={{ fontSize: '0.8rem' }}>{r.device_name}</TableCell>
                                     <TableCell sx={{ fontSize: '0.72rem', fontFamily: 'monospace', color: T.muted }}>{r.imei}</TableCell>
-                                    <TableCell sx={{ fontSize: '0.75rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <TableCell title={r.return_reason} sx={{ fontSize: '0.75rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {r.return_reason}
                                     </TableCell>
                                     <TableCell>
@@ -324,6 +338,10 @@ export default function DeviceReturns() {
                                     <TableCell><StatusChip status={r.return_status} /></TableCell>
                                     <TableCell sx={{ fontSize: '0.75rem', color: T.muted, whiteSpace: 'nowrap' }}>
                                         {new Date(r.initiated_at).toLocaleDateString('en-ZA')}
+                                        {r.initiated_by_type === 'Client' && (
+                                            <Chip label="Client request" size="small"
+                                                sx={{ display: 'flex', mt: 0.4, width: 'fit-content', fontSize: '0.62rem', fontWeight: 700, height: 18, bgcolor: T.accentSoft, color: T.accent }} />
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         {!['Completed','Cancelled'].includes(r.return_status) && (
@@ -343,7 +361,8 @@ export default function DeviceReturns() {
                     sx={{ borderTop: `1px solid ${T.border}` }} />
             </Card>
 
-            <UpdateStatusDialog open={!!selected} row={selected} onClose={() => setSelected(null)} onSave={onSaved} />
+            <UpdateStatusDialog open={!!selected} row={selected} onClose={() => setSelected(null)} onSave={onSaved}
+                onStale={() => { loadSummary(); load(page); }} />
             <InitiateReturnDialog open={initDlg} onClose={() => setInitDlg(false)} onSave={onSaved} />
         </Box>
     );
