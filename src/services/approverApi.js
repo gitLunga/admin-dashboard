@@ -87,6 +87,9 @@ export const approverAPI = {
     getUserDocuments: (userId) => approverApi.get(`/client-users/${userId}/documents`),
     viewDocument:     (docId)  => approverApi.get(`/documents/${docId}/view`),
     downloadDocument: (docId)  => approverApi.get(`/documents/${docId}/download`),
+    // Manager marks a document Verified / Rejected (the /admin/... equivalent is Admin-only)
+    updateDocumentStatus: (docId, status, notes = '') =>
+        approverApi.patch(`/documents/${docId}/status`, { status, notes }),
 };
 
 export default approverApi;

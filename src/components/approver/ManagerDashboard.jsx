@@ -41,7 +41,7 @@ import {
     Domain as DeptIcon,
 } from '@mui/icons-material';
 import { approverAPI } from '../../services/approverApi';
-import { adminAPI, profileAPI } from '../../services/api';
+import { profileAPI } from '../../services/api';
 import { useToast } from '../../hooks/useToast';
 
 /* ── Design tokens ── */
@@ -489,6 +489,7 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
     const [view,         setView]         = useState('detail');
     const [documents,    setDocuments]    = useState([]);
     const [docLoading,   setDocLoading]   = useState(false);
+    const [docError,     setDocError]     = useState(false);
     const [docStatus,    setDocStatus]    = useState({});
     const [confirmingAll,setConfirmingAll]= useState(false);
     // document viewer state
@@ -497,24 +498,44 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
     const [viewerDocType,setViewerDocType]= useState('');
     const [viewerMime,   setViewerMime]   = useState('');
 
-    const { success, error: toastError } = useToast();
+    const { success, error: toastError, warning } = useToast();
+
+    // Each request takes a number; a response whose number is no longer the latest is ignored, so a slow
+    // reply for one applicant can never show up (and be confirmed) under another.
+    const docReq    = useRef(0);
+    const viewerReq = useRef(0);
 
     useEffect(() => {
+        docReq.current++; viewerReq.current++;
         if (open) {
             setView('detail'); setNotes(''); setRejReason('');
-            setDocuments([]); setDocStatus({}); setViewerOpen(false);
+            setDocuments([]); setDocStatus({}); setDocLoading(false); setDocError(false); setViewerOpen(false);
         }
-    }, [open]);
+    }, [open, app?.application_id]);
 
     const fetchDocuments = useCallback(async () => {
-        if (!app?.client_user_id) return;
-        setDocLoading(true);
+        if (!app) return;
+        const req = ++docReq.current;
+        setDocLoading(true); setDocError(false);
         try {
-            const res = await approverAPI.getUserDocuments(app.client_user_id);
+            // The queue row carries client_user_id. If it is missing (older backend), look it up
+            // from the application instead of silently showing "No documents found".
+            let clientId = app.client_user_id;
+            if (!clientId) {
+                const detail = await approverAPI.getApplicationDetail(app.application_id);
+                clientId = detail.data?.data?.application?.client_user_id;
+            }
+            if (!clientId) throw new Error('No client id for this application');
+            const res = await approverAPI.getUserDocuments(clientId);
+            if (req !== docReq.current) return;
             setDocuments(res.data?.data?.documents || []);
-        } catch { /* silent */ }
-        finally { setDocLoading(false); }
-    }, [app]);
+        } catch {
+            if (req !== docReq.current) return;
+            setDocError(true);
+            toastError('Could not load the applicant\'s documents.', 'Error');
+        }
+        finally { if (req === docReq.current) setDocLoading(false); }
+    }, [app, toastError]);
 
     useEffect(() => {
         if (view === 'docs') fetchDocuments();
@@ -522,19 +543,23 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
 
     // Opens the fullscreen viewer for a single document
     const handleOpenViewer = async (docId, docType) => {
+        const req = ++viewerReq.current;
         setViewerDocType(docType?.replace(/_/g, ' ') || 'Document');
         setViewerUrl(null);
         setViewerMime('');
         setViewerOpen(true);
         try {
             const res    = await approverAPI.viewDocument(docId);
+            if (req !== viewerReq.current) return;
             const rawUrl = res.data?.url || res.data?.data?.url;
             const mime   = res.data?.mimeType || res.data?.data?.mimeType || 'application/pdf';
-            const apiBase = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://api.malcam.co.za';
+            // Strip only a trailing "/api" (a plain .replace('/api','') hits the first match, which breaks https://api.host/api)
+            const apiBase = (process.env.REACT_APP_API_URL || 'https://api.malcam.co.za/api').replace(/\/api\/?$/, '');
             const url = rawUrl?.startsWith('http') ? rawUrl : `${apiBase}${rawUrl}`;
             setViewerUrl(url);
             setViewerMime(mime);
         } catch {
+            if (req !== viewerReq.current) return;
             toastError('Could not load document.', 'Error');
             setViewerOpen(false);
         }
@@ -542,21 +567,28 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
 
     const handleUpdateDocStatus = async (docId, status) => {
         try {
-            await adminAPI.updateDocumentStatus(docId, status, '');
+            await approverAPI.updateDocumentStatus(docId, status, '');
             setDocStatus(prev => ({ ...prev, [docId]: status }));
-        } catch { toastError('Failed to update document status.', 'Error'); }
+            return true;
+        } catch {
+            toastError('Failed to update document status.', 'Error');
+            return false;
+        }
     };
 
     // Verifies all pending docs in one go, then moves straight to the approve step
     const handleConfirmAllDocs = async () => {
         setConfirmingAll(true);
         try {
-            const pending = documents.filter(d => {
+            const pending = reviewable.filter(d => {
                 const s = docStatus[d.document_id] || d.document_status;
                 return s !== 'Verified' && s !== 'Rejected';
             });
-            await Promise.all(pending.map(d => handleUpdateDocStatus(d.document_id, 'Verified')));
-            success('All documents confirmed valid.', 'Documents Verified');
+            const results = await Promise.all(pending.map(d => handleUpdateDocStatus(d.document_id, 'Verified')));
+            if (results.includes(false)) return;   // an error toast was already shown, stay on the documents view
+            const flagged = reviewable.filter(d => (docStatus[d.document_id] || d.document_status) === 'Rejected').length;
+            if (flagged > 0) warning(`${flagged} document${flagged > 1 ? 's' : ''} flagged invalid ${flagged > 1 ? 'were' : 'was'} left as flagged.`, 'Documents Reviewed');
+            else success('All documents confirmed valid.', 'Documents Verified');
             setView('approve');
         } catch { toastError('Could not confirm documents.', 'Error'); }
         finally { setConfirmingAll(false); }
@@ -564,15 +596,17 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
 
     if (!app) return null;
     const canAct       = app.application_status === 'Pending';
-    const verifiedCount = documents.filter(d => (docStatus[d.document_id] || d.document_status) === 'Verified').length;
-    const allVerified   = documents.length > 0 && verifiedCount === documents.length;
+    // The invoice entry is the client's own file, always "Verified": it is shown but not reviewed or counted.
+    const reviewable    = documents.filter(d => !d.is_invoice);
+    const verifiedCount = reviewable.filter(d => (docStatus[d.document_id] || d.document_status) === 'Verified').length;
+    const allVerified   = reviewable.length > 0 && verifiedCount === reviewable.length;
 
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth
                 PaperProps={{ sx: { borderRadius: '16px', border: `1px solid ${T.border}`, boxShadow: '0 24px 60px rgba(15,31,61,0.14)', bgcolor: T.bg } }}>
 
             <DialogTitle sx={{ p: 0 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 3, py: 2.2, bgcolor: T.surface, borderBottom: `1px solid ${T.border}` }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, px: 3, py: 2.2, bgcolor: T.surface, borderBottom: `1px solid ${T.border}` }}>
                     <Box>
                         <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: T.text }}>Application #{app.application_id}</Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.4 }}>
@@ -663,13 +697,13 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
                                     Tap a card to open the document, then confirm all are valid before approving.
                                 </Typography>
                             </Box>
-                            {documents.length > 0 && (
+                            {reviewable.length > 0 && (
                                 <Box sx={{ px: 1.5, py: 0.5, borderRadius: '8px',
                                     bgcolor: allVerified ? T.greenSoft : T.amberSoft,
                                     border: `1px solid ${allVerified ? T.green : T.amber}28` }}>
                                     <Typography sx={{ fontSize: '0.72rem', fontWeight: 700,
                                         color: allVerified ? T.green : T.amber }}>
-                                        {verifiedCount} / {documents.length} verified
+                                        {verifiedCount} / {reviewable.length} verified
                                     </Typography>
                                 </Box>
                             )}
@@ -678,6 +712,16 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
                         {docLoading ? (
                             <Box sx={{ py: 6, display: 'flex', justifyContent: 'center' }}>
                                 <CircularProgress size={28} sx={{ color: T.accent }} />
+                            </Box>
+                        ) : docError ? (
+                            <Box sx={{ py: 6, textAlign: 'center' }} role="alert">
+                                <DocIcon sx={{ fontSize: 44, color: T.border, mb: 1.5 }} />
+                                <Typography sx={{ fontWeight: 600, color: T.text, mb: 0.5 }}>We couldn't load the documents</Typography>
+                                <Typography sx={{ fontSize: '0.82rem', color: T.muted, mb: 2 }}>Check your connection and try again.</Typography>
+                                <Button onClick={fetchDocuments} variant="outlined" size="small" startIcon={<RefreshIcon sx={{ fontSize: '16px !important' }} />}
+                                        sx={{ borderRadius: '10px', textTransform: 'none', fontFamily: 'Plus Jakarta Sans', fontWeight: 600 }}>
+                                    Try again
+                                </Button>
                             </Box>
                         ) : documents.length === 0 ? (
                             <Box sx={{ py: 6, textAlign: 'center' }}>
@@ -718,6 +762,9 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
                                             }}>
                                                 {/* ── Document card — tap to open viewer ── */}
                                                 <Paper elevation={0} onClick={() => handleOpenViewer(doc.document_id, doc.document_type)}
+                                                       role="button" tabIndex={0}
+                                                       aria-label={`Open ${doc.document_type?.replace(/_/g, ' ')}, ${status}`}
+                                                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenViewer(doc.document_id, doc.document_type); } }}
                                                        sx={{
                                                            p: 2.5, borderRadius: '14px',
                                                            border: `2px solid ${borderCol}`,
@@ -774,7 +821,7 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
                                                 </Paper>
 
                                                 {/* Flag-as-invalid button below the card */}
-                                                {!isRejected && (
+                                                {!isRejected && !doc.is_invoice && (
                                                     <Button size="small" fullWidth
                                                             onClick={e => { e.stopPropagation(); handleUpdateDocStatus(doc.document_id, 'Rejected'); }}
                                                             sx={{ mt: 0.8, borderRadius: '8px', textTransform: 'none', fontFamily: 'Plus Jakarta Sans', fontSize: '0.71rem', fontWeight: 600, color: T.rose, border: `1px solid ${T.rose}33`, '&:hover': { bgcolor: T.roseSoft } }}>
@@ -856,7 +903,7 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
                     <>
                         <Button onClick={onClose} sx={{ color: T.muted, textTransform: 'none', fontFamily: 'Plus Jakarta Sans', borderRadius: '10px' }}>Close</Button>
                         <Box sx={{ flex: 1 }} />
-                        {canAct && documents.length > 0 && !docLoading && (
+                        {canAct && reviewable.length > 0 && !docLoading && (
                             <Button onClick={handleConfirmAllDocs} disabled={confirmingAll} variant="contained"
                                     startIcon={confirmingAll ? <CircularProgress size={14} sx={{ color: '#fff' }} /> : <ApprovedIcon sx={{ fontSize: 16 }} />}
                                     sx={{ borderRadius: '10px', textTransform: 'none', fontFamily: 'Plus Jakarta Sans', fontWeight: 700, fontSize: '0.85rem', px: 2.5,
