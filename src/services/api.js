@@ -92,6 +92,7 @@ export const authAPI = {
     resetPassword:       (token, newPw)     => authApi.post('/reset-password', { token, new_password: newPw }),
     changePassword:      (currentPw, newPw) =>
         authApi.post('/change-password', { current_password: currentPw, new_password: newPw }),
+    exchangeTicket:      (ticket)           => authApi.post('/directory/exchange', { ticket }),
     refresh:             (refreshToken)     => authApi.post('/refresh', { refreshToken }),
     logout:              (refreshToken)     => authApi.post('/logout', { refreshToken }),
 };
@@ -117,6 +118,7 @@ export const adminAPI = {
     deleteOperationalUser:          (id)        => api.delete(`/operational-users/${id}`),
     changeOperationalUserPassword:  (id, data)  =>
         api.patch(`/operational-users/${id}/change-password`, data),
+    syncDirectory:                  (dryRun)    => api.post(`/directory/sync?dryRun=${dryRun ? 'true' : 'false'}`),
     promoteToSuperAdmin:            (id)        => api.patch(`/operational-users/${id}/promote`),
     demoteSuperAdmin:               (id)        => api.patch(`/operational-users/${id}/demote`),
     setGlobalAccess:                (id, val)   => api.patch(`/operational-users/${id}/global-access`, { has_global_access: val }),

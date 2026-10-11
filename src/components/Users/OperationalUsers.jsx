@@ -12,11 +12,14 @@ import {
     Clear as ClearIcon, ManageAccounts as ManageIcon, Close as CloseIcon,
     ContentCopy as CopyIcon, Check as CheckIcon, Lock as LockIcon,
     Warning as WarningIcon, Shield as ShieldIcon, ShieldOutlined as ShieldOutlinedIcon,
+    Sync as SyncIcon,
 } from '@mui/icons-material';
 import {adminAPI} from '../../services/api';
 import {useNavigate} from 'react-router-dom';
 import {USER_ROLES} from '../../utils/constants';
 import {useToast} from '../../hooks/useToast';
+import {useAuthConfig} from '../../hooks/useAuthConfig';
+import DirectorySyncDialog from './DirectorySyncDialog';
 
 const T = {
     bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
@@ -84,6 +87,8 @@ const OperationalUsers = () => {
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const navigate = useNavigate();
     const {success, error: toastError, warning} = useToast();
+    const {config} = useAuthConfig();
+    const [syncOpen, setSyncOpen] = useState(false);
 
     // ─── Permission checks ────────────────────────────────────────────────────
     const currentUser = getCurrentUser();
@@ -409,6 +414,20 @@ const OperationalUsers = () => {
                     </Typography>
                 </Box>
 
+                <Box sx={{display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center'}}>
+                {config.directory && isSuperAdmin && (
+                    <Button variant="outlined"
+                            startIcon={<SyncIcon sx={{fontSize: '16px !important'}}/>}
+                            onClick={() => setSyncOpen(true)}
+                            sx={{
+                                borderRadius: '10px', textTransform: 'none', fontWeight: 700,
+                                fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem',
+                                color: T.accent, borderColor: T.border,
+                                '&:hover': {borderColor: T.accent, bgcolor: T.accentSoft}
+                            }}>
+                        Sync from directory
+                    </Button>
+                )}
                 {isSuperAdmin ? (
                     <Button variant="contained"
                             startIcon={<AddIcon sx={{fontSize: '16px !important'}}/>}
@@ -439,7 +458,10 @@ const OperationalUsers = () => {
                         </Box>
                     </Tooltip>
                 )}
+                </Box>
             </Box>
+
+            <DirectorySyncDialog open={syncOpen} onClose={() => setSyncOpen(false)} onApplied={fetchOperationalUsers}/>
 
             {/* ── Search ─────────────────────────────────────────────────────── */}
             <Paper elevation={0} sx={{
@@ -654,8 +676,8 @@ const OperationalUsers = () => {
                                                         </IconButton>
                                                     </Tooltip>
 
-                                                    {/* Change Password */}
-                                                    {canChangePw ? (
+                                                    {/* Change Password — not offered when the directory owns passwords */}
+                                                    {!config.passwordManagedLocally ? null : canChangePw ? (
                                                         <Tooltip
                                                             title={isOwnRow ? 'Change My Password' : 'Change Password'}>
                                                             <IconButton size="small"
@@ -827,7 +849,9 @@ const OperationalUsers = () => {
                                 border: `1px solid ${T.accent}28`
                             }}>
                                 <Typography sx={{fontSize: '0.72rem', color: T.accent, fontWeight: 600}}>
-                                    ℹ A random temporary password will be generated and shown once after creation. The user must change it at first sign-in.
+                                    {config.directory
+                                        ? 'ℹ No password is created. This person signs in with their organisation account and is matched by email. If they belong to a staff group in the directory, the group decides their role.'
+                                        : 'ℹ A random temporary password will be generated and shown once after creation. The user must change it at first sign-in.'}
                                 </Typography>
                             </Box>
                         )}

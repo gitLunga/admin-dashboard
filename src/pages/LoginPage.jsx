@@ -4,6 +4,9 @@ import {Lock as LockIcon, Visibility, VisibilityOff, Email as EmailIcon} from '@
 import {useNavigate} from 'react-router-dom';
 import {authAPI} from '../services/api';
 import {useToast} from '../hooks/useToast';
+import {useAuthConfig} from '../hooks/useAuthConfig';
+import {microsoftSignInUrl} from '../services/authConfig';
+import {saveSession, homeRouteFor} from '../utils/session';
 import Navbar from '../components/Navigation/Navbar';
 
 const T = {
@@ -63,10 +66,41 @@ const InputRow = ({label, name, type, placeholder, icon: Icon, value, onChange, 
     );
 };
 
+// Shown instead of the password form when the server uses Microsoft Entra ID: the password is typed on
+// Microsoft's own page, never here.
+const MicrosoftSignIn = () => (
+    <Box>
+        <Box component="a" href={microsoftSignInUrl('staff')}
+             sx={{
+                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.2, width: '100%', py: 1.4,
+                 boxSizing: 'border-box', textDecoration: 'none', borderRadius: '12px', border: `1.5px solid ${T.border}`,
+                 bgcolor: T.surface, color: T.text, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
+                 fontSize: '0.9rem', cursor: 'pointer', transition: 'all 0.2s ease',
+                 '&:hover': {borderColor: T.accent, boxShadow: `0 0 0 3px ${T.accentSoft}`},
+             }}>
+            <Box aria-hidden sx={{display: 'grid', gridTemplateColumns: '9px 9px', gap: '2px'}}>
+                <Box sx={{width: 9, height: 9, bgcolor: '#F25022'}}/>
+                <Box sx={{width: 9, height: 9, bgcolor: '#7FBA00'}}/>
+                <Box sx={{width: 9, height: 9, bgcolor: '#00A4EF'}}/>
+                <Box sx={{width: 9, height: 9, bgcolor: '#FFB900'}}/>
+            </Box>
+            Sign in with Microsoft
+        </Box>
+        <Typography sx={{
+            textAlign: 'center', fontSize: '0.78rem', color: T.muted, mt: 2, lineHeight: 1.6,
+            fontFamily: 'Plus Jakarta Sans, sans-serif'
+        }}>
+            Use your organisation account. Your access is set by your administrator.
+        </Typography>
+    </Box>
+);
+
 /* ═══════════════════════════ MAIN PAGE ═══════════════════════════ */
 const LoginPage = () => {
     const navigate = useNavigate();
     const {success, error: toastError, warning} = useToast();
+    const {config} = useAuthConfig();
+    const usesDomainAccount = config.provider === 'ldap';
 
     const [formData, setFormData] = useState({email: '', password: '', rememberMe: false});
     const [showPassword, setShowPassword] = useState(false);
@@ -76,10 +110,10 @@ const LoginPage = () => {
         const flash = sessionStorage.getItem('auth_flash');
         if (flash) {
             try {
-                const { type, text } = JSON.parse(flash);
-                if (type === 'success') success(text, 'Password Updated');
-                else if (type === 'warning') warning(text, 'Session Ended');
-                else toastError(text, 'Session Ended');
+                const { type, text, title } = JSON.parse(flash);
+                if (type === 'success') success(text, title || 'Password Updated');
+                else if (type === 'warning') warning(text, title || 'Session Ended');
+                else toastError(text, title || 'Session Ended');
             } catch (_) {}
             sessionStorage.removeItem('auth_flash');
         }
@@ -96,7 +130,8 @@ const LoginPage = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.email.trim()) {
-            warning('Please enter your email address.', 'Email Required');
+            warning(usesDomainAccount ? 'Please enter your username or email.' : 'Please enter your email address.',
+                usesDomainAccount ? 'Username Required' : 'Email Required');
             return;
         }
         if (!formData.password) {
@@ -108,24 +143,7 @@ const LoginPage = () => {
         try {
             const response = await authAPI.login({email: formData.email, password: formData.password});
             const responseData = response.data?.data || response.data;
-            const { user, accessToken, refreshToken } = responseData;
-
-            if (accessToken)  localStorage.setItem('adminToken',        accessToken);
-            if (refreshToken) localStorage.setItem('adminRefreshToken', refreshToken);
-
-            localStorage.setItem('adminUser', JSON.stringify({
-                id:                   user.op_user_id || user.id,
-                op_user_id:           user.op_user_id,
-                first_name:           user.first_name,
-                last_name:            user.last_name,
-                name:                 user.name || `${user.first_name} ${user.last_name}`.trim(),
-                email:                user.email,
-                user_role:            user.user_role,
-                department_id:        user.department_id    || null,
-                is_super_admin:       user.is_super_admin   ?? false,
-                must_change_password: user.must_change_password ?? false,
-                has_global_access:    user.has_global_access ?? false,
-            }));
+            const user = saveSession(responseData);
 
             if (formData.rememberMe) {
                 localStorage.setItem('remember_email', formData.email);
@@ -142,16 +160,11 @@ const LoginPage = () => {
                 return;
             }
 
-            const route = user.user_role === 'Manager' ? '/manager/dashboard'
-                : user.user_role === 'Finance'  ? '/finance/dashboard'
-                    : '/dashboard';
-
             success(msg, 'Login Successful');
-            setTimeout(() => navigate(route), 900);
-           // setTimeout(() => navigate('/dashboard'), 900);
+            setTimeout(() => navigate(homeRouteFor(user)), 900);
         } catch (err) {
             const status = err.response?.status;
-            const msg = err.response?.data?.message || 'Invalid email or password';
+            const msg = err.response?.data?.message || (usesDomainAccount ? 'Invalid username or password' : 'Invalid email or password');
             if (status === 401) toastError(msg, 'Login Failed');
             else if (status === 404) toastError(msg, 'Account Not Found');
             else if (!err.response) toastError('No response from server. Please check your connection.', 'Connection Error');
@@ -213,10 +226,13 @@ const LoginPage = () => {
                             </Typography>
                         </Box>
 
+                        {config.loginMethod === 'microsoft' ? <MicrosoftSignIn/> : (
                         <Box component="form" onSubmit={handleSubmit} noValidate>
                             <InputRow
-                                label="Email Address" name="email" type="email"
-                                placeholder="Enter your email" icon={EmailIcon}
+                                label={usesDomainAccount ? 'Username or Email' : 'Email Address'} name="email"
+                                type={usesDomainAccount ? 'text' : 'email'}
+                                placeholder={usesDomainAccount ? 'Username, email or DOMAIN\\username' : 'Enter your email'}
+                                icon={EmailIcon}
                                 value={formData.email} onChange={handleChange} disabled={loading}
                             />
 
@@ -289,7 +305,7 @@ const LoginPage = () => {
                                         fontFamily: 'Plus Jakarta Sans, sans-serif'
                                     }}>Remember me</Typography>
                                 </Box>
-                                <Box component="button" type="button" onClick={() => navigate('/forgot-password')}
+                                {config.passwordManagedLocally && <Box component="button" type="button" onClick={() => navigate('/forgot-password')}
                                      sx={{
                                          border: 'none',
                                          bgcolor: 'transparent',
@@ -302,7 +318,7 @@ const LoginPage = () => {
                                          '&:hover': {textDecoration: 'underline'}
                                      }}>
                                     Forgot password?
-                                </Box>
+                                </Box>}
                             </Box>
 
                             {/* Submit */}
@@ -350,9 +366,12 @@ const LoginPage = () => {
                                 color: T.muted,
                                 fontFamily: 'Plus Jakarta Sans, sans-serif'
                             }}>
-                                Need access? Staff accounts are created by your system administrator.
+                                {config.directory
+                                    ? 'Need access? Ask your system administrator to add you to a staff group.'
+                                    : 'Need access? Staff accounts are created by your system administrator.'}
                             </Typography>
                         </Box>
+                        )}
                     </Box>
                 </Box>
             </Container>

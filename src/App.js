@@ -13,6 +13,7 @@ import LoginPage from './pages/LoginPage';
 import ForgotPassword from './pages/ForgotPassword';
 import Welcome from './pages/WelcomePage';
 import ChangePassword from './pages/ChangePasswordPage';
+import AuthCallback from './pages/AuthCallbackPage';
 
 import Dashboard from './components/Dashboard/Dashboard';
 import UserList from './components/Users/UserList';
@@ -57,6 +58,7 @@ function App() {
                             <Route path="/forgot-password" element={<ForgotPassword/>}/>
                             <Route path="/welcome" element={<Welcome/>}/>
                             <Route path="/change-password" element={<ChangePassword/>}/>
+                            <Route path="/auth/callback" element={<AuthCallback/>}/>
 
                             {/* App pages */}
                             <Route

@@ -7,6 +7,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navigation/Navbar';
 import { authAPI } from '../services/api';
+import { useAuthConfig } from '../hooks/useAuthConfig';
+import DirectoryPasswordPage from '../components/Common/DirectoryPasswordNotice';
 
 const T = {
     bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
@@ -42,7 +44,7 @@ const EmailInput = ({ value, onChange, disabled, hasError }) => {
 };
 
 /* ═══════════════════════════ MAIN PAGE ═══════════════════════════ */
-const ForgotPasswordPage = () => {
+const ForgotPasswordForm = () => {
     const navigate = useNavigate();
     const [email,          setEmail]          = useState('');
     const [loading,        setLoading]        = useState(false);
@@ -176,6 +178,13 @@ const ForgotPasswordPage = () => {
             </Container>
         </Box>
     );
+};
+
+// With directory sign-in the organisation owns passwords, so there is nothing to reset here.
+const ForgotPasswordPage = () => {
+    const { config, loaded } = useAuthConfig();
+    if (!loaded) return null;
+    return config.passwordManagedLocally ? <ForgotPasswordForm /> : <DirectoryPasswordPage />;
 };
 
 export default ForgotPasswordPage;
