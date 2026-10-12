@@ -177,6 +177,13 @@ export const deviceAPI = {
 
     // Device catalog
     getAllDevices:             ()             => deviceApi.get('/devices'),
+
+    // Catalogue categories (Mobile Phones, Tablets, Laptops & Computers ...)
+    getCategories:            (includeInactive = false) =>
+        deviceApi.get(`/device-categories${includeInactive ? '?include_inactive=true' : ''}`),
+    createCategory:           (data)         => deviceApi.post('/device-categories', data),
+    updateCategory:           (id, data)     => deviceApi.put(`/device-categories/${id}`, data),
+    deleteCategory:           (id)           => deviceApi.delete(`/device-categories/${id}`),
     getDeviceById:            (id)           => deviceApi.get(`/devices/${id}`),
     createDevice:             (data)         => deviceApi.post('/devices', data),
     updateDevice:             (id, data)     => deviceApi.put(`/devices/${id}`, data),

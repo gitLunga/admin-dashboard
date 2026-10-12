@@ -10,10 +10,11 @@ import {
     Search as SearchIcon, Edit as EditIcon,
     Add as AddIcon, Delete as DeleteIcon,
     Clear as ClearIcon, PhoneAndroid as DeviceIcon, Close as CloseIcon,
-    Refresh as RefreshIcon,
+    Refresh as RefreshIcon, Category as CategoryIcon,
 } from '@mui/icons-material';
 import {deviceAPI} from '../../services/api';
 import {useToast} from '../../hooks/useToast';
+import CategoryManagerDialog from './CategoryManagerDialog';
 
 // ─── Theme tokens — identical to OperationalUsers ────────────────────────────
 const T = {
@@ -63,6 +64,7 @@ const InputField = ({label, name, value, onChange, type = 'text', required, mult
             fullWidth size="small" name={name} value={value} onChange={onChange}
             type={type} required={required} multiline={multiline} rows={rows}
             placeholder={placeholder}
+            inputProps={{'aria-label': label}}
             InputProps={startAdornment ? {startAdornment: <InputAdornment position="start">{startAdornment}</InputAdornment>} : undefined}
             sx={{
                 '& .MuiOutlinedInput-root': {
@@ -100,8 +102,12 @@ const DeviceCatalogManagement = () => {
     const [dialogOpen, setDialogOpen]     = useState(false);
     const [selectedDevice, setSelectedDevice] = useState(null);
     const [submitting, setSubmitting]     = useState(false);
+    const [categories, setCategories]     = useState([]);
+    const [categoryFilter, setCategoryFilter] = useState('all');
+    const [categoriesOpen, setCategoriesOpen] = useState(false);
 
     const [formData, setFormData] = useState({
+        category_id: '',
         device_name: '', model: '', manufacturer: '',
         plan_name: '', plan_details: '', monthly_cost: '',
         contract_duration_months: '', status: 'active',
@@ -112,9 +118,14 @@ const DeviceCatalogManagement = () => {
     const fetchDevices = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await deviceAPI.getAllDevices();
+            const [response, categoryResponse] = await Promise.all([
+                deviceAPI.getAllDevices(),
+                // An older server has no categories: everything below then behaves as before.
+                deviceAPI.getCategories(true).catch(() => null),
+            ]);
             const raw = response.data?.data ?? response.data ?? [];
             setDevices(Array.isArray(raw) ? raw.map(normalizeDevice) : []);
+            setCategories(categoryResponse?.data?.data?.categories || []);
         } catch (err) {
             toastError(err.response?.data?.message || 'Failed to fetch devices', 'Failed to Load');
         } finally {
@@ -128,6 +139,7 @@ const DeviceCatalogManagement = () => {
     const handleOpenDialog = (device = null) => {
         if (device) {
             setFormData({
+                category_id:              device.category_id || '',
                 device_name:              device.device_name || '',
                 model:                    device.model || '',
                 manufacturer:             device.manufacturer || '',
@@ -140,6 +152,8 @@ const DeviceCatalogManagement = () => {
             setSelectedDevice(device);
         } else {
             setFormData({
+                // a new item starts in the category being browsed, else the first one that is switched on
+                category_id: categoryFilter !== 'all' ? categoryFilter : (categories.find(c => c.is_active)?.category_id || ''),
                 device_name: '', model: '', manufacturer: '',
                 plan_name: '', plan_details: '', monthly_cost: '',
                 contract_duration_months: '', status: 'active',
@@ -162,13 +176,18 @@ const DeviceCatalogManagement = () => {
         if (formErrors[name]) setFormErrors(prev => ({...prev, [name]: ''}));
     };
 
+    // A category decides whether its items need a model and manufacturer (phones, laptops) or not (a data package).
+    const selectedCategory = categories.find(c => String(c.category_id) === String(formData.category_id));
+    const needsHardware = selectedCategory ? selectedCategory.requires_hardware_details : true;
+
     // ─── Validation ───────────────────────────────────────────────────────────
     const validateForm = () => {
         const errors = {};
-        if (!formData.device_name?.trim())    errors.device_name    = 'Device name is required';
-        if (!formData.model?.trim())          errors.model          = 'Model is required';
-        if (!formData.manufacturer?.trim())   errors.manufacturer   = 'Manufacturer is required';
+        if (!formData.device_name?.trim())    errors.device_name    = 'Name is required';
+        if (needsHardware && !formData.model?.trim())        errors.model        = 'Model is required for this category';
+        if (needsHardware && !formData.manufacturer?.trim()) errors.manufacturer = 'Manufacturer is required for this category';
         if (!formData.plan_name?.trim())      errors.plan_name      = 'Plan name is required';
+        if (!formData.contract_duration_months) errors.contract_duration_months = 'Choose a contract duration';
         if (!formData.monthly_cost)           errors.monthly_cost   = 'Monthly cost is required';
         if (formData.monthly_cost && isNaN(formData.monthly_cost))
             errors.monthly_cost = 'Must be a valid number';
@@ -186,9 +205,10 @@ const DeviceCatalogManagement = () => {
         if (!validateForm()) return;
 
         const payload = {
+            ...(formData.category_id ? {category_id: parseInt(formData.category_id, 10)} : {}),
             device_name:              formData.device_name.trim(),
-            model:                    formData.model.trim(),
-            manufacturer:             formData.manufacturer.trim(),
+            model:                    formData.model.trim() || null,
+            manufacturer:             formData.manufacturer.trim() || null,
             plan_name:                formData.plan_name.trim(),
             plan_details:             formData.plan_details?.trim() || null,
             monthly_cost:             parseFloat(formData.monthly_cost),
@@ -236,12 +256,15 @@ const DeviceCatalogManagement = () => {
     };
 
     // ─── Filtered list ────────────────────────────────────────────────────────
-    const filteredDevices = devices.filter(d =>
-        d.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.manufacturer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.plan_name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredDevices = devices
+        .filter(d => categoryFilter === 'all' || String(d.category_id) === String(categoryFilter))
+        .filter(d =>
+            d.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            d.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            d.manufacturer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            d.plan_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            d.category_name?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
 
     // ─── Loading state ────────────────────────────────────────────────────────
     if (loading && devices.length === 0) return (
@@ -268,13 +291,28 @@ const DeviceCatalogManagement = () => {
                             fontSize: {xs: '1.25rem', md: '1.6rem'},
                             fontWeight: 800, color: T.text, letterSpacing: '-0.3px'
                         }}>
-                            Device Catalog
+                            Catalogue
                         </Typography>
                     </Box>
                     <Typography sx={{fontSize: '0.78rem', color: T.muted, ml: 0.5}}>
-                        Manage devices available to clients
+                        Manage the devices and services available to clients
                     </Typography>
                 </Box>
+                <Box sx={{display: 'flex', gap: 1, flexWrap: 'wrap'}}>
+                {categories.length > 0 && (
+                    <Button
+                        variant="outlined"
+                        startIcon={<CategoryIcon sx={{fontSize: '16px !important'}}/>}
+                        onClick={() => setCategoriesOpen(true)}
+                        sx={{
+                            borderRadius: '10px', textTransform: 'none', fontWeight: 700,
+                            fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem',
+                            color: T.accent, borderColor: T.border,
+                            '&:hover': {borderColor: T.accent, bgcolor: T.accentSoft}
+                        }}>
+                        Manage categories
+                    </Button>
+                )}
                 <Button
                     variant="contained"
                     startIcon={<AddIcon sx={{fontSize: '16px !important'}}/>}
@@ -285,9 +323,32 @@ const DeviceCatalogManagement = () => {
                         bgcolor: T.accent, boxShadow: 'none',
                         '&:hover': {bgcolor: '#1641B8', boxShadow: `0 4px 14px ${T.accent}44`}
                     }}>
-                    Add Device
+                    Add Item
                 </Button>
+                </Box>
             </Box>
+
+            {/* Category filter */}
+            {categories.length > 0 && (
+                <Box role="tablist" aria-label="Categories"
+                     sx={{display: 'flex', gap: 0.8, mb: 2, overflowX: 'auto', pb: 0.5}}>
+                    {[{category_id: 'all', name: 'All', total_items: devices.length}, ...categories].map(c => {
+                        const active = String(categoryFilter) === String(c.category_id);
+                        return (
+                            <Chip key={c.category_id} role="tab" aria-selected={active}
+                                  label={`${c.name} ${c.total_items}`}
+                                  onClick={() => {setCategoryFilter(c.category_id); setPage(0);}}
+                                  sx={{
+                                      fontWeight: 700, fontSize: '0.76rem', flexShrink: 0,
+                                      bgcolor: active ? T.text : T.surface, color: active ? '#fff' : (c.is_active === false ? T.muted : T.text),
+                                      border: `1px solid ${active ? T.text : T.border}`,
+                                      fontStyle: c.is_active === false ? 'italic' : 'normal',
+                                      '&:hover': {bgcolor: active ? T.text : T.accentSoft}
+                                  }}/>
+                        );
+                    })}
+                </Box>
+            )}
 
             {/* Search bar */}
             <Paper elevation={0} sx={{
@@ -305,7 +366,7 @@ const DeviceCatalogManagement = () => {
                     }}>
                         <SearchIcon sx={{fontSize: 16, color: T.muted, flexShrink: 0}}/>
                         <input
-                            placeholder="Search by name, model, manufacturer…"
+                            placeholder="Search by name, category, model, manufacturer…"
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             style={{
@@ -322,7 +383,7 @@ const DeviceCatalogManagement = () => {
                         )}
                     </Box>
                     <Chip
-                        label={`${filteredDevices.length} device${filteredDevices.length !== 1 ? 's' : ''}`}
+                        label={`${filteredDevices.length} item${filteredDevices.length !== 1 ? 's' : ''}`}
                         size="small"
                         sx={{
                             height: 28, fontSize: '0.75rem', fontWeight: 700,
@@ -349,7 +410,8 @@ const DeviceCatalogManagement = () => {
                         <TableHead>
                             <TableRow sx={{bgcolor: T.bg}}>
                                 {[
-                                    'Device',
+                                    'Item',
+                                    categories.length > 0 && 'Category',
                                     !isMobile && 'Manufacturer',
                                     !isMobile && 'Plan',
                                     'Monthly Cost',
@@ -389,9 +451,11 @@ const DeviceCatalogManagement = () => {
                                                     <Typography sx={{fontSize: '0.83rem', fontWeight: 600, color: T.text}}>
                                                         {device.device_name}
                                                     </Typography>
-                                                    <Typography className="mono" sx={{fontSize: '0.67rem', color: T.muted}}>
-                                                        {device.model}
-                                                    </Typography>
+                                                    {device.model && (
+                                                        <Typography className="mono" sx={{fontSize: '0.67rem', color: T.muted}}>
+                                                            {device.model}
+                                                        </Typography>
+                                                    )}
                                                     {isMobile && (
                                                         <Typography sx={{fontSize: '0.71rem', color: T.muted, mt: 0.2}}>
                                                             {device.manufacturer}
@@ -401,11 +465,19 @@ const DeviceCatalogManagement = () => {
                                             </Box>
                                         </TableCell>
 
+                                        {/* Category */}
+                                        {categories.length > 0 && (
+                                            <TableCell sx={{py: 1.8, borderBottom: `1px solid ${T.border}`}}>
+                                                <Chip size="small" label={device.category_name || '—'}
+                                                      sx={{height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: T.accentSoft, color: T.accent}}/>
+                                            </TableCell>
+                                        )}
+
                                         {/* Manufacturer */}
                                         {!isMobile && (
                                             <TableCell sx={{py: 1.8, borderBottom: `1px solid ${T.border}`}}>
                                                 <Typography sx={{fontSize: '0.8rem', color: T.text}}>
-                                                    {device.manufacturer}
+                                                    {device.manufacturer || '—'}
                                                 </Typography>
                                             </TableCell>
                                         )}
@@ -482,10 +554,10 @@ const DeviceCatalogManagement = () => {
 
                             {filteredDevices.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={7} sx={{py: 7, textAlign: 'center', borderBottom: 'none'}}>
+                                    <TableCell colSpan={8} sx={{py: 7, textAlign: 'center', borderBottom: 'none'}}>
                                         <DeviceIcon sx={{fontSize: 44, color: T.border, mb: 1.5}}/>
                                         <Typography sx={{fontSize: '0.88rem', fontWeight: 600, color: T.muted}}>
-                                            {searchTerm ? 'No devices match your search' : 'No devices found'}
+                                            {searchTerm ? 'Nothing matches your search' : categoryFilter !== 'all' ? 'Nothing in this category yet' : 'Nothing found'}
                                         </Typography>
                                     </TableCell>
                                 </TableRow>
@@ -529,7 +601,7 @@ const DeviceCatalogManagement = () => {
                                     : <AddIcon  sx={{fontSize: 15, color: T.accent}}/>}
                             </Box>
                             <Typography sx={{fontWeight: 700, fontSize: '0.95rem', color: T.text}}>
-                                {selectedDevice ? 'Edit Device' : 'Add New Device'}
+                                {selectedDevice ? 'Edit Item' : 'Add New Item'}
                             </Typography>
                         </Box>
                         <Button onClick={handleCloseDialog} sx={{
@@ -544,10 +616,45 @@ const DeviceCatalogManagement = () => {
                 <DialogContent sx={{p: 3, bgcolor: T.bg}}>
                     <Box sx={{display: 'flex', flexDirection: 'column', gap: 2}}>
 
+                        {/* Category */}
+                        {categories.length > 0 && (
+                            <Box>
+                                <Typography sx={{
+                                    fontSize: '0.7rem', fontWeight: 700, color: T.muted,
+                                    textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.8
+                                }}>
+                                    Category <span style={{color: T.rose}}> *</span>
+                                </Typography>
+                                <Select
+                                    name="category_id" value={formData.category_id}
+                                    onChange={handleFormChange} fullWidth size="small"
+                                    inputProps={{'aria-label': 'Category'}}
+                                    sx={{
+                                        borderRadius: '10px', bgcolor: T.bg, fontSize: '0.85rem',
+                                        '& .MuiOutlinedInput-notchedOutline': {borderColor: T.border},
+                                        '&:hover .MuiOutlinedInput-notchedOutline': {borderColor: T.accent},
+                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {borderColor: T.accent}
+                                    }}>
+                                    {categories
+                                        .filter(c => c.is_active || c.category_id === selectedDevice?.category_id)
+                                        .map(c => (
+                                            <MenuItem key={c.category_id} value={c.category_id} sx={{fontSize: '0.85rem'}}>
+                                                {c.name}{c.is_active ? '' : ' (hidden)'}
+                                            </MenuItem>
+                                        ))}
+                                </Select>
+                                {!needsHardware && (
+                                    <Typography sx={{fontSize: '0.7rem', color: T.muted, mt: 0.6}}>
+                                        Model and manufacturer are optional in this category.
+                                    </Typography>
+                                )}
+                            </Box>
+                        )}
+
                         {/* Device name + Model */}
                         <Box sx={{display: 'flex', gap: 1.5, flexWrap: {xs: 'wrap', sm: 'nowrap'}}}>
                             <Box sx={{flex: 1}}>
-                                <InputField label="Device Name" name="device_name"
+                                <InputField label="Name" name="device_name"
                                             value={formData.device_name} onChange={handleFormChange} required/>
                                 {formErrors.device_name && (
                                     <Typography sx={{fontSize: '0.7rem', color: T.rose, mt: 0.5}}>
@@ -557,7 +664,7 @@ const DeviceCatalogManagement = () => {
                             </Box>
                             <Box sx={{flex: 1}}>
                                 <InputField label="Model" name="model"
-                                            value={formData.model} onChange={handleFormChange} required/>
+                                            value={formData.model} onChange={handleFormChange} required={needsHardware}/>
                                 {formErrors.model && (
                                     <Typography sx={{fontSize: '0.7rem', color: T.rose, mt: 0.5}}>
                                         {formErrors.model}
@@ -570,7 +677,7 @@ const DeviceCatalogManagement = () => {
                         <Box sx={{display: 'flex', gap: 1.5, flexWrap: {xs: 'wrap', sm: 'nowrap'}}}>
                             <Box sx={{flex: 1}}>
                                 <InputField label="Manufacturer" name="manufacturer"
-                                            value={formData.manufacturer} onChange={handleFormChange} required/>
+                                            value={formData.manufacturer} onChange={handleFormChange} required={needsHardware}/>
                                 {formErrors.manufacturer && (
                                     <Typography sx={{fontSize: '0.7rem', color: T.rose, mt: 0.5}}>
                                         {formErrors.manufacturer}
@@ -610,25 +717,29 @@ const DeviceCatalogManagement = () => {
                                     fontSize: '0.7rem', fontWeight: 700, color: T.muted,
                                     textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.8
                                 }}>
-                                    Contract Duration
+                                    Contract Duration <span style={{color: T.rose}}> *</span>
                                 </Typography>
                                 <Select
                                     name="contract_duration_months"
                                     value={formData.contract_duration_months}
                                     onChange={handleFormChange}
                                     displayEmpty fullWidth size="small"
-                                    renderValue={(v) => v ? `${v} Months` : <em style={{color: T.muted}}>No contract</em>}
+                                    renderValue={(v) => v ? `${v} Months` : <em style={{color: T.muted}}>Choose…</em>}
                                     sx={{
                                         borderRadius: '10px', bgcolor: T.bg, fontSize: '0.85rem',
                                         '& .MuiOutlinedInput-notchedOutline': {borderColor: T.border},
                                         '&:hover .MuiOutlinedInput-notchedOutline': {borderColor: T.accent},
                                         '&.Mui-focused .MuiOutlinedInput-notchedOutline': {borderColor: T.accent}
                                     }}>
-                                    <MenuItem value=""><em>No contract</em></MenuItem>
                                     <MenuItem value={12}>12 Months</MenuItem>
                                     <MenuItem value={24}>24 Months</MenuItem>
                                     <MenuItem value={36}>36 Months</MenuItem>
                                 </Select>
+                                {formErrors.contract_duration_months && (
+                                    <Typography sx={{fontSize: '0.7rem', color: T.rose, mt: 0.5}}>
+                                        {formErrors.contract_duration_months}
+                                    </Typography>
+                                )}
                             </Box>
                         </Box>
 
@@ -686,10 +797,13 @@ const DeviceCatalogManagement = () => {
                                 '&:hover': {bgcolor: '#1641B8', boxShadow: `0 4px 14px ${T.accent}44`},
                                 '&.Mui-disabled': {bgcolor: T.border, color: T.muted}
                             }}>
-                        {submitting ? 'Saving…' : selectedDevice ? 'Save Changes' : 'Add Device'}
+                        {submitting ? 'Saving…' : selectedDevice ? 'Save Changes' : 'Add Item'}
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            <CategoryManagerDialog open={categoriesOpen} categories={categories}
+                                   onClose={() => setCategoriesOpen(false)} onChanged={fetchDevices}/>
         </Box>
     );
 };

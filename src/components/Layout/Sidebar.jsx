@@ -69,7 +69,7 @@ const menuItems = [
     { text: 'Search Users',      icon: <SearchIcon />,       path: '/search' },
 
     // ── Devices & Contracts ───────────────────────────────────────────────────
-    { text: 'Device Management', icon: <PhoneAndroidIcon />, path: '/admin/devices' },
+    { text: 'Catalogue', icon: <PhoneAndroidIcon />, path: '/admin/devices' },
     { text: 'Contracts',         icon: <ContractIcon />,     path: '/contracts' },
     { text: 'Device Returns',    icon: <ReturnIcon />,       path: '/returns' },
 
