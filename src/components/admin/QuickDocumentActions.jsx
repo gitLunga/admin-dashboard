@@ -6,6 +6,7 @@ import {
     Visibility as ViewIcon,
 } from '@mui/icons-material';
 import {adminAPI} from '../../services/api';
+import {resolveServerUrl} from '../../utils/serverUrl';
 import DocumentViewer from './DocumentViewer';
 import InvoiceViewer from './InvoiceViewer';
 
@@ -105,9 +106,8 @@ const QuickDocumentActions = ({documentId, fileName, documentType, documentStatu
             const body = response.data;
             if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
 
-            // ✅ Always point to API server — body.url is /uploads/... relative path
-            const apiBase = 'https://api.malcam.co.za';
-            const fullUrl = body.url.startsWith('http') ? body.url : `${apiBase}${body.url}`;
+            // body.url is a signed, expiring server-relative link (/api/files/...?exp=&sig=)
+            const fullUrl = resolveServerUrl(body.url);
 
             console.log('⬇️ [QuickDocumentActions] Download URL:', fullUrl);
 

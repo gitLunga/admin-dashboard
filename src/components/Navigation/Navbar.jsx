@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Box, Container, Typography } from '@mui/material';
 import { Gavel as GavelIcon } from '@mui/icons-material';
 import logoImage from '../../assets/logo.png';
+import { useAuthConfig } from '../../hooks/useAuthConfig';
 
 /* ── Design tokens ── */
 const T = {
@@ -14,12 +15,14 @@ const T = {
 const NAV_LINKS = [
     { label: 'Home',           path: '/'                },
     { label: 'Login',          path: '/login'           },
-    { label: 'Register',       path: '/register'        },
     { label: 'Reset Password', path: '/forgot-password' },
 ];
 
 const Navbar = () => {
     const location = useLocation();
+    const { config } = useAuthConfig();
+    // With directory sign-in the organisation owns passwords, so there is nothing to reset here.
+    const links = NAV_LINKS.filter(({ path }) => path !== '/forgot-password' || config.passwordManagedLocally);
 
     return (
         <Box
@@ -90,7 +93,7 @@ const Navbar = () => {
 
                     {/* ── Nav links ── */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        {NAV_LINKS.map(({ label, path }) => {
+                        {links.map(({ label, path }) => {
                             const active   = location.pathname === path;
                             const isAction = label === 'Register';
                             return (

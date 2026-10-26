@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAuthConfig } from '../../hooks/useAuthConfig';
+import { DirectoryPasswordCard } from '../Common/DirectoryPasswordNotice';
 import {
     Box, Typography, Paper, Grid, Avatar, Divider,
     CircularProgress, IconButton, Tooltip,
@@ -271,6 +273,7 @@ function PersonalInfoTab({ profile, onSaved }) {
 
 /* ── Security tab ────────────────────────────────────────────────── */
 function SecurityTab() {
+    const { config } = useAuthConfig();
     const { success, error: toastErr } = useToast();
     const [form,    setForm]    = useState({ current: '', newPw: '', confirm: '' });
     const [saving,  setSaving]  = useState(false);
@@ -296,6 +299,16 @@ function SecurityTab() {
             setSaving(false);
         }
     };
+
+    if (!config.passwordManagedLocally) {
+        return (
+            <Box>
+                <Typography sx={{ fontWeight: 800, fontSize: '1.05rem', color: T.text, mb: 0.4 }}>Security Settings</Typography>
+                <Typography sx={{ fontSize: '0.76rem', color: T.muted, mb: 3 }}>How you sign in</Typography>
+                <Box sx={{ maxWidth: 480 }}><DirectoryPasswordCard /></Box>
+            </Box>
+        );
+    }
 
     return (
         <Box>

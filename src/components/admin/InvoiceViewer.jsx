@@ -10,6 +10,7 @@ import {
     OpenInNew as OpenInNewIcon,
 } from '@mui/icons-material';
 import {adminAPI} from '../../services/api';
+import {resolveServerUrl} from '../../utils/serverUrl';
 
 const T = {
     bg: '#F8F9FC', surface: '#FFFFFF', border: '#E8ECF4',
@@ -99,9 +100,7 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
 
     const handleView = useCallback(() => {
         if (!invoiceInfo?.url) return;
-        const apiBase = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://api.malcam.co.za';
-        const fullUrl = invoiceInfo.url.startsWith('http') ? invoiceInfo.url : `${apiBase}${invoiceInfo.url}`;
-        window.open(fullUrl, '_blank');
+        window.open(resolveServerUrl(invoiceInfo.url), '_blank');
     }, [invoiceInfo]);
 
 
@@ -111,9 +110,8 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
             const response = await adminAPI.downloadInvoice(userId);
             const body = response.data;
             if (!body?.success || !body?.url) throw new Error('Failed to get download URL');
-            // ✅ Always prepend API base — body.url is a relative path like /uploads/invoices/...
-            const apiBase = 'https://api.malcam.co.za';
-            const fullUrl = body.url.startsWith('http') ? body.url : `${apiBase}${body.url}`;
+            // body.url is a signed, expiring server-relative link (/api/files/...?exp=&sig=)
+            const fullUrl = resolveServerUrl(body.url);
             console.log('⬇️ [InvoiceViewer] Download URL:', fullUrl);
             const link = document.createElement('a');
             link.href = fullUrl;
@@ -313,10 +311,7 @@ const InvoiceViewer = ({open, userId, userName, onClose}) => {
                                     overflow: 'auto'
                                 }}>
                                     <img
-                                        src={invoiceInfo.url.startsWith('http')
-                                            ? invoiceInfo.url
-                                            : `https://api.malcam.co.za${invoiceInfo.url}`
-                                        }
+                                        src={resolveServerUrl(invoiceInfo.url)}
                                         alt={invoiceInfo.file_name}
                                         style={{
                                             maxWidth: '100%',

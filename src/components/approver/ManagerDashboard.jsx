@@ -42,6 +42,7 @@ import {
 } from '@mui/icons-material';
 import { approverAPI } from '../../services/approverApi';
 import { adminAPI, profileAPI } from '../../services/api';
+import { resolveServerUrl } from '../../utils/serverUrl';
 import { useToast } from '../../hooks/useToast';
 
 /* ── Design tokens ── */
@@ -530,8 +531,8 @@ const AppDetailDialog = ({ open, app, onClose, onApprove, onReject, submitting }
             const res    = await approverAPI.viewDocument(docId);
             const rawUrl = res.data?.url || res.data?.data?.url;
             const mime   = res.data?.mimeType || res.data?.data?.mimeType || 'application/pdf';
-            const apiBase = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://api.malcam.co.za';
-            const url = rawUrl?.startsWith('http') ? rawUrl : `${apiBase}${rawUrl}`;
+            const url = resolveServerUrl(rawUrl);
+            if (!url) throw new Error('No document URL returned');
             setViewerUrl(url);
             setViewerMime(mime);
         } catch {

@@ -12,6 +12,11 @@ const attachToken = (config) => {
 };
 
 const handle401 = (error) => {
+    // Signed in with a temporary password: the API only allows changing it until it has been.
+    if (error.response?.status === 403 && error.response?.data?.code === 'PASSWORD_CHANGE_REQUIRED') {
+        window.location.href = '/change-password';
+        return Promise.reject(error);
+    }
     if (error.response?.status === 401) {
         const msg = error.response?.data?.message || 'Your session has expired. Please sign in again.';
         sessionStorage.setItem('auth_flash', JSON.stringify({ type: 'warning', text: msg }));
@@ -82,12 +87,12 @@ authApi.interceptors.request.use(attachToken, (err) => Promise.reject(err));
 // ── Auth API ──────────────────────────────────────────────────────────────────
 export const authAPI = {
     login:               (data)             => authApi.post('/login-operational', data),
-    registerOperational: (data)             => authApi.post('/register-operational', data),
     testConnection:      ()                 => authApi.get('/test'),
     forgotPassword:      (email)            => authApi.post('/forgot-password', { email }),
     resetPassword:       (token, newPw)     => authApi.post('/reset-password', { token, new_password: newPw }),
     changePassword:      (currentPw, newPw) =>
         authApi.post('/change-password', { current_password: currentPw, new_password: newPw }),
+    exchangeTicket:      (ticket)           => authApi.post('/directory/exchange', { ticket }),
     refresh:             (refreshToken)     => authApi.post('/refresh', { refreshToken }),
     logout:              (refreshToken)     => authApi.post('/logout', { refreshToken }),
 };
@@ -113,6 +118,7 @@ export const adminAPI = {
     deleteOperationalUser:          (id)        => api.delete(`/operational-users/${id}`),
     changeOperationalUserPassword:  (id, data)  =>
         api.patch(`/operational-users/${id}/change-password`, data),
+    syncDirectory:                  (dryRun)    => api.post(`/directory/sync?dryRun=${dryRun ? 'true' : 'false'}`),
     promoteToSuperAdmin:            (id)        => api.patch(`/operational-users/${id}/promote`),
     demoteSuperAdmin:               (id)        => api.patch(`/operational-users/${id}/demote`),
     setGlobalAccess:                (id, val)   => api.patch(`/operational-users/${id}/global-access`, { has_global_access: val }),
@@ -171,6 +177,13 @@ export const deviceAPI = {
 
     // Device catalog
     getAllDevices:             ()             => deviceApi.get('/devices'),
+
+    // Catalogue categories (Mobile Phones, Tablets, Laptops & Computers ...)
+    getCategories:            (includeInactive = false) =>
+        deviceApi.get(`/device-categories${includeInactive ? '?include_inactive=true' : ''}`),
+    createCategory:           (data)         => deviceApi.post('/device-categories', data),
+    updateCategory:           (id, data)     => deviceApi.put(`/device-categories/${id}`, data),
+    deleteCategory:           (id)           => deviceApi.delete(`/device-categories/${id}`),
     getDeviceById:            (id)           => deviceApi.get(`/devices/${id}`),
     createDevice:             (data)         => deviceApi.post('/devices', data),
     updateDevice:             (id, data)     => deviceApi.put(`/devices/${id}`, data),

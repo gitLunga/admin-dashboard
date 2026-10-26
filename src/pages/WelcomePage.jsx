@@ -120,7 +120,7 @@ const WelcomePage = () => {
                                 {/* CTAs */}
                                 <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
                                     <Box
-                                        component={Link} to="/register"
+                                        component={Link} to="/login"
                                         sx={{
                                             textDecoration: 'none',
                                             display: 'inline-flex', alignItems: 'center', gap: 0.8,
@@ -133,22 +133,7 @@ const WelcomePage = () => {
                                             transition: 'background-color 0.15s ease',
                                         }}
                                     >
-                                        Get Started <ArrowIcon sx={{ fontSize: 16 }} />
-                                    </Box>
-                                    <Box
-                                        component={Link} to="/login"
-                                        sx={{
-                                            textDecoration: 'none',
-                                            display: 'inline-flex', alignItems: 'center',
-                                            px: 3, py: 1.4, borderRadius: '12px',
-                                            color: T.accent, fontWeight: 700, fontSize: '0.9rem',
-                                            fontFamily: 'Plus Jakarta Sans, sans-serif',
-                                            border: `1.5px solid ${T.border}`,
-                                            '&:hover': { bgcolor: T.accentSoft, borderColor: T.accent },
-                                            transition: 'all 0.15s ease',
-                                        }}
-                                    >
-                                        Sign In
+                                        Sign In <ArrowIcon sx={{ fontSize: 16 }} />
                                     </Box>
                                 </Box>
                             </Box>
@@ -269,7 +254,7 @@ const WelcomePage = () => {
                             Ready to get started?
                         </Typography>
                         <Typography sx={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.72)', mb: 3.5, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                            Already have an account? Sign in, or register for system access.
+                            Staff accounts are created by a system administrator. Sign in to continue.
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', flexWrap: 'wrap' }}>
                             <Box
@@ -284,20 +269,6 @@ const WelcomePage = () => {
                                 }}
                             >
                                 Sign In
-                            </Box>
-                            <Box
-                                component={Link} to="/register"
-                                sx={{
-                                    textDecoration: 'none', px: 3, py: 1.3, borderRadius: '11px',
-                                    bgcolor: 'transparent', color: '#fff',
-                                    fontWeight: 700, fontSize: '0.88rem',
-                                    fontFamily: 'Plus Jakarta Sans, sans-serif',
-                                    border: '1.5px solid rgba(255,255,255,0.4)',
-                                    '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' },
-                                    transition: 'background-color 0.15s',
-                                }}
-                            >
-                                Register
                             </Box>
                         </Box>
                     </Box>
