@@ -15,8 +15,11 @@ import {
     People as PeopleIcon,
     Delete as DeleteIcon,
     Warning as WarningIcon,
+    Sync as SyncIcon,
 } from '@mui/icons-material';
 import { adminAPI } from '../../services/api';
+import { useAuthConfig } from '../../hooks/useAuthConfig';
+import DirectorySyncDialog from './DirectorySyncDialog';
 
 /* ── Shared design tokens ── */
 const T = {
@@ -276,8 +279,16 @@ function DeleteDialog({ open, user, onClose, onDeleted }) {
 }
 
 /* ── Main component ──────────────────────────────────────────────────────── */
+// The signed-in Admin, from what the login stored.
+const getCurrentUser = () => {
+    try { return JSON.parse(localStorage.getItem('adminUser') || '{}'); } catch { return {}; }
+};
+
 const ClientUsers = () => {
     const theme   = useTheme();
+    const { config } = useAuthConfig();
+    const [syncOpen, setSyncOpen] = useState(false);
+    const isSuperAdmin = getCurrentUser()?.is_super_admin === true;
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
     const [users, setUsers]               = useState([]);
@@ -292,9 +303,9 @@ const ClientUsers = () => {
     const [editUser, setEditUser]         = useState(null);
     const [deleteUser, setDeleteUser]     = useState(null);
 
-    const fetchClientUsers = useCallback(async () => {
+    const loadClientUsers = useCallback(async (showSpinner) => {
         try {
-            setLoading(true);
+            if (showSpinner) setLoading(true);
             const response = await adminAPI.getClientUsers();
             setUsers(response.data.data.users);
         } catch (err) {
@@ -303,6 +314,9 @@ const ClientUsers = () => {
             setLoading(false);
         }
     }, []);
+    const fetchClientUsers = useCallback(() => loadClientUsers(true), [loadClientUsers]);
+    // After an import the list refreshes behind the open dialog; a full-page spinner would close and reset it.
+    const refreshClientUsers = useCallback(() => loadClientUsers(false), [loadClientUsers]);
 
     useEffect(() => { fetchClientUsers(); }, [fetchClientUsers]);
 
@@ -361,10 +375,25 @@ const ClientUsers = () => {
                         Manage and review all judicial system client users
                     </Typography>
                 </Box>
-                <Chip
-                    label={`${filteredUsers.length} user${filteredUsers.length !== 1 ? 's' : ''}`}
-                    sx={{ bgcolor: T.accentSoft, color: T.accent, fontWeight: 700, fontSize: '0.78rem', height: 32, fontFamily: 'JetBrains Mono, monospace' }}
-                />
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {config.directory && isSuperAdmin && (
+                        <Button variant="outlined"
+                            startIcon={<SyncIcon sx={{ fontSize: '16px !important' }} />}
+                            onClick={() => setSyncOpen(true)}
+                            sx={{
+                                borderRadius: '10px', textTransform: 'none', fontWeight: 700,
+                                fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.83rem',
+                                color: T.accent, borderColor: T.border,
+                                '&:hover': { borderColor: T.accent, bgcolor: T.accentSoft },
+                            }}>
+                            Sync from directory
+                        </Button>
+                    )}
+                    <Chip
+                        label={`${filteredUsers.length} user${filteredUsers.length !== 1 ? 's' : ''}`}
+                        sx={{ bgcolor: T.accentSoft, color: T.accent, fontWeight: 700, fontSize: '0.78rem', height: 32, fontFamily: 'JetBrains Mono, monospace' }}
+                    />
+                </Box>
             </Box>
 
             {/* ── Search & Filters ── */}
@@ -584,6 +613,8 @@ const ClientUsers = () => {
                 onClose={() => setDeleteUser(null)}
                 onDeleted={fetchClientUsers}
             />
+
+            <DirectorySyncDialog open={syncOpen} scope="clients" onClose={() => setSyncOpen(false)} onApplied={refreshClientUsers} />
         </Box>
     );
 };

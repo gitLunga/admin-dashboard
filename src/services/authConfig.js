@@ -11,6 +11,7 @@ export const LOCAL_AUTH = Object.freeze({
     loginMethod: 'password',
     selfRegistration: true,
     passwordManagedLocally: true,
+    clientRegistration: true,
     usernameLabel: 'Email',
 });
 

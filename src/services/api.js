@@ -118,7 +118,9 @@ export const adminAPI = {
     deleteOperationalUser:          (id)        => api.delete(`/operational-users/${id}`),
     changeOperationalUserPassword:  (id, data)  =>
         api.patch(`/operational-users/${id}/change-password`, data),
-    syncDirectory:                  (dryRun)    => api.post(`/directory/sync?dryRun=${dryRun ? 'true' : 'false'}`),
+    // scope: 'staff' (the default sync) or 'clients' (import the people in the directory as clients)
+    syncDirectory:                  (dryRun, scope) =>
+        api.post(`/directory/sync?dryRun=${dryRun ? 'true' : 'false'}${scope ? `&scope=${encodeURIComponent(scope)}` : ''}`),
     promoteToSuperAdmin:            (id)        => api.patch(`/operational-users/${id}/promote`),
     demoteSuperAdmin:               (id)        => api.patch(`/operational-users/${id}/demote`),
     setGlobalAccess:                (id, val)   => api.patch(`/operational-users/${id}/global-access`, { has_global_access: val }),
